@@ -1,0 +1,56 @@
+function getEntry(history, stage) {
+  return history.find((entry) => entry.stage === stage);
+}
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+export default function WorkflowTimeline({ stages, currentStage, history }) {
+  const currentIndex = stages.indexOf(currentStage);
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Workflow</p>
+          <h2>Procurement lifecycle</h2>
+        </div>
+      </div>
+      <div className="timeline">
+        {stages.map((stage, index) => {
+          const state =
+            index < currentIndex ? "done" : index === currentIndex ? "active" : "queued";
+          const entry = getEntry(history, stage);
+
+          return (
+            <article className={`timeline-card ${state}`} key={stage}>
+              <span className="timeline-index">{String(index + 1).padStart(2, "0")}</span>
+              <div>
+                <h3>{stage}</h3>
+                <p>
+                  {state === "done"
+                    ? "Completed"
+                    : state === "active"
+                      ? "In progress"
+                      : "Waiting"}
+                </p>
+                {entry?.actor ? (
+                  <small>
+                    {entry.actor} · {entry.actorRoleLabel}
+                  </small>
+                ) : null}
+                {entry?.updatedAt ? <small>{formatDate(entry.updatedAt)}</small> : null}
+                {entry?.comment ? <small>{entry.comment}</small> : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
