@@ -79,7 +79,12 @@ Set Vercel project root to `client` and add:
 
 - `VITE_API_URL=https://your-render-service.onrender.com/api`
 
-The file `client/vercel.json` already rewrites routes to `index.html`.
+The file [`client/vercel.json`](/Users/jerryaustria/Documents/Januarius-app/client/vercel.json)
+already sets:
+
+- `buildCommand` = `npm run build`
+- `outputDirectory` = `dist`
+- SPA rewrites to `index.html`
 
 If you deploy from the repo root instead of setting `client` as the Root Directory, the root
 `build` script now installs the frontend dependencies first so Vercel can still build successfully.
