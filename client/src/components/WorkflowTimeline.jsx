@@ -12,6 +12,7 @@ function formatDate(value) {
 
 export default function WorkflowTimeline({ stages, currentStage, history }) {
   const currentIndex = stages.indexOf(currentStage);
+  const completedCount = currentIndex < 0 ? 0 : currentIndex;
 
   return (
     <section className="panel">
@@ -20,6 +21,9 @@ export default function WorkflowTimeline({ stages, currentStage, history }) {
           <p className="eyebrow">Workflow</p>
           <h2>Procurement lifecycle</h2>
         </div>
+        <span className="panel-counter">
+          {completedCount}/{stages.length} complete
+        </span>
       </div>
       <div className="timeline">
         {stages.map((stage, index) => {

@@ -28,15 +28,23 @@ export default function RequestSummary({ item }) {
         <div>
           <p className="eyebrow">Purchase Request</p>
           <h1>{item.requestNumber}</h1>
+          <p className="summary-title">{item.title}</p>
         </div>
         <span className="status-pill">{item.currentStage}</span>
       </div>
 
-      <div className="summary-grid">
+      <div className="summary-banner">
         <div>
-          <span>Request</span>
-          <strong>{item.title}</strong>
+          <span>Procurement status</span>
+          <strong>{item.status === "completed" ? "Completed and ready for filing archive" : "Actively moving through approvals"}</strong>
         </div>
+        <div>
+          <span>Requester</span>
+          <strong>{item.requester}</strong>
+        </div>
+      </div>
+
+      <div className="summary-grid">
         <div>
           <span>Category</span>
           <strong>{item.category}</strong>

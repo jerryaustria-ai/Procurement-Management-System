@@ -1,6 +1,8 @@
 import { Router } from "express";
+import fs from "fs";
 import { getAllowedRoles, getNextStage, isTerminalStage, workflowStages } from "../config/workflow.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+import { uploadSingleDocument } from "../middleware/upload.js";
 import { PurchaseRequest } from "../models/PurchaseRequest.js";
 import { serializePurchaseRequest } from "../utils/serializers.js";
 
@@ -70,6 +72,54 @@ router.post("/purchase-requests", async (req, res) => {
   return res.status(201).json(serializePurchaseRequest(created));
 });
 
+router.patch("/purchase-requests/:id", requireRole("admin"), async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  const editableFields = [
+    "title",
+    "description",
+    "category",
+    "department",
+    "currency",
+    "priority",
+    "deliveryAddress",
+    "paymentTerms",
+    "supplier",
+    "poNumber",
+    "invoiceNumber",
+    "paymentReference",
+    "notes",
+    "currentStage",
+    "status",
+    "inspectionStatus"
+  ];
+
+  for (const field of editableFields) {
+    if (typeof req.body[field] === "string") {
+      request[field] = req.body[field];
+    }
+  }
+
+  if (typeof req.body.amount !== "undefined") {
+    request.amount = Number(req.body.amount);
+  }
+
+  if (typeof req.body.dateNeeded !== "undefined") {
+    request.dateNeeded = req.body.dateNeeded || null;
+  }
+
+  if (typeof req.body.deliveryDate !== "undefined") {
+    request.deliveryDate = req.body.deliveryDate || null;
+  }
+
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
 router.patch("/purchase-requests/:id/advance", async (req, res) => {
   const request = await PurchaseRequest.findById(req.params.id);
 
@@ -135,6 +185,102 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
 
   await request.save();
   return res.json(serializePurchaseRequest(request));
+});
+
+router.post("/purchase-requests/:id/documents", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  const canUpload =
+    req.user.role === "admin" ||
+    req.user.email === request.requesterEmail ||
+    getAllowedRoles(request.currentStage).includes(req.user.role);
+
+  if (!canUpload) {
+    return res.status(403).json({ message: "Your role cannot upload documents for this request." });
+  }
+
+  uploadSingleDocument(req, res, async (error) => {
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Document file is required." });
+    }
+
+    const documentType = req.body.type || "other";
+    const allowedTypes = ["po", "invoice", "delivery", "inspection", "other"];
+
+    if (!allowedTypes.includes(documentType)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ message: "Invalid document type." });
+    }
+
+    const label = req.body.label?.trim() || req.file.originalname;
+
+    request.documents.push({
+      type: documentType,
+      label,
+      originalName: req.file.originalname,
+      fileName: req.file.filename,
+      filePath: `/uploads/${req.file.filename}`,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      uploadedBy: req.user.name,
+      uploadedByRole: req.user.role,
+      uploadedAt: new Date()
+    });
+
+    await request.save();
+    return res.status(201).json(serializePurchaseRequest(request));
+  });
+});
+
+router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  const document = request.documents.id(req.params.documentId);
+  if (!document) {
+    return res.status(404).json({ message: "Document not found." });
+  }
+
+  const canDelete =
+    req.user.role === "admin" ||
+    document.uploadedBy === req.user.name ||
+    getAllowedRoles(request.currentStage).includes(req.user.role);
+
+  if (!canDelete) {
+    return res.status(403).json({ message: "Your role cannot delete this document." });
+  }
+
+  const filePath = document.filePath?.replace("/uploads/", "");
+  document.deleteOne();
+  await request.save();
+
+  if (filePath) {
+    fs.unlink(`uploads/${filePath}`, () => {});
+  }
+
+  return res.status(204).send();
+});
+
+router.delete("/purchase-requests/:id", requireRole("admin"), async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  await request.deleteOne();
+  return res.status(204).send();
 });
 
 export default router;

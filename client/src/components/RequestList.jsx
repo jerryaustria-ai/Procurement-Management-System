@@ -4,8 +4,9 @@ export default function RequestList({ items, selectedId, onSelect }) {
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Requests</p>
-          <h2>Saved in MongoDB</h2>
+          <h2>Request Registry</h2>
         </div>
+        <span className="panel-counter">{items.length} total</span>
       </div>
 
       <div className="request-list">
@@ -16,11 +17,16 @@ export default function RequestList({ items, selectedId, onSelect }) {
             className={`request-list-item ${selectedId === item.id ? "selected" : ""}`}
             onClick={() => onSelect(item.id)}
           >
-            <strong>{item.requestNumber}</strong>
+            <div className="request-list-topline">
+              <strong>{item.requestNumber}</strong>
+              <span className={`mini-pill priority-${item.priority}`}>{item.priorityLabel}</span>
+            </div>
             <span>{item.title}</span>
-            <small>
-              {item.currentStage} · {item.priorityLabel}
-            </small>
+            <small>{item.department}</small>
+            <div className="request-list-footer">
+              <small>{item.currentStage}</small>
+              <small>{item.status === "completed" ? "Closed" : "Open"}</small>
+            </div>
           </button>
         ))}
         {items.length === 0 ? (

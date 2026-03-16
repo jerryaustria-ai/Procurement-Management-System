@@ -17,6 +17,8 @@ Procurement workflow app para sa:
 - Track supplier, PO number, invoice number, inspection result, and payment reference
 - Move requests through the full procurement lifecycle with stage-based role permissions
 - Persist all requests and history in MongoDB
+- Admin CRUD for users and purchase requests
+- Upload and view PO, invoice, delivery, and inspection documents per request
 
 ## Local setup
 

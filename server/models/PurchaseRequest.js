@@ -13,6 +13,26 @@ const historySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const documentSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["po", "invoice", "delivery", "inspection", "other"],
+      required: true
+    },
+    label: { type: String, required: true },
+    originalName: { type: String, required: true },
+    fileName: { type: String, required: true },
+    filePath: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    size: { type: Number, required: true },
+    uploadedBy: { type: String, required: true },
+    uploadedByRole: { type: String, required: true },
+    uploadedAt: { type: Date, required: true, default: Date.now }
+  },
+  { _id: true }
+);
+
 const purchaseRequestSchema = new mongoose.Schema(
   {
     requestNumber: { type: String, required: true, unique: true },
@@ -46,7 +66,8 @@ const purchaseRequestSchema = new mongoose.Schema(
     currentStage: { type: String, enum: workflowStages, required: true },
     status: { type: String, enum: ["open", "completed"], default: "open" },
     notes: { type: String, default: "" },
-    history: [historySchema]
+    history: [historySchema],
+    documents: [documentSchema]
   },
   { timestamps: true }
 );

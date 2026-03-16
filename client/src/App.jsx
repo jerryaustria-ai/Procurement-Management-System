@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import ActionPanel from "./components/ActionPanel.jsx";
 import CreateRequestForm from "./components/CreateRequestForm.jsx";
+import DocumentPanel from "./components/DocumentPanel.jsx";
 import LoginForm from "./components/LoginForm.jsx";
+import RequestAdminPanel from "./components/RequestAdminPanel.jsx";
 import RequestList from "./components/RequestList.jsx";
 import RequestSummary from "./components/RequestSummary.jsx";
+import UserManagementPanel from "./components/UserManagementPanel.jsx";
 import WorkflowTimeline from "./components/WorkflowTimeline.jsx";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
 function getStoredSession() {
   try {
@@ -29,6 +33,54 @@ function getInitialRequestForm(department = "") {
     deliveryAddress: "",
     paymentTerms: "Net 30",
     notes: ""
+  };
+}
+
+function getInitialUserForm() {
+  return {
+    name: "",
+    email: "",
+    role: "requester",
+    department: "",
+    password: ""
+  };
+}
+
+function getRequestAdminForm(item) {
+  if (!item) {
+    return {
+      title: "",
+      description: "",
+      category: "",
+      department: "",
+      amount: "",
+      priority: "medium",
+      status: "open",
+      currentStage: "",
+      inspectionStatus: "pending",
+      supplier: "",
+      poNumber: "",
+      invoiceNumber: "",
+      paymentReference: "",
+      notes: ""
+    };
+  }
+
+  return {
+    title: item.title ?? "",
+    description: item.description ?? "",
+    category: item.category ?? "",
+    department: item.department ?? "",
+    amount: String(item.amount ?? ""),
+    priority: item.priority ?? "medium",
+    status: item.status ?? "open",
+    currentStage: item.currentStage ?? "",
+    inspectionStatus: item.inspectionStatus ?? "pending",
+    supplier: item.supplier === "Pending selection" ? "" : item.supplier ?? "",
+    poNumber: item.poNumber ?? "",
+    invoiceNumber: item.invoiceNumber ?? "",
+    paymentReference: item.paymentReference ?? "",
+    notes: item.notes ?? ""
   };
 }
 
@@ -63,7 +115,9 @@ export default function App() {
   });
   const [items, setItems] = useState([]);
   const [stages, setStages] = useState([]);
+  const [users, setUsers] = useState([]);
   const [selectedId, setSelectedId] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [actionForm, setActionForm] = useState({
     supplier: "",
     notes: "",
@@ -76,16 +130,35 @@ export default function App() {
   const [requestForm, setRequestForm] = useState(() =>
     getInitialRequestForm(session?.user?.department || "")
   );
+  const [uploadForm, setUploadForm] = useState({
+    type: "po",
+    label: "",
+    file: null
+  });
+  const [requestAdminForm, setRequestAdminForm] = useState(() => getRequestAdminForm(null));
+  const [userForm, setUserForm] = useState(getInitialUserForm());
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [userError, setUserError] = useState("");
 
+  const isAdmin = session?.user?.role === "admin";
   const selectedItem = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+  const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
   const dashboardStats = getDashboardStats(items);
+  const canManageDocuments = Boolean(
+    selectedItem &&
+      session?.user &&
+      (session.user.role === "admin" ||
+        session.user.email === selectedItem.requesterEmail ||
+        selectedItem.allowedRoles.includes(session.user.role))
+  );
 
   useEffect(() => {
     if (!selectedItem) {
+      setRequestAdminForm(getRequestAdminForm(null));
       return;
     }
 
@@ -98,8 +171,29 @@ export default function App() {
       deliveryDate: selectedItem.deliveryDate ? selectedItem.deliveryDate.slice(0, 10) : "",
       inspectionStatus: selectedItem.inspectionStatus ?? "pending"
     });
+    setRequestAdminForm(getRequestAdminForm(selectedItem));
+    setUploadForm((current) => ({
+      ...current,
+      label: "",
+      file: null
+    }));
     setSelectedId(selectedItem.id);
   }, [selectedItem]);
+
+  useEffect(() => {
+    if (!selectedUser) {
+      setUserForm(getInitialUserForm());
+      return;
+    }
+
+    setUserForm({
+      name: selectedUser.name,
+      email: selectedUser.email,
+      role: selectedUser.role,
+      department: selectedUser.department ?? "",
+      password: ""
+    });
+  }, [selectedUser]);
 
   useEffect(() => {
     if (!session?.token) {
@@ -108,30 +202,54 @@ export default function App() {
 
     localStorage.setItem("procurement-session", JSON.stringify(session));
     setRequestForm(getInitialRequestForm(session.user.department || ""));
-    void loadWorkflows(session.token);
+    void loadDashboard(session.token, session.user.role);
   }, [session]);
 
-  async function loadWorkflows(token) {
+  async function loadDashboard(token, role) {
     setIsLoading(true);
     setActionError("");
+    setUserError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/workflows/purchase-requests`, {
+      const workflowPromise = fetch(`${API_BASE_URL}/workflows/purchase-requests`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
+      const userPromise =
+        role === "admin"
+          ? fetch(`${API_BASE_URL}/users`, {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            })
+          : Promise.resolve(null);
 
-      if (!response.ok) {
-        throw new Error("Unable to load");
+      const [workflowResponse, userResponse] = await Promise.all([workflowPromise, userPromise]);
+
+      if (!workflowResponse.ok) {
+        throw new Error("Unable to load workflow data.");
       }
 
-      const data = await response.json();
-      setStages(data.stages);
-      setItems(data.items);
-      setSelectedId((current) => current || data.items[0]?.id || "");
-    } catch (_error) {
-      setActionError("Unable to load workflow data. Check MongoDB, Render API, and CORS settings.");
+      const workflowData = await workflowResponse.json();
+      setStages(workflowData.stages);
+      setItems(workflowData.items);
+      setSelectedId((current) => current || workflowData.items[0]?.id || "");
+
+      if (userResponse) {
+        if (!userResponse.ok) {
+          throw new Error("Unable to load users.");
+        }
+
+        const userData = await userResponse.json();
+        setUsers(userData.items);
+        setSelectedUserId((current) => current || userData.items[0]?.id || "");
+      } else {
+        setUsers([]);
+        setSelectedUserId("");
+      }
+    } catch (error) {
+      setActionError(error.message || "Unable to load dashboard.");
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +297,35 @@ export default function App() {
 
   function handleActionFormChange(event) {
     setActionForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
+
+  function handleUploadFormChange(event) {
+    setUploadForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
+
+  function handleUploadFileChange(event) {
+    const file = event.target.files?.[0] ?? null;
+    setUploadForm((current) => ({
+      ...current,
+      file
+    }));
+  }
+
+  function handleRequestAdminFormChange(event) {
+    setRequestAdminForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
+
+  function handleUserFormChange(event) {
+    setUserForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
     }));
@@ -263,8 +410,280 @@ export default function App() {
     }
   }
 
+  async function handleUploadDocument() {
+    if (!selectedItem || !session?.token || !uploadForm.file) {
+      return;
+    }
+
+    setUploadError("");
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("type", uploadForm.type);
+      formData.append("label", uploadForm.label);
+      formData.append("document", uploadForm.file);
+
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/documents`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.token}`
+          },
+          body: formData
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to upload document.");
+      }
+
+      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setUploadForm({
+        type: "po",
+        label: "",
+        file: null
+      });
+    } catch (error) {
+      setUploadError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteDocument(documentId) {
+    if (!selectedItem || !session?.token) {
+      return;
+    }
+
+    const shouldDelete = window.confirm("Delete this document?");
+    if (!shouldDelete) {
+      return;
+    }
+
+    setUploadError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/documents/${documentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${session.token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to delete document.");
+      }
+
+      await loadDashboard(session.token, session.user.role);
+    } catch (error) {
+      setUploadError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSaveRequest() {
+    if (!selectedItem || !session?.token || !isAdmin) {
+      return;
+    }
+
+    setActionError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.token}`
+        },
+        body: JSON.stringify({
+          ...requestAdminForm,
+          amount: Number(requestAdminForm.amount)
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update request.");
+      }
+
+      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteRequest() {
+    if (!selectedItem || !session?.token || !isAdmin) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(`Delete ${selectedItem.requestNumber}?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    setActionError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to delete request.");
+      }
+
+      setItems((current) => current.filter((item) => item.id !== selectedItem.id));
+      setSelectedId("");
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleCreateUser() {
+    if (!session?.token || !isAdmin) {
+      return;
+    }
+
+    setUserError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.token}`
+        },
+        body: JSON.stringify(userForm)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to create user.");
+      }
+
+      setUsers((current) => [data, ...current]);
+      setSelectedUserId(data.id);
+    } catch (error) {
+      setUserError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUpdateUser() {
+    if (!session?.token || !isAdmin || !selectedUserId) {
+      return;
+    }
+
+    setUserError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${selectedUserId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.token}`
+        },
+        body: JSON.stringify(userForm)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update user.");
+      }
+
+      setUsers((current) => current.map((user) => (user.id === data.id ? data : user)));
+
+      if (session.user.id === data.id) {
+        setSession((current) => ({
+          ...current,
+          user: {
+            ...current.user,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            roleLabel: data.roleLabel,
+            department: data.department
+          }
+        }));
+      }
+    } catch (error) {
+      setUserError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!session?.token || !isAdmin || !selectedUserId) {
+      return;
+    }
+
+    const shouldDelete = window.confirm("Delete this user?");
+    if (!shouldDelete) {
+      return;
+    }
+
+    setUserError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${selectedUserId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to delete user.");
+      }
+
+      setUsers((current) => current.filter((user) => user.id !== selectedUserId));
+      setSelectedUserId("");
+      setUserForm(getInitialUserForm());
+    } catch (error) {
+      setUserError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   function handleSelect(id) {
     setSelectedId(id);
+  }
+
+  function handleSelectUser(id) {
+    setSelectedUserId(id);
+  }
+
+  function handleResetUserForm() {
+    setSelectedUserId("");
+    setUserError("");
+    setUserForm(getInitialUserForm());
   }
 
   function handleLogout() {
@@ -272,8 +691,12 @@ export default function App() {
     setSession(null);
     setItems([]);
     setStages([]);
+    setUsers([]);
     setSelectedId("");
+    setSelectedUserId("");
     setRequestForm(getInitialRequestForm(""));
+    setRequestAdminForm(getRequestAdminForm(null));
+    setUserForm(getInitialUserForm());
   }
 
   if (!session?.token) {
@@ -364,6 +787,49 @@ export default function App() {
           />
         ) : null}
       </div>
+
+      {selectedItem ? (
+        <DocumentPanel
+          item={selectedItem}
+          uploadForm={uploadForm}
+          onUploadFormChange={handleUploadFormChange}
+          onFileChange={handleUploadFileChange}
+          onUpload={handleUploadDocument}
+          onDelete={handleDeleteDocument}
+          canManage={canManageDocuments}
+          isSubmitting={isSubmitting}
+          error={uploadError}
+          apiOrigin={API_ORIGIN}
+        />
+      ) : null}
+
+      {isAdmin ? (
+        <div className="admin-stack">
+          <RequestAdminPanel
+            item={selectedItem}
+            stages={stages}
+            form={requestAdminForm}
+            onChange={handleRequestAdminFormChange}
+            onSave={handleSaveRequest}
+            onDelete={handleDeleteRequest}
+            isSubmitting={isSubmitting}
+            error={actionError}
+          />
+          <UserManagementPanel
+            users={users}
+            selectedUserId={selectedUserId}
+            onSelect={handleSelectUser}
+            form={userForm}
+            onChange={handleUserFormChange}
+            onCreate={handleCreateUser}
+            onUpdate={handleUpdateUser}
+            onDelete={handleDeleteUser}
+            onReset={handleResetUserForm}
+            isSubmitting={isSubmitting}
+            error={userError}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }
