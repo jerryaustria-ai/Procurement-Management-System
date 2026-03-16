@@ -83,6 +83,8 @@ The file `client/vercel.json` already rewrites routes to `index.html`.
 
 If you deploy from the repo root instead of setting `client` as the Root Directory, the root
 `build` script now installs the frontend dependencies first so Vercel can still build successfully.
+The root [`vercel.json`](/Users/jerryaustria/Documents/Januarius-app/vercel.json) also points Vercel
+to the correct Vite output folder: `client/dist`.
 
 ### Backend on Render
 
