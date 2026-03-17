@@ -40,8 +40,8 @@ router.post("/purchase-requests", async (req, res) => {
     notes
   } = req.body;
 
-  if (!title || !department || !amount) {
-    return res.status(400).json({ message: "Title, department, and amount are required." });
+  if (!title) {
+    return res.status(400).json({ message: "Title is required." });
   }
 
   const count = await PurchaseRequest.countDocuments();
@@ -53,10 +53,10 @@ router.post("/purchase-requests", async (req, res) => {
     description: description || "",
     category: category || "General Procurement",
     branch: branch || "Januarius Holdings",
-    department,
+    department: department || "",
     requesterName: req.user.name,
     requesterEmail: req.user.email,
-    amount: Number(amount),
+    amount: amount ? Number(amount) : 0,
     currency: currency || "PHP",
     priority: priority || "medium",
     dateNeeded: dateNeeded || null,

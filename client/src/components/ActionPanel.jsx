@@ -1,3 +1,5 @@
+import PanelExpandButton from "./PanelExpandButton.jsx";
+
 function StageField({ children }) {
   return <div className="stage-field">{children}</div>;
 }
@@ -10,14 +12,19 @@ export default function ActionPanel({
   onChange,
   onAdvance,
   isSubmitting,
-  error
+  error,
+  onExpand,
+  showExpand = true
 }) {
   const isComplete = item.currentStage === stages[stages.length - 1];
   const nextStage = stages[Math.min(stages.indexOf(item.currentStage) + 1, stages.length - 1)];
   const canAdvance = item.allowedRoles.includes(user.role);
 
   return (
-    <section className="panel action-panel">
+    <section className="panel action-panel panel-with-expand">
+      {showExpand && onExpand ? (
+        <PanelExpandButton onClick={onExpand} label="Expand stage actions" />
+      ) : null}
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Stage Actions</p>

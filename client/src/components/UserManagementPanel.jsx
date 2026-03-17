@@ -1,12 +1,19 @@
+import PanelExpandButton from "./PanelExpandButton.jsx";
+
 export default function UserManagementPanel({
   users,
   selectedUserId,
   onSelect,
   onCreateNew,
-  onEditSelected
+  onEditSelected,
+  onExpand,
+  showExpand = true
 }) {
   return (
-    <section className="panel">
+    <section className="panel panel-with-expand">
+      {showExpand && onExpand ? (
+        <PanelExpandButton onClick={onExpand} label="Expand user directory" />
+      ) : null}
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Admin Users</p>

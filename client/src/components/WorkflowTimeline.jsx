@@ -1,3 +1,5 @@
+import PanelExpandButton from "./PanelExpandButton.jsx";
+
 function getEntry(history, stage) {
   return history.find((entry) => entry.stage === stage);
 }
@@ -10,12 +12,21 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-export default function WorkflowTimeline({ stages, currentStage, history }) {
+export default function WorkflowTimeline({
+  stages,
+  currentStage,
+  history,
+  onExpand,
+  showExpand = true
+}) {
   const currentIndex = stages.indexOf(currentStage);
   const completedCount = currentIndex < 0 ? 0 : currentIndex;
 
   return (
-    <section className="panel">
+    <section className="panel panel-with-expand">
+      {showExpand && onExpand ? (
+        <PanelExpandButton onClick={onExpand} label="Expand procurement lifecycle" />
+      ) : null}
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Workflow</p>

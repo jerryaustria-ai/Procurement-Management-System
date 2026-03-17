@@ -6,14 +6,21 @@ export default function CreateRequestForm({
   quotationFileName,
   onSubmit,
   isSubmitting,
-  canCreate
+  canCreate,
+  error
 }) {
   return (
     <section className="panel action-panel">
       <div className="form-grid two-column">
         <label>
           Request title
-          <input name="title" value={form.title} onChange={onChange} placeholder="Office chairs" />
+          <input
+            name="title"
+            value={form.title}
+            onChange={onChange}
+            placeholder="Office chairs"
+            required
+          />
         </label>
 
         <label>
@@ -39,7 +46,13 @@ export default function CreateRequestForm({
 
         <label>
           Amount
-          <input name="amount" value={form.amount} onChange={onChange} placeholder="50000" />
+          <input
+            name="amount"
+            value={form.amount}
+            onChange={onChange}
+            placeholder="50000"
+            inputMode="decimal"
+          />
         </label>
 
         <label>
@@ -101,6 +114,8 @@ export default function CreateRequestForm({
       <button disabled={!canCreate || isSubmitting} onClick={onSubmit} type="button">
         {isSubmitting ? "Saving..." : "Create request"}
       </button>
+
+      {error ? <p className="error-text">{error}</p> : null}
     </section>
   );
 }

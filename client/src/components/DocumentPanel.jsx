@@ -1,3 +1,5 @@
+import PanelExpandButton from "./PanelExpandButton.jsx";
+
 function formatDate(value) {
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
@@ -28,10 +30,15 @@ export default function DocumentPanel({
   canManage,
   isSubmitting,
   error,
-  apiOrigin
+  apiOrigin,
+  onExpand,
+  showExpand = true
 }) {
   return (
-    <section className="panel action-panel">
+    <section className="panel action-panel panel-with-expand">
+      {showExpand && onExpand ? (
+        <PanelExpandButton onClick={onExpand} label="Expand documents panel" />
+      ) : null}
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Documents</p>

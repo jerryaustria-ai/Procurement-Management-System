@@ -1,3 +1,5 @@
+import PanelExpandButton from "./PanelExpandButton.jsx";
+
 function formatAmount(amount, currency) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -21,17 +23,27 @@ function formatInspectionStatus(status) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-export default function RequestSummary({ item }) {
+export default function RequestSummary({
+  item,
+  onExpand,
+  showExpand = true,
+  showHeader = true
+}) {
   return (
-    <section className="panel summary-panel">
-      <div className="summary-header">
-        <div>
-          <p className="eyebrow">Purchase Request</p>
-          <h1>{item.requestNumber}</h1>
-          <p className="summary-title">{item.title}</p>
+    <section className="panel summary-panel panel-with-expand">
+      {showExpand && onExpand ? (
+        <PanelExpandButton onClick={onExpand} label="Expand purchase request details" />
+      ) : null}
+      {showHeader ? (
+        <div className="summary-header">
+          <div>
+            <p className="eyebrow">Purchase Request</p>
+            <h1>{item.requestNumber}</h1>
+            <p className="summary-title">{item.title}</p>
+          </div>
+          <span className="status-pill">{item.currentStage}</span>
         </div>
-        <span className="status-pill">{item.currentStage}</span>
-      </div>
+      ) : null}
 
       <div className="summary-banner">
         <div>

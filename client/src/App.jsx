@@ -5,6 +5,7 @@ import CreateRequestForm from "./components/CreateRequestForm.jsx";
 import DocumentPanel from "./components/DocumentPanel.jsx";
 import LoginForm from "./components/LoginForm.jsx";
 import Modal from "./components/Modal.jsx";
+import PanelExpandButton from "./components/PanelExpandButton.jsx";
 import RequestAdminPanel from "./components/RequestAdminPanel.jsx";
 import RequestList from "./components/RequestList.jsx";
 import RequestSummary from "./components/RequestSummary.jsx";
@@ -20,6 +21,14 @@ const BRANCH_OPTIONS = [
   "Stats",
   "Januarius Performance Center"
 ];
+
+function getStoredTheme() {
+  try {
+    return localStorage.getItem("procurement-theme") || "dark";
+  } catch {
+    return "dark";
+  }
+}
 
 function getStoredSession() {
   try {
@@ -111,21 +120,6 @@ function getDashboardStats(items) {
   ];
 }
 
-function matchesSearch(item, query) {
-  const searchable = [
-    item.requestNumber,
-    item.title,
-    item.branch,
-    item.department,
-    item.currentStage,
-    item.requester
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  return searchable.includes(query.toLowerCase());
-}
-
 function formatExportDate(value) {
   if (!value) {
     return "";
@@ -143,7 +137,7 @@ function escapeCsvValue(value) {
   return `"${stringValue.replaceAll('"', '""')}"`;
 }
 
-function CompanyHeader({ isAuthenticated, user, onLogout }) {
+function CompanyHeader({ isAuthenticated, user, onLogout, theme, onThemeChange }) {
   return (
     <header className="company-header">
       <div className="brand-lockup">
@@ -157,6 +151,22 @@ function CompanyHeader({ isAuthenticated, user, onLogout }) {
       </div>
 
       <div className="header-meta">
+        <div className="theme-toggle" role="group" aria-label="Theme switcher">
+          <button
+            className={theme === "light" ? "theme-toggle-button active" : "theme-toggle-button"}
+            type="button"
+            onClick={() => onThemeChange("light")}
+          >
+            Light
+          </button>
+          <button
+            className={theme === "dark" ? "theme-toggle-button active" : "theme-toggle-button"}
+            type="button"
+            onClick={() => onThemeChange("dark")}
+          >
+            Dark
+          </button>
+        </div>
         {user ? (
           <>
             <div className="header-identity">
@@ -178,6 +188,7 @@ function CompanyHeader({ isAuthenticated, user, onLogout }) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(() => getStoredTheme());
   const [session, setSession] = useState(() => getStoredSession());
   const [credentials, setCredentials] = useState({
     email: "admin@januarius.app",
@@ -187,13 +198,6 @@ export default function App() {
   const [stages, setStages] = useState([]);
   const [users, setUsers] = useState([]);
   const [selectedId, setSelectedId] = useState("");
-  const [requestFilters, setRequestFilters] = useState({
-    query: "",
-    stage: "all",
-    status: "all",
-    requestedFrom: "",
-    requestedTo: ""
-  });
   const [selectedUserId, setSelectedUserId] = useState("");
   const [actionForm, setActionForm] = useState({
     supplier: "",
@@ -223,26 +227,16 @@ export default function App() {
   const [userError, setUserError] = useState("");
   const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] = useState(false);
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false);
+  const [isRequestDetailsModalOpen, setIsRequestDetailsModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [expandedPanel, setExpandedPanel] = useState("");
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [toasts, setToasts] = useState([]);
 
   const isAdmin = session?.user?.role === "admin";
-  const filteredItems = items.filter((item) => {
-    const matchesQuery = !requestFilters.query || matchesSearch(item, requestFilters.query);
-    const matchesStage =
-      requestFilters.stage === "all" || item.currentStage === requestFilters.stage;
-    const matchesStatus = requestFilters.status === "all" || item.status === requestFilters.status;
-    const itemDate = item.requestedAt ? new Date(item.requestedAt) : null;
-    const matchesFrom =
-      !requestFilters.requestedFrom ||
-      (itemDate && itemDate >= new Date(`${requestFilters.requestedFrom}T00:00:00`));
-    const matchesTo =
-      !requestFilters.requestedTo ||
-      (itemDate && itemDate <= new Date(`${requestFilters.requestedTo}T23:59:59`));
-
-    return matchesQuery && matchesStage && matchesStatus && matchesFrom && matchesTo;
-  });
+  const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
+  const showsInlineRequestSummary = ["approver", "admin"].includes(session?.user?.role);
+  const filteredItems = items;
   const selectedItem =
     filteredItems.find((item) => item.id === selectedId) ?? filteredItems[0] ?? null;
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
@@ -254,6 +248,11 @@ export default function App() {
         session.user.email === selectedItem.requesterEmail ||
         selectedItem.allowedRoles.includes(session.user.role))
   );
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("procurement-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!toasts.length) {
@@ -343,7 +342,9 @@ export default function App() {
     setUserForm(getInitialUserForm());
     setIsCreateRequestModalOpen(false);
     setIsEditRequestModalOpen(false);
+    setIsRequestDetailsModalOpen(false);
     setIsUserModalOpen(false);
+    setExpandedPanel("");
     setConfirmDialog(null);
   }
 
@@ -521,23 +522,6 @@ export default function App() {
     }));
   }
 
-  function handleRequestFilterChange(event) {
-    setRequestFilters((current) => ({
-      ...current,
-      [event.target.name]: event.target.value
-    }));
-  }
-
-  function handleResetFilters() {
-    setRequestFilters({
-      query: "",
-      stage: "all",
-      status: "all",
-      requestedFrom: "",
-      requestedTo: ""
-    });
-  }
-
   function handleExportCsv() {
     const headers = [
       "Request Number",
@@ -598,16 +582,6 @@ export default function App() {
       });
       return;
     }
-
-    const activeFilters = [
-      requestFilters.query ? `Search: ${requestFilters.query}` : null,
-      requestFilters.stage !== "all" ? `Stage: ${requestFilters.stage}` : null,
-      requestFilters.status !== "all" ? `Status: ${requestFilters.status}` : null,
-      requestFilters.requestedFrom ? `From: ${formatExportDate(requestFilters.requestedFrom)}` : null,
-      requestFilters.requestedTo ? `To: ${formatExportDate(requestFilters.requestedTo)}` : null
-    ]
-      .filter(Boolean)
-      .join(" | ");
 
     const exportTotalValue = filteredItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
@@ -752,7 +726,7 @@ export default function App() {
                 </div>
               </div>
               <div class="filter-row">
-                <strong>Applied filters:</strong> ${activeFilters || "All requests"}
+                <strong>Scope:</strong> All requests currently visible in the registry
               </div>
             </div>
             <div class="meta">
@@ -813,6 +787,14 @@ export default function App() {
     setIsEditRequestModalOpen(true);
   }
 
+  function openRequestDetailsModal() {
+    if (!selectedItem) {
+      return;
+    }
+
+    setIsRequestDetailsModalOpen(true);
+  }
+
   function openCreateUserModal() {
     setSelectedUserId("");
     setUserForm(getInitialUserForm());
@@ -839,8 +821,104 @@ export default function App() {
     setIsUserModalOpen(true);
   }
 
+  function openExpandedPanel(panelKey) {
+    setExpandedPanel(panelKey);
+  }
+
+  function closeExpandedPanel() {
+    setExpandedPanel("");
+  }
+
+  function renderRequestLaunch(showExpand = true) {
+    if (!selectedItem) {
+      return null;
+    }
+
+    return (
+      <section className="panel launch-card panel-with-expand">
+        {showExpand ? (
+          <PanelExpandButton
+            onClick={() => openExpandedPanel("request-launch")}
+            label="Expand purchase request panel"
+          />
+        ) : null}
+        <div>
+          <p className="eyebrow">Purchase Request</p>
+          <h2>{selectedItem.requestNumber}</h2>
+          <p className="panel-support">
+            Open the selected request in a dedicated modal for full details.
+          </p>
+        </div>
+        <button type="button" onClick={openRequestDetailsModal}>
+          Open request details
+        </button>
+      </section>
+    );
+  }
+
+  function renderAdminRequestLaunch(showExpand = true) {
+    return (
+      <section className="panel launch-card panel-with-expand">
+        {showExpand ? (
+          <PanelExpandButton
+            onClick={() => openExpandedPanel("admin-request")}
+            label="Expand admin request panel"
+          />
+        ) : null}
+        <div>
+          <p className="eyebrow">Admin Request</p>
+          <h2>Manage selected request</h2>
+          <p className="panel-support">
+            Update request metadata or remove an entry from the registry using a focused editor.
+          </p>
+        </div>
+        <button type="button" onClick={openEditRequestModal} disabled={!selectedItem}>
+          Open request editor
+        </button>
+      </section>
+    );
+  }
+
   async function handleCreateRequest() {
     if (!session?.token) {
+      return;
+    }
+
+    if (!canCreateRequest) {
+      setActionError("Your role cannot create a new purchase request.");
+      pushToast({
+        title: "Create request unavailable",
+        message: "Only requesters and system admins can create new requests.",
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
+    if (!requestForm.title.trim()) {
+      const message = "Request title is required.";
+      setActionError(message);
+      pushToast({
+        title: "Missing required fields",
+        message,
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
+    if (
+      requestForm.amount &&
+      (Number.isNaN(Number(requestForm.amount)) || Number(requestForm.amount) <= 0)
+    ) {
+      const message = "Amount must be a valid number greater than zero if provided.";
+      setActionError(message);
+      pushToast({
+        title: "Invalid amount",
+        message,
+        variant: "error",
+        duration: 4200
+      });
       return;
     }
 
@@ -856,7 +934,7 @@ export default function App() {
         },
         body: JSON.stringify({
           ...requestForm,
-          amount: Number(requestForm.amount)
+          amount: requestForm.amount ? Number(requestForm.amount) : 0
         })
       });
 
@@ -927,6 +1005,10 @@ export default function App() {
     setIsSubmitting(true);
 
     try {
+      const stageComment =
+        actionForm.notes.trim() ||
+        `${session.user.name} advanced ${selectedItem.requestNumber} to the next stage.`;
+
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/advance`,
         {
@@ -943,7 +1025,7 @@ export default function App() {
             paymentReference: actionForm.paymentReference,
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
-            comment: `${session.user.name} advanced ${selectedItem.requestNumber} to the next stage.`
+            comment: stageComment
           })
         }
       );
@@ -1333,6 +1415,11 @@ export default function App() {
     setSelectedId(id);
   }
 
+  function handleOpenRequestDetails(id) {
+    setSelectedId(id);
+    setIsRequestDetailsModalOpen(true);
+  }
+
   function handleSelectUser(id) {
     setSelectedUserId(id);
   }
@@ -1344,7 +1431,7 @@ export default function App() {
   if (!session?.token) {
     return (
       <main className="app-shell">
-        <CompanyHeader isAuthenticated={false} />
+        <CompanyHeader isAuthenticated={false} theme={theme} onThemeChange={setTheme} />
         <section className="hero">
           <p className="eyebrow">Januarius Procurement Hub</p>
           <h1>From purchase request to filing, in one workflow.</h1>
@@ -1367,21 +1454,33 @@ export default function App() {
   return (
     <main className="app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      <CompanyHeader isAuthenticated user={session.user} onLogout={handleLogout} />
+      <CompanyHeader
+        isAuthenticated
+        user={session.user}
+        onLogout={handleLogout}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
       <section className="hero">
         <div className="hero-grid">
           <div>
             <p className="eyebrow">Januarius Procurement Hub</p>
-            <h1>Purchase Request to Payment Tracking</h1>
+            <h1>
+              Purchase Request
+              <br />
+              to Payment Tracking
+            </h1>
             <p className="hero-copy">
               Role-based processing for review, approval, supplier selection, PO, delivery, invoice,
               matching, payment, and filing.
             </p>
           </div>
           <div className="toolbar-actions left hero-actions hero-actions-side">
-            <button type="button" onClick={openCreateRequestModal}>
-              New purchase request
-            </button>
+            {canCreateRequest ? (
+              <button type="button" onClick={openCreateRequestModal}>
+                New purchase request
+              </button>
+            ) : null}
             {isAdmin ? (
               <button
                 className="ghost-button"
@@ -1396,66 +1495,86 @@ export default function App() {
         </div>
       </section>
 
-      <section className="stats-grid">
-        {dashboardStats.map((stat) => (
-          <article className="panel stat-card" key={stat.label}>
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-          </article>
-        ))}
-      </section>
+      {session.user.role !== "requester" ? (
+        <section className="stats-grid">
+          {dashboardStats.map((stat) => (
+            <article className="panel stat-card" key={stat.label}>
+              <span>{stat.label}</span>
+              <strong>{stat.value}</strong>
+            </article>
+          ))}
+        </section>
+      ) : null}
 
       {actionError ? <p className="error-text">{actionError}</p> : null}
       {isLoading ? <p className="error-text">Loading workflow data...</p> : null}
 
-      <div className="layout-grid three-column">
-        <RequestList
-          items={filteredItems}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-          stages={stages}
-          filters={requestFilters}
-          onFilterChange={handleRequestFilterChange}
-          onResetFilters={handleResetFilters}
-          onExportCsv={handleExportCsv}
-          onExportPdf={handleExportPdf}
-        />
-        {selectedItem ? <RequestSummary item={selectedItem} /> : null}
-        {selectedItem ? (
-          <ActionPanel
-            item={selectedItem}
-            stages={stages}
-            user={session.user}
-            form={actionForm}
-            onChange={handleActionFormChange}
-            onAdvance={handleAdvance}
-            isSubmitting={isSubmitting}
-            error={actionError}
+      {session.user.role === "requester" ? (
+        <div className="layout-grid requester-workspace">
+          <RequestList
+            items={filteredItems}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onOpenDetails={handleOpenRequestDetails}
+            onExportCsv={handleExportCsv}
+            onExportPdf={handleExportPdf}
+            onExpand={() => openExpandedPanel("request-list")}
           />
-        ) : null}
-      </div>
+          {selectedItem ? (
+            <WorkflowTimeline
+              stages={stages}
+              currentStage={selectedItem.currentStage}
+              history={selectedItem.history}
+              onExpand={() => openExpandedPanel("workflow")}
+            />
+          ) : null}
+        </div>
+      ) : (
+        <div className="layout-grid three-column">
+          <RequestList
+            items={filteredItems}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onOpenDetails={handleOpenRequestDetails}
+            onExportCsv={handleExportCsv}
+            onExportPdf={handleExportPdf}
+            onExpand={() => openExpandedPanel("request-list")}
+          />
+          {selectedItem && showsInlineRequestSummary ? (
+            <RequestSummary
+              item={selectedItem}
+              onExpand={() => openExpandedPanel("request-summary")}
+            />
+          ) : null}
+          {selectedItem && !showsInlineRequestSummary ? (
+            renderRequestLaunch()
+          ) : null}
+          {selectedItem ? (
+            <ActionPanel
+              item={selectedItem}
+              stages={stages}
+              user={session.user}
+              form={actionForm}
+              onChange={handleActionFormChange}
+              onAdvance={handleAdvance}
+              isSubmitting={isSubmitting}
+              error={actionError}
+              onExpand={() => openExpandedPanel("stage-actions")}
+            />
+          ) : null}
+        </div>
+      )}
 
-      <div className="layout-grid modal-launch-grid">
-        <section className="panel launch-card">
-          <div>
-            <p className="eyebrow">Create</p>
-            <h2>Submit a new purchase request</h2>
-            <p className="panel-support">
-              Open a guided form to create procurement requests without leaving the dashboard.
-            </p>
-          </div>
-          <button type="button" onClick={openCreateRequestModal}>
-            Open request form
-          </button>
-        </section>
-        {selectedItem ? (
+      {session.user.role !== "requester" && selectedItem ? (
+        <div className="layout-grid modal-launch-grid">
           <WorkflowTimeline
             stages={stages}
             currentStage={selectedItem.currentStage}
             history={selectedItem.history}
+            onExpand={() => openExpandedPanel("workflow")}
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {selectedItem ? (
         <DocumentPanel
@@ -1469,29 +1588,20 @@ export default function App() {
           isSubmitting={isSubmitting}
           error={uploadError}
           apiOrigin={API_ORIGIN}
+          onExpand={() => openExpandedPanel("documents")}
         />
       ) : null}
 
       {isAdmin ? (
         <div className="admin-stack">
-          <section className="panel launch-card">
-            <div>
-              <p className="eyebrow">Admin Request</p>
-              <h2>Manage selected request</h2>
-              <p className="panel-support">
-                Update request metadata or remove an entry from the registry using a focused editor.
-              </p>
-            </div>
-            <button type="button" onClick={openEditRequestModal} disabled={!selectedItem}>
-              Open request editor
-            </button>
-          </section>
+          {renderAdminRequestLaunch()}
           <UserManagementPanel
             users={users}
             selectedUserId={selectedUserId}
             onSelect={handleSelectUser}
             onCreateNew={openCreateUserModal}
             onEditSelected={openEditUserModal}
+            onExpand={() => openExpandedPanel("user-directory")}
           />
         </div>
       ) : null}
@@ -1510,8 +1620,100 @@ export default function App() {
             quotationFileName={requestQuotationFile?.name ?? ""}
             onSubmit={handleCreateRequest}
             isSubmitting={isSubmitting}
-            canCreate={["requester", "admin"].includes(session.user.role)}
+            canCreate={canCreateRequest}
+            error={actionError}
           />
+        </Modal>
+      ) : null}
+
+      {isRequestDetailsModalOpen && selectedItem ? (
+        <Modal
+          eyebrow="Purchase Request"
+          title={selectedItem.requestNumber}
+          onClose={() => setIsRequestDetailsModalOpen(false)}
+          actions={
+            isAdmin ? (
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setIsRequestDetailsModalOpen(false);
+                  openEditRequestModal();
+                }}
+              >
+                Edit
+              </button>
+            ) : null
+          }
+        >
+          <RequestSummary item={selectedItem} showHeader={false} />
+        </Modal>
+      ) : null}
+
+      {expandedPanel ? (
+        <Modal eyebrow="Expanded Panel" title="Expanded view" onClose={closeExpandedPanel}>
+          {expandedPanel === "request-list" ? (
+            <RequestList
+              items={filteredItems}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              onOpenDetails={handleOpenRequestDetails}
+              onExportCsv={handleExportCsv}
+              onExportPdf={handleExportPdf}
+              showExpand={false}
+            />
+          ) : null}
+          {expandedPanel === "request-summary" && selectedItem ? (
+            <RequestSummary item={selectedItem} showExpand={false} />
+          ) : null}
+          {expandedPanel === "request-launch" ? renderRequestLaunch(false) : null}
+          {expandedPanel === "stage-actions" && selectedItem ? (
+            <ActionPanel
+              item={selectedItem}
+              stages={stages}
+              user={session.user}
+              form={actionForm}
+              onChange={handleActionFormChange}
+              onAdvance={handleAdvance}
+              isSubmitting={isSubmitting}
+              error={actionError}
+              showExpand={false}
+            />
+          ) : null}
+          {expandedPanel === "workflow" && selectedItem ? (
+            <WorkflowTimeline
+              stages={stages}
+              currentStage={selectedItem.currentStage}
+              history={selectedItem.history}
+              showExpand={false}
+            />
+          ) : null}
+          {expandedPanel === "documents" && selectedItem ? (
+            <DocumentPanel
+              item={selectedItem}
+              uploadForm={uploadForm}
+              onUploadFormChange={handleUploadFormChange}
+              onFileChange={handleUploadFileChange}
+              onUpload={handleUploadDocument}
+              onDelete={handleDeleteDocument}
+              canManage={canManageDocuments}
+              isSubmitting={isSubmitting}
+              error={uploadError}
+              apiOrigin={API_ORIGIN}
+              showExpand={false}
+            />
+          ) : null}
+          {expandedPanel === "admin-request" ? renderAdminRequestLaunch(false) : null}
+          {expandedPanel === "user-directory" ? (
+            <UserManagementPanel
+              users={users}
+              selectedUserId={selectedUserId}
+              onSelect={handleSelectUser}
+              onCreateNew={openCreateUserModal}
+              onEditSelected={openEditUserModal}
+              showExpand={false}
+            />
+          ) : null}
         </Modal>
       ) : null}
 

@@ -40,10 +40,10 @@ const purchaseRequestSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     category: { type: String, default: "General Procurement" },
     branch: { type: String, default: "Januarius Holdings" },
-    department: { type: String, required: true },
+    department: { type: String, default: "" },
     requesterName: { type: String, required: true },
     requesterEmail: { type: String, required: true },
-    amount: { type: Number, required: true },
+    amount: { type: Number, default: 0 },
     currency: { type: String, default: "PHP" },
     priority: {
       type: String,

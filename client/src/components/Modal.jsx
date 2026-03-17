@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export default function Modal({ title, eyebrow, onClose, children }) {
+export default function Modal({ title, eyebrow, onClose, actions, children }) {
   const shellRef = useRef(null);
 
   useEffect(() => {
@@ -69,9 +69,12 @@ export default function Modal({ title, eyebrow, onClose, children }) {
             {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
             <h2>{title}</h2>
           </div>
-          <button className="modal-close" type="button" onClick={onClose}>
-            Close
-          </button>
+          <div className="modal-actions">
+            {actions}
+            <button className="modal-close" type="button" onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
         {children}
       </div>
