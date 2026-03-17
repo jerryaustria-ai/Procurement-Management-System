@@ -1,3 +1,4 @@
+import { useState } from "react";
 import PanelExpandButton from "./PanelExpandButton.jsx";
 
 function StageField({ children }) {
@@ -11,6 +12,7 @@ export default function ActionPanel({
   form,
   supplierOptions,
   onChange,
+  onCreateSupplier = () => {},
   onAdvance,
   onBack,
   isSubmitting,
@@ -18,12 +20,27 @@ export default function ActionPanel({
   onExpand,
   showExpand = true
 }) {
+  const [isSupplierMenuOpen, setIsSupplierMenuOpen] = useState(false);
   const currentIndex = stages.indexOf(item.currentStage);
   const isFirstStage = currentIndex <= 0;
   const isComplete = item.currentStage === stages[stages.length - 1];
   const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
   const previousStage = stages[Math.max(currentIndex - 1, 0)];
   const canAdvance = item.allowedRoles.includes(user.role);
+  const normalizedSupplier = form.supplier.trim().toLowerCase();
+  const filteredSupplierOptions = supplierOptions.filter((supplier) =>
+    normalizedSupplier ? supplier.toLowerCase().includes(normalizedSupplier) : true
+  );
+
+  function handleSupplierPick(value) {
+    onChange({
+      target: {
+        name: "supplier",
+        value
+      }
+    });
+    setIsSupplierMenuOpen(false);
+  }
 
   return (
     <section className="panel action-panel panel-with-expand">
@@ -52,15 +69,44 @@ export default function ActionPanel({
                 name="supplier"
                 value={form.supplier}
                 onChange={onChange}
-                list={`supplier-options-${item.id}`}
                 placeholder="Enter supplier name"
+                autoComplete="off"
+                onFocus={() => setIsSupplierMenuOpen(true)}
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    setIsSupplierMenuOpen(false);
+                  }, 120);
+                }}
               />
-              <datalist id={`supplier-options-${item.id}`}>
-                {user.role === "admin" ? <option value="" label="Create new supplier" /> : null}
-                {supplierOptions.map((supplier) => (
-                  <option key={supplier} value={supplier} />
-                ))}
-              </datalist>
+              {isSupplierMenuOpen && (user.role === "admin" || filteredSupplierOptions.length) ? (
+                <div className="suggestion-menu">
+                  {user.role === "admin" ? (
+                    <button
+                      className="suggestion-item"
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        handleSupplierPick("");
+                      }}
+                    >
+                      Create new supplier
+                    </button>
+                  ) : null}
+                  {filteredSupplierOptions.map((supplier) => (
+                    <button
+                      key={supplier}
+                      className="suggestion-item"
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        handleSupplierPick(supplier);
+                      }}
+                    >
+                      {supplier}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </label>
           </StageField>
         ) : null}

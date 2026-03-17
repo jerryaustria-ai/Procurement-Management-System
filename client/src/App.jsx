@@ -9,6 +9,7 @@ import PanelExpandButton from "./components/PanelExpandButton.jsx";
 import RequestAdminPanel from "./components/RequestAdminPanel.jsx";
 import RequestList from "./components/RequestList.jsx";
 import RequestSummary from "./components/RequestSummary.jsx";
+import SupplierForm from "./components/SupplierForm.jsx";
 import ToastStack from "./components/ToastStack.jsx";
 import UserEditorPanel from "./components/UserEditorPanel.jsx";
 import UserManagementPanel from "./components/UserManagementPanel.jsx";
@@ -62,6 +63,17 @@ function getInitialUserForm() {
     role: "requester",
     department: "",
     password: ""
+  };
+}
+
+function getInitialSupplierForm() {
+  return {
+    name: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    address: "",
+    notes: ""
   };
 }
 
@@ -213,6 +225,7 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [stages, setStages] = useState([]);
   const [users, setUsers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [actionForm, setActionForm] = useState({
@@ -239,16 +252,19 @@ export default function App() {
   });
   const [requestAdminForm, setRequestAdminForm] = useState(() => getRequestAdminForm(null));
   const [userForm, setUserForm] = useState(getInitialUserForm());
+  const [supplierForm, setSupplierForm] = useState(getInitialSupplierForm());
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
   const [actionError, setActionError] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [userError, setUserError] = useState("");
+  const [supplierError, setSupplierError] = useState("");
   const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] = useState(false);
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false);
   const [isRequestDetailsModalOpen, setIsRequestDetailsModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState("");
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -260,8 +276,7 @@ export default function App() {
   const requesterOptions = users;
   const supplierOptions = Array.from(
     new Set(
-      items
-        .map((item) => item.supplier)
+      [...suppliers.map((supplier) => supplier.name), ...items.map((item) => item.supplier)]
         .filter((supplier) => supplier && supplier !== "Pending selection")
     )
   ).sort((left, right) => left.localeCompare(right));
@@ -392,16 +407,19 @@ export default function App() {
     setItems([]);
     setStages([]);
     setUsers([]);
+    setSuppliers([]);
     setSelectedId("");
     setSelectedUserId("");
     setRequestForm(getInitialRequestForm("", "", ""));
     setRequestQuotationFile(null);
     setRequestAdminForm(getRequestAdminForm(null));
     setUserForm(getInitialUserForm());
+    setSupplierForm(getInitialSupplierForm());
     setIsCreateRequestModalOpen(false);
     setIsEditRequestModalOpen(false);
     setIsRequestDetailsModalOpen(false);
     setIsUserModalOpen(false);
+    setIsSupplierModalOpen(false);
     setExpandedPanel("");
     setConfirmDialog(null);
   }
@@ -438,6 +456,11 @@ export default function App() {
           Authorization: `Bearer ${token}`
         }
       });
+      const supplierPromise = fetch(`${API_BASE_URL}/suppliers`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       const userPromise =
         role === "admin"
           ? fetch(`${API_BASE_URL}/users`, {
@@ -447,9 +470,17 @@ export default function App() {
             })
           : Promise.resolve(null);
 
-      const [workflowResponse, userResponse] = await Promise.all([workflowPromise, userPromise]);
+      const [workflowResponse, supplierResponse, userResponse] = await Promise.all([
+        workflowPromise,
+        supplierPromise,
+        userPromise
+      ]);
 
-      if (workflowResponse.status === 401 || userResponse?.status === 401) {
+      if (
+        workflowResponse.status === 401 ||
+        supplierResponse.status === 401 ||
+        userResponse?.status === 401
+      ) {
         handleSessionExpired();
         return;
       }
@@ -458,9 +489,15 @@ export default function App() {
         throw new Error("Unable to load workflow data.");
       }
 
+      if (!supplierResponse.ok) {
+        throw new Error("Unable to load suppliers.");
+      }
+
       const workflowData = await workflowResponse.json();
+      const supplierData = await supplierResponse.json();
       setStages(workflowData.stages);
       setItems(workflowData.items);
+      setSuppliers(supplierData.items);
       setSelectedId((current) => current || workflowData.items[0]?.id || "");
 
       if (userResponse) {
@@ -614,6 +651,13 @@ export default function App() {
 
   function handleUserFormChange(event) {
     setUserForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
+
+  function handleSupplierFormChange(event) {
+    setSupplierForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
     }));
@@ -897,6 +941,16 @@ export default function App() {
     setUserForm(getInitialUserForm());
     setUserError("");
     setIsUserModalOpen(true);
+  }
+
+  function openCreateSupplierModal() {
+    if (!isAdmin) {
+      return;
+    }
+
+    setSupplierError("");
+    setSupplierForm(getInitialSupplierForm());
+    setIsSupplierModalOpen(true);
   }
 
   function openConfirmDialog(config) {
@@ -1601,6 +1655,68 @@ export default function App() {
     });
   }
 
+  async function handleCreateSupplier() {
+    if (!session?.token || !isAdmin) {
+      return;
+    }
+
+    if (!supplierForm.name.trim()) {
+      const message = "Supplier name is required.";
+      setSupplierError(message);
+      pushToast({
+        title: "Missing supplier name",
+        message,
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
+    setSupplierError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/suppliers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.token}`
+        },
+        body: JSON.stringify(supplierForm)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to create supplier.");
+      }
+
+      setSuppliers((current) =>
+        [...current, data].sort((left, right) => left.name.localeCompare(right.name))
+      );
+      setActionForm((current) => ({
+        ...current,
+        supplier: data.name
+      }));
+      setIsSupplierModalOpen(false);
+      setSupplierForm(getInitialSupplierForm());
+      pushToast({
+        title: "Supplier created",
+        message: `${data.name} is now available in supplier suggestions.`,
+        variant: "success"
+      });
+    } catch (error) {
+      setSupplierError(error.message);
+      pushToast({
+        title: "Create supplier failed",
+        message: error.message,
+        variant: "error",
+        duration: 4200
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   function handleSelect(id) {
     setSelectedId(id);
   }
@@ -1747,6 +1863,7 @@ export default function App() {
               form={actionForm}
               supplierOptions={supplierOptions}
               onChange={handleActionFormChange}
+              onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
               onBack={handleRevert}
               isSubmitting={isSubmitting}
@@ -1844,6 +1961,18 @@ export default function App() {
         </Modal>
       ) : null}
 
+      {isSupplierModalOpen ? (
+        <Modal eyebrow="New Supplier" title="Create supplier" onClose={() => setIsSupplierModalOpen(false)}>
+          <SupplierForm
+            form={supplierForm}
+            onChange={handleSupplierFormChange}
+            onSubmit={handleCreateSupplier}
+            isSubmitting={isSubmitting}
+            error={supplierError}
+          />
+        </Modal>
+      ) : null}
+
       {expandedPanel ? (
         <Modal eyebrow="Expanded Panel" title="Expanded view" onClose={closeExpandedPanel}>
           {expandedPanel === "request-list" ? (
@@ -1869,6 +1998,7 @@ export default function App() {
               form={actionForm}
               supplierOptions={supplierOptions}
               onChange={handleActionFormChange}
+              onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
               onBack={handleRevert}
               isSubmitting={isSubmitting}
