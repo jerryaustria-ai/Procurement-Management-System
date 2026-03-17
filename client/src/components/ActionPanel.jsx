@@ -139,7 +139,7 @@ export default function ActionPanel({
       </label>
 
       <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
-        {isComplete ? "Workflow complete" : `Advance to ${nextStage}`}
+        {isComplete ? "Workflow complete" : `Approve Move to ${nextStage}`}
       </button>
 
       {!canAdvance ? (

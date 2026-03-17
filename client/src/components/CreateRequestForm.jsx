@@ -1,6 +1,8 @@
 export default function CreateRequestForm({
   form,
   branchOptions,
+  isAdmin,
+  requesterOptions,
   onChange,
   onQuotationFileChange,
   quotationFileName,
@@ -12,6 +14,24 @@ export default function CreateRequestForm({
   return (
     <section className="panel action-panel">
       <div className="form-grid two-column">
+        {isAdmin ? (
+          <label>
+            Requester
+            <select
+              name="requesterEmail"
+              value={form.requesterEmail}
+              onChange={onChange}
+            >
+              <option value="">Select a system user</option>
+              {requesterOptions.map((user) => (
+                <option key={user.id} value={user.email}>
+                  {user.name} ({user.email})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
         <label>
           Request title
           <input

@@ -4,6 +4,7 @@ import { getAllowedRoles, getNextStage, isTerminalStage, workflowStages } from "
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { uploadSingleDocument } from "../middleware/upload.js";
 import { PurchaseRequest } from "../models/PurchaseRequest.js";
+import { User } from "../models/User.js";
 import { serializePurchaseRequest } from "../utils/serializers.js";
 
 const router = Router();
@@ -26,6 +27,7 @@ router.get("/purchase-requests", async (req, res) => {
 
 router.post("/purchase-requests", async (req, res) => {
   const {
+    requesterEmail,
     title,
     description,
     category,
@@ -44,6 +46,19 @@ router.post("/purchase-requests", async (req, res) => {
     return res.status(400).json({ message: "Title is required." });
   }
 
+  let requester = req.user;
+
+  if (req.user.role === "admin") {
+    if (!requesterEmail?.trim()) {
+      return res.status(400).json({ message: "Requester must be selected from system users." });
+    }
+
+    requester = await User.findOne({ email: requesterEmail.trim().toLowerCase() });
+    if (!requester) {
+      return res.status(400).json({ message: "Selected requester was not found." });
+    }
+  }
+
   const count = await PurchaseRequest.countDocuments();
   const requestNumber = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(3, "0")}`;
 
@@ -54,8 +69,8 @@ router.post("/purchase-requests", async (req, res) => {
     category: category || "General Procurement",
     branch: branch || "Januarius Holdings",
     department: department || "",
-    requesterName: req.user.name,
-    requesterEmail: req.user.email,
+    requesterName: requester.name,
+    requesterEmail: requester.email,
     amount: amount ? Number(amount) : 0,
     currency: currency || "PHP",
     priority: priority || "medium",

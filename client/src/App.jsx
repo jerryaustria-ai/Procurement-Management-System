@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ActionPanel from "./components/ActionPanel.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import CreateRequestForm from "./components/CreateRequestForm.jsx";
@@ -16,6 +16,7 @@ import WorkflowTimeline from "./components/WorkflowTimeline.jsx";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
+const DASHBOARD_REFRESH_MS = 5000;
 const BRANCH_OPTIONS = [
   "Januarius Holdings",
   "Stats",
@@ -38,8 +39,10 @@ function getStoredSession() {
   }
 }
 
-function getInitialRequestForm(department = "") {
+function getInitialRequestForm(department = "", requesterName = "", requesterEmail = "") {
   return {
+    requesterName,
+    requesterEmail,
     title: "",
     description: "",
     branch: "Januarius Holdings",
@@ -209,7 +212,11 @@ export default function App() {
     inspectionStatus: "pending"
   });
   const [requestForm, setRequestForm] = useState(() =>
-    getInitialRequestForm(session?.user?.department || "")
+    getInitialRequestForm(
+      session?.user?.department || "",
+      session?.user?.role === "admin" ? "" : session?.user?.name || "",
+      session?.user?.role === "admin" ? "" : session?.user?.email || ""
+    )
   );
   const [requestQuotationFile, setRequestQuotationFile] = useState(null);
   const [uploadForm, setUploadForm] = useState({
@@ -232,10 +239,12 @@ export default function App() {
   const [expandedPanel, setExpandedPanel] = useState("");
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const dashboardRefreshInFlight = useRef(false);
 
   const isAdmin = session?.user?.role === "admin";
   const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
   const showsInlineRequestSummary = ["approver", "admin"].includes(session?.user?.role);
+  const requesterOptions = users;
   const filteredItems = items;
   const selectedItem =
     filteredItems.find((item) => item.id === selectedId) ?? filteredItems[0] ?? null;
@@ -324,9 +333,38 @@ export default function App() {
     }
 
     localStorage.setItem("procurement-session", JSON.stringify(session));
-    setRequestForm(getInitialRequestForm(session.user.department || ""));
+    setRequestForm(
+      getInitialRequestForm(
+        session.user.department || "",
+        session.user.role === "admin" ? "" : session.user.name || "",
+        session.user.role === "admin" ? "" : session.user.email || ""
+      )
+    );
     void loadDashboard(session.token, session.user.role);
   }, [session]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    if (!users.length) {
+      return;
+    }
+
+    setRequestForm((current) => {
+      if (current.requesterEmail && users.some((user) => user.email === current.requesterEmail)) {
+        return current;
+      }
+
+      const defaultUser = users[0];
+      return {
+        ...current,
+        requesterName: defaultUser.name,
+        requesterEmail: defaultUser.email
+      };
+    });
+  }, [isAdmin, users]);
 
   function clearSession() {
     localStorage.removeItem("procurement-session");
@@ -336,7 +374,7 @@ export default function App() {
     setUsers([]);
     setSelectedId("");
     setSelectedUserId("");
-    setRequestForm(getInitialRequestForm(""));
+    setRequestForm(getInitialRequestForm("", "", ""));
     setRequestQuotationFile(null);
     setRequestAdminForm(getRequestAdminForm(null));
     setUserForm(getInitialUserForm());
@@ -359,10 +397,20 @@ export default function App() {
     });
   }
 
-  async function loadDashboard(token, role) {
-    setIsLoading(true);
-    setActionError("");
-    setUserError("");
+  async function loadDashboard(token, role, options = {}) {
+    const { background = false } = options;
+
+    if (dashboardRefreshInFlight.current) {
+      return;
+    }
+
+    dashboardRefreshInFlight.current = true;
+
+    if (!background) {
+      setIsLoading(true);
+      setActionError("");
+      setUserError("");
+    }
 
     try {
       const workflowPromise = fetch(`${API_BASE_URL}/workflows/purchase-requests`, {
@@ -408,11 +456,40 @@ export default function App() {
         setSelectedUserId("");
       }
     } catch (error) {
-      setActionError(error.message || "Unable to load dashboard.");
+      if (!background) {
+        setActionError(error.message || "Unable to load dashboard.");
+      }
     } finally {
-      setIsLoading(false);
+      dashboardRefreshInFlight.current = false;
+      if (!background) {
+        setIsLoading(false);
+      }
     }
   }
+
+  useEffect(() => {
+    if (!session?.token) {
+      return;
+    }
+
+    const refreshDashboard = () => {
+      if (document.hidden) {
+        return;
+      }
+
+      void loadDashboard(session.token, session.user.role, { background: true });
+    };
+
+    const intervalId = window.setInterval(refreshDashboard, DASHBOARD_REFRESH_MS);
+    window.addEventListener("focus", refreshDashboard);
+    document.addEventListener("visibilitychange", refreshDashboard);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshDashboard);
+      document.removeEventListener("visibilitychange", refreshDashboard);
+    };
+  }, [session]);
 
   function handleCredentialChange(event) {
     setCredentials((current) => ({
@@ -907,6 +984,18 @@ export default function App() {
       return;
     }
 
+    if (isAdmin && !requestForm.requesterEmail) {
+      const message = "Requester must be selected from system users.";
+      setActionError(message);
+      pushToast({
+        title: "Missing requester",
+        message,
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
     if (
       requestForm.amount &&
       (Number.isNaN(Number(requestForm.amount)) || Number(requestForm.amount) <= 0)
@@ -934,6 +1023,7 @@ export default function App() {
         },
         body: JSON.stringify({
           ...requestForm,
+          requesterEmail: isAdmin ? requestForm.requesterEmail : session.user.email,
           amount: requestForm.amount ? Number(requestForm.amount) : 0
         })
       });
@@ -975,7 +1065,13 @@ export default function App() {
 
       setItems((current) => [createdRequest, ...current]);
       setSelectedId(createdRequest.id);
-      setRequestForm(getInitialRequestForm(session.user.department || ""));
+      setRequestForm(
+        getInitialRequestForm(
+          session.user.department || "",
+          session.user.role === "admin" ? "" : session.user.name || "",
+          session.user.role === "admin" ? "" : session.user.email || ""
+        )
+      );
       setRequestQuotationFile(null);
       setIsCreateRequestModalOpen(false);
       pushToast({
@@ -1615,6 +1711,8 @@ export default function App() {
           <CreateRequestForm
             form={requestForm}
             branchOptions={BRANCH_OPTIONS}
+            isAdmin={isAdmin}
+            requesterOptions={requesterOptions}
             onChange={handleRequestFormChange}
             onQuotationFileChange={handleRequestQuotationFileChange}
             quotationFileName={requestQuotationFile?.name ?? ""}
