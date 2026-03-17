@@ -1,7 +1,7 @@
 import PanelExpandButton from "./PanelExpandButton.jsx";
 
 function getEntry(history, stage) {
-  return history.find((entry) => entry.stage === stage);
+  return [...history].reverse().find((entry) => entry.stage === stage);
 }
 
 function formatDate(value) {

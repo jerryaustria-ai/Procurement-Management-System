@@ -80,6 +80,15 @@ export function getNextStage(stage) {
   return workflowStages[Math.min(currentIndex + 1, workflowStages.length - 1)];
 }
 
+export function getPreviousStage(stage) {
+  const currentIndex = workflowStages.indexOf(stage);
+  if (currentIndex <= 0) {
+    return workflowStages[0];
+  }
+
+  return workflowStages[currentIndex - 1];
+}
+
 export function isTerminalStage(stage) {
   return stage === workflowStages[workflowStages.length - 1];
 }

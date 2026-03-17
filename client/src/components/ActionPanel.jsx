@@ -11,13 +11,17 @@ export default function ActionPanel({
   form,
   onChange,
   onAdvance,
+  onBack,
   isSubmitting,
   error,
   onExpand,
   showExpand = true
 }) {
+  const currentIndex = stages.indexOf(item.currentStage);
+  const isFirstStage = currentIndex <= 0;
   const isComplete = item.currentStage === stages[stages.length - 1];
-  const nextStage = stages[Math.min(stages.indexOf(item.currentStage) + 1, stages.length - 1)];
+  const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
+  const previousStage = stages[Math.max(currentIndex - 1, 0)];
   const canAdvance = item.allowedRoles.includes(user.role);
 
   return (
@@ -138,9 +142,21 @@ export default function ActionPanel({
         />
       </label>
 
-      <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
-        {isComplete ? "Workflow complete" : `Approve Move to ${nextStage}`}
-      </button>
+      <div className="button-row">
+        {!isFirstStage ? (
+          <button
+            className="ghost-button"
+            disabled={isSubmitting || !canAdvance}
+            onClick={onBack}
+            type="button"
+          >
+            {`Back to ${previousStage}`}
+          </button>
+        ) : null}
+        <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
+          {isComplete ? "Workflow complete" : `Approve Move to ${nextStage}`}
+        </button>
+      </div>
 
       {!canAdvance ? (
         <p className="error-text">Your role cannot advance the current stage.</p>

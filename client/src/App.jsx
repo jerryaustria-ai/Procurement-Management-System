@@ -140,6 +140,19 @@ function escapeCsvValue(value) {
   return `"${stringValue.replaceAll('"', '""')}"`;
 }
 
+function parseAmountValue(value) {
+  if (value === null || typeof value === "undefined") {
+    return 0;
+  }
+
+  const normalized = String(value).replaceAll(",", "").trim();
+  if (!normalized) {
+    return 0;
+  }
+
+  return Number(normalized);
+}
+
 function CompanyHeader({ isAuthenticated, user, onLogout, theme, onThemeChange }) {
   return (
     <header className="company-header">
@@ -296,7 +309,7 @@ export default function App() {
 
     setActionForm({
       supplier: selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier,
-      notes: selectedItem.notes ?? "",
+      notes: "",
       poNumber: selectedItem.poNumber ?? "",
       invoiceNumber: selectedItem.invoiceNumber ?? "",
       paymentReference: selectedItem.paymentReference ?? "",
@@ -996,10 +1009,9 @@ export default function App() {
       return;
     }
 
-    if (
-      requestForm.amount &&
-      (Number.isNaN(Number(requestForm.amount)) || Number(requestForm.amount) <= 0)
-    ) {
+    const parsedRequestAmount = parseAmountValue(requestForm.amount);
+
+    if (requestForm.amount && (Number.isNaN(parsedRequestAmount) || parsedRequestAmount <= 0)) {
       const message = "Amount must be a valid number greater than zero if provided.";
       setActionError(message);
       pushToast({
@@ -1024,7 +1036,7 @@ export default function App() {
         body: JSON.stringify({
           ...requestForm,
           requesterEmail: isAdmin ? requestForm.requesterEmail : session.user.email,
-          amount: requestForm.amount ? Number(requestForm.amount) : 0
+          amount: parsedRequestAmount
         })
       });
 
@@ -1115,7 +1127,6 @@ export default function App() {
           },
           body: JSON.stringify({
             supplier: actionForm.supplier || undefined,
-            notes: actionForm.notes,
             poNumber: actionForm.poNumber,
             invoiceNumber: actionForm.invoiceNumber,
             paymentReference: actionForm.paymentReference,
@@ -1132,6 +1143,10 @@ export default function App() {
       }
 
       setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setActionForm((current) => ({
+        ...current,
+        notes: ""
+      }));
       pushToast({
         title: "Stage advanced",
         message: `${data.requestNumber} moved to ${data.currentStage}.`,
@@ -1141,6 +1156,61 @@ export default function App() {
       setActionError(error.message);
       pushToast({
         title: "Advance failed",
+        message: error.message,
+        variant: "error",
+        duration: 4200
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleRevert() {
+    if (!selectedItem || !session?.token) {
+      return;
+    }
+
+    setActionError("");
+    setIsSubmitting(true);
+
+    try {
+      const stageComment =
+        actionForm.notes.trim() ||
+        `${session.user.name} moved ${selectedItem.requestNumber} back to the previous stage.`;
+
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/revert`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.token}`
+          },
+          body: JSON.stringify({
+            comment: stageComment
+          })
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to move request back.");
+      }
+
+      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setActionForm((current) => ({
+        ...current,
+        notes: ""
+      }));
+      pushToast({
+        title: "Stage moved back",
+        message: `${data.requestNumber} returned to ${data.currentStage}.`,
+        variant: "success"
+      });
+    } catch (error) {
+      setActionError(error.message);
+      pushToast({
+        title: "Move back failed",
         message: error.message,
         variant: "error",
         duration: 4200
@@ -1260,6 +1330,23 @@ export default function App() {
       return;
     }
 
+    const parsedRequestAmount = parseAmountValue(requestAdminForm.amount);
+
+    if (
+      requestAdminForm.amount &&
+      (Number.isNaN(parsedRequestAmount) || parsedRequestAmount < 0)
+    ) {
+      const message = "Amount must be a valid number if provided.";
+      setActionError(message);
+      pushToast({
+        title: "Invalid amount",
+        message,
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
     setActionError("");
     setIsSubmitting(true);
 
@@ -1272,7 +1359,7 @@ export default function App() {
         },
         body: JSON.stringify({
           ...requestAdminForm,
-          amount: Number(requestAdminForm.amount)
+          amount: parsedRequestAmount
         })
       });
 
@@ -1653,6 +1740,7 @@ export default function App() {
               form={actionForm}
               onChange={handleActionFormChange}
               onAdvance={handleAdvance}
+              onBack={handleRevert}
               isSubmitting={isSubmitting}
               error={actionError}
               onExpand={() => openExpandedPanel("stage-actions")}
@@ -1773,6 +1861,7 @@ export default function App() {
               form={actionForm}
               onChange={handleActionFormChange}
               onAdvance={handleAdvance}
+              onBack={handleRevert}
               isSubmitting={isSubmitting}
               error={actionError}
               showExpand={false}

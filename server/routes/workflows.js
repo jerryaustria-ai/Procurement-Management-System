@@ -1,6 +1,12 @@
 import { Router } from "express";
 import fs from "fs";
-import { getAllowedRoles, getNextStage, isTerminalStage, workflowStages } from "../config/workflow.js";
+import {
+  getAllowedRoles,
+  getNextStage,
+  getPreviousStage,
+  isTerminalStage,
+  workflowStages
+} from "../config/workflow.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { uploadSingleDocument } from "../middleware/upload.js";
 import { PurchaseRequest } from "../models/PurchaseRequest.js";
@@ -10,6 +16,19 @@ import { serializePurchaseRequest } from "../utils/serializers.js";
 const router = Router();
 
 router.use(requireAuth);
+
+function parseAmountValue(value) {
+  if (value === null || typeof value === "undefined") {
+    return 0;
+  }
+
+  const normalized = String(value).replaceAll(",", "").trim();
+  if (!normalized) {
+    return 0;
+  }
+
+  return Number(normalized);
+}
 
 function isRequesterAccessingOwnRequest(req, request) {
   return req.user.role !== "requester" || request.requesterEmail === req.user.email;
@@ -61,6 +80,11 @@ router.post("/purchase-requests", async (req, res) => {
 
   const count = await PurchaseRequest.countDocuments();
   const requestNumber = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(3, "0")}`;
+  const parsedAmount = parseAmountValue(amount);
+
+  if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
+    return res.status(400).json({ message: "Amount must be a valid number." });
+  }
 
   const created = await PurchaseRequest.create({
     requestNumber,
@@ -71,7 +95,7 @@ router.post("/purchase-requests", async (req, res) => {
     department: department || "",
     requesterName: requester.name,
     requesterEmail: requester.email,
-    amount: amount ? Number(amount) : 0,
+    amount: parsedAmount,
     currency: currency || "PHP",
     priority: priority || "medium",
     dateNeeded: dateNeeded || null,
@@ -128,7 +152,11 @@ router.patch("/purchase-requests/:id", requireRole("admin"), async (req, res) =>
   }
 
   if (typeof req.body.amount !== "undefined") {
-    request.amount = Number(req.body.amount);
+    const parsedAmount = parseAmountValue(req.body.amount);
+    if (req.body.amount !== "" && Number.isNaN(parsedAmount)) {
+      return res.status(400).json({ message: "Amount must be a valid number." });
+    }
+    request.amount = parsedAmount;
   }
 
   if (typeof req.body.dateNeeded !== "undefined") {
@@ -209,6 +237,50 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
   if (isTerminalStage(nextStage)) {
     request.status = "completed";
   }
+
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
+router.patch("/purchase-requests/:id/revert", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
+  }
+
+  const allowedRoles = getAllowedRoles(request.currentStage);
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      message: `Role ${req.user.role} cannot move back the ${request.currentStage} stage.`
+    });
+  }
+
+  const previousStage = getPreviousStage(request.currentStage);
+  if (previousStage === request.currentStage) {
+    return res.status(400).json({ message: "This request is already at the first stage." });
+  }
+
+  request.history = request.history.map((entry) =>
+    entry.stage === request.currentStage && entry.status === "current"
+      ? { ...entry.toObject(), status: "reverted" }
+      : entry
+  );
+
+  request.currentStage = previousStage;
+  request.status = "open";
+  request.history.push({
+    stage: previousStage,
+    status: "current",
+    updatedAt: new Date(),
+    actor: req.user.name,
+    actorRole: req.user.role,
+    comment: req.body.comment || `Moved back to ${previousStage}`
+  });
 
   await request.save();
   return res.json(serializePurchaseRequest(request));
