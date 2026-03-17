@@ -4,7 +4,7 @@ import { priorityLabels, workflowStages } from "../config/workflow.js";
 const historySchema = new mongoose.Schema(
   {
     stage: { type: String, required: true },
-    status: { type: String, enum: ["completed", "current", "ready"], required: true },
+    status: { type: String, enum: ["completed", "current", "ready", "reverted"], required: true },
     updatedAt: { type: Date, required: true, default: Date.now },
     actor: { type: String, required: true },
     actorRole: { type: String, required: true },
