@@ -9,6 +9,7 @@ export default function ActionPanel({
   stages,
   user,
   form,
+  supplierOptions,
   onChange,
   onAdvance,
   onBack,
@@ -51,8 +52,15 @@ export default function ActionPanel({
                 name="supplier"
                 value={form.supplier}
                 onChange={onChange}
+                list={`supplier-options-${item.id}`}
                 placeholder="Enter supplier name"
               />
+              <datalist id={`supplier-options-${item.id}`}>
+                {user.role === "admin" ? <option value="" label="Create new supplier" /> : null}
+                {supplierOptions.map((supplier) => (
+                  <option key={supplier} value={supplier} />
+                ))}
+              </datalist>
             </label>
           </StageField>
         ) : null}

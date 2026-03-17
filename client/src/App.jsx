@@ -258,6 +258,13 @@ export default function App() {
   const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
   const showsInlineRequestSummary = ["approver", "admin"].includes(session?.user?.role);
   const requesterOptions = users;
+  const supplierOptions = Array.from(
+    new Set(
+      items
+        .map((item) => item.supplier)
+        .filter((supplier) => supplier && supplier !== "Pending selection")
+    )
+  ).sort((left, right) => left.localeCompare(right));
   const filteredItems = items;
   const selectedItem =
     filteredItems.find((item) => item.id === selectedId) ?? filteredItems[0] ?? null;
@@ -1738,6 +1745,7 @@ export default function App() {
               stages={stages}
               user={session.user}
               form={actionForm}
+              supplierOptions={supplierOptions}
               onChange={handleActionFormChange}
               onAdvance={handleAdvance}
               onBack={handleRevert}
@@ -1859,6 +1867,7 @@ export default function App() {
               stages={stages}
               user={session.user}
               form={actionForm}
+              supplierOptions={supplierOptions}
               onChange={handleActionFormChange}
               onAdvance={handleAdvance}
               onBack={handleRevert}
