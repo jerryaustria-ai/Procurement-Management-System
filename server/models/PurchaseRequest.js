@@ -17,7 +17,7 @@ const documentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["po", "invoice", "delivery", "inspection", "other"],
+      enum: ["quotation", "po", "invoice", "delivery", "inspection", "other"],
       required: true
     },
     label: { type: String, required: true },
@@ -39,6 +39,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     title: { type: String, required: true },
     description: { type: String, default: "" },
     category: { type: String, default: "General Procurement" },
+    branch: { type: String, default: "Januarius Holdings" },
     department: { type: String, required: true },
     requesterName: { type: String, required: true },
     requesterEmail: { type: String, required: true },

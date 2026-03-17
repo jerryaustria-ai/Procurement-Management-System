@@ -10,8 +10,13 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/purchase-requests", async (_req, res) => {
-  const items = await PurchaseRequest.find().sort({ createdAt: -1 });
+function isRequesterAccessingOwnRequest(req, request) {
+  return req.user.role !== "requester" || request.requesterEmail === req.user.email;
+}
+
+router.get("/purchase-requests", async (req, res) => {
+  const query = req.user.role === "requester" ? { requesterEmail: req.user.email } : {};
+  const items = await PurchaseRequest.find(query).sort({ createdAt: -1 });
 
   res.json({
     stages: workflowStages,
@@ -24,6 +29,7 @@ router.post("/purchase-requests", async (req, res) => {
     title,
     description,
     category,
+    branch,
     department,
     amount,
     currency,
@@ -46,6 +52,7 @@ router.post("/purchase-requests", async (req, res) => {
     title,
     description: description || "",
     category: category || "General Procurement",
+    branch: branch || "Januarius Holdings",
     department,
     requesterName: req.user.name,
     requesterEmail: req.user.email,
@@ -83,6 +90,7 @@ router.patch("/purchase-requests/:id", requireRole("admin"), async (req, res) =>
     "title",
     "description",
     "category",
+    "branch",
     "department",
     "currency",
     "priority",
@@ -125,6 +133,10 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
 
   if (!request) {
     return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
   }
 
   const allowedRoles = getAllowedRoles(request.currentStage);
@@ -194,6 +206,10 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     return res.status(404).json({ message: "Purchase request not found." });
   }
 
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
+  }
+
   const canUpload =
     req.user.role === "admin" ||
     req.user.email === request.requesterEmail ||
@@ -213,11 +229,19 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     }
 
     const documentType = req.body.type || "other";
-    const allowedTypes = ["po", "invoice", "delivery", "inspection", "other"];
+    const allowedTypes = ["quotation", "po", "invoice", "delivery", "inspection", "other"];
 
     if (!allowedTypes.includes(documentType)) {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ message: "Invalid document type." });
+    }
+
+    if (
+      documentType === "quotation" &&
+      !["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(req.file.mimetype)
+    ) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ message: "Quotation upload only accepts PDF or image files." });
     }
 
     const label = req.body.label?.trim() || req.file.originalname;
@@ -245,6 +269,10 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
 
   if (!request) {
     return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
   }
 
   const document = request.documents.id(req.params.documentId);

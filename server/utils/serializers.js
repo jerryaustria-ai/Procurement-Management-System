@@ -26,6 +26,7 @@ export function serializePurchaseRequest(request) {
     title: request.title,
     description: request.description,
     category: request.category,
+    branch: request.branch,
     department: request.department,
     requester: request.requesterName,
     requesterEmail: request.requesterEmail,

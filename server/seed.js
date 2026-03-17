@@ -134,6 +134,7 @@ async function ensureSamplePurchaseRequest() {
     title: "Office laptops for design and operations",
     description: "Six laptops with standard accessories for new hires and device refresh.",
     category: "IT Equipment",
+    branch: "Januarius Holdings",
     department: "Operations",
     requesterName: requester.name,
     requesterEmail: requester.email,

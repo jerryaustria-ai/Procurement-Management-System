@@ -15,6 +15,11 @@ import WorkflowTimeline from "./components/WorkflowTimeline.jsx";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
+const BRANCH_OPTIONS = [
+  "Januarius Holdings",
+  "Stats",
+  "Januarius Performance Center"
+];
 
 function getStoredSession() {
   try {
@@ -28,14 +33,12 @@ function getInitialRequestForm(department = "") {
   return {
     title: "",
     description: "",
-    category: "General Procurement",
+    branch: "Januarius Holdings",
     department,
     amount: "",
     currency: "PHP",
-    priority: "medium",
     dateNeeded: "",
     deliveryAddress: "",
-    paymentTerms: "Net 30",
     notes: ""
   };
 }
@@ -55,10 +58,10 @@ function getRequestAdminForm(item) {
     return {
       title: "",
       description: "",
-      category: "",
+      branch: "Januarius Holdings",
       department: "",
       amount: "",
-      priority: "medium",
+      dateNeeded: "",
       status: "open",
       currentStage: "",
       inspectionStatus: "pending",
@@ -73,10 +76,10 @@ function getRequestAdminForm(item) {
   return {
     title: item.title ?? "",
     description: item.description ?? "",
-    category: item.category ?? "",
+    branch: item.branch ?? "Januarius Holdings",
     department: item.department ?? "",
     amount: String(item.amount ?? ""),
-    priority: item.priority ?? "medium",
+    dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : "",
     status: item.status ?? "open",
     currentStage: item.currentStage ?? "",
     inspectionStatus: item.inspectionStatus ?? "pending",
@@ -91,15 +94,12 @@ function getRequestAdminForm(item) {
 function getDashboardStats(items) {
   const openCount = items.filter((item) => item.status === "open").length;
   const completedCount = items.filter((item) => item.status === "completed").length;
-  const highPriorityCount = items.filter((item) =>
-    ["high", "critical"].includes(item.priority)
-  ).length;
   const totalAmount = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   return [
     { label: "Open Requests", value: String(openCount).padStart(2, "0") },
     { label: "Completed", value: String(completedCount).padStart(2, "0") },
-    { label: "High Priority", value: String(highPriorityCount).padStart(2, "0") },
+    { label: "Active Users", value: String(items.length).padStart(2, "0") },
     {
       label: "Tracked Value",
       value: new Intl.NumberFormat("en-PH", {
@@ -115,8 +115,8 @@ function matchesSearch(item, query) {
   const searchable = [
     item.requestNumber,
     item.title,
+    item.branch,
     item.department,
-    item.category,
     item.currentStage,
     item.requester
   ]
@@ -143,7 +143,7 @@ function escapeCsvValue(value) {
   return `"${stringValue.replaceAll('"', '""')}"`;
 }
 
-function CompanyHeader({ isAuthenticated, user }) {
+function CompanyHeader({ isAuthenticated, user, onLogout }) {
   return (
     <header className="company-header">
       <div className="brand-lockup">
@@ -157,15 +157,20 @@ function CompanyHeader({ isAuthenticated, user }) {
       </div>
 
       <div className="header-meta">
-        <div className="header-chip">
-          <span className="header-chip-dot" />
-          <span>{isAuthenticated ? "Live Workflow Session" : "Secure Internal Access"}</span>
-        </div>
         {user ? (
-          <div className="header-identity">
-            <span>{user.roleLabel}</span>
-            <strong>{user.name}</strong>
-          </div>
+          <>
+            <div className="header-identity">
+              <span>{user.roleLabel}</span>
+              <div className="header-userline">
+                <strong>{user.name}</strong>
+              </div>
+            </div>
+            {onLogout ? (
+              <button className="header-logout" type="button" onClick={onLogout}>
+                Log out
+              </button>
+            ) : null}
+          </>
         ) : null}
       </div>
     </header>
@@ -186,7 +191,6 @@ export default function App() {
     query: "",
     stage: "all",
     status: "all",
-    priority: "all",
     requestedFrom: "",
     requestedTo: ""
   });
@@ -203,6 +207,7 @@ export default function App() {
   const [requestForm, setRequestForm] = useState(() =>
     getInitialRequestForm(session?.user?.department || "")
   );
+  const [requestQuotationFile, setRequestQuotationFile] = useState(null);
   const [uploadForm, setUploadForm] = useState({
     type: "po",
     label: "",
@@ -228,8 +233,6 @@ export default function App() {
     const matchesStage =
       requestFilters.stage === "all" || item.currentStage === requestFilters.stage;
     const matchesStatus = requestFilters.status === "all" || item.status === requestFilters.status;
-    const matchesPriority =
-      requestFilters.priority === "all" || item.priority === requestFilters.priority;
     const itemDate = item.requestedAt ? new Date(item.requestedAt) : null;
     const matchesFrom =
       !requestFilters.requestedFrom ||
@@ -238,7 +241,7 @@ export default function App() {
       !requestFilters.requestedTo ||
       (itemDate && itemDate <= new Date(`${requestFilters.requestedTo}T23:59:59`));
 
-    return matchesQuery && matchesStage && matchesStatus && matchesPriority && matchesFrom && matchesTo;
+    return matchesQuery && matchesStage && matchesStatus && matchesFrom && matchesTo;
   });
   const selectedItem =
     filteredItems.find((item) => item.id === selectedId) ?? filteredItems[0] ?? null;
@@ -326,6 +329,35 @@ export default function App() {
     void loadDashboard(session.token, session.user.role);
   }, [session]);
 
+  function clearSession() {
+    localStorage.removeItem("procurement-session");
+    setSession(null);
+    setItems([]);
+    setStages([]);
+    setUsers([]);
+    setSelectedId("");
+    setSelectedUserId("");
+    setRequestForm(getInitialRequestForm(""));
+    setRequestQuotationFile(null);
+    setRequestAdminForm(getRequestAdminForm(null));
+    setUserForm(getInitialUserForm());
+    setIsCreateRequestModalOpen(false);
+    setIsEditRequestModalOpen(false);
+    setIsUserModalOpen(false);
+    setConfirmDialog(null);
+  }
+
+  function handleSessionExpired() {
+    clearSession();
+    setAuthError("Your session expired. Please sign in again.");
+    pushToast({
+      title: "Session expired",
+      message: "Please sign in again to continue.",
+      variant: "error",
+      duration: 4200
+    });
+  }
+
   async function loadDashboard(token, role) {
     setIsLoading(true);
     setActionError("");
@@ -347,6 +379,11 @@ export default function App() {
           : Promise.resolve(null);
 
       const [workflowResponse, userResponse] = await Promise.all([workflowPromise, userPromise]);
+
+      if (workflowResponse.status === 401 || userResponse?.status === 401) {
+        handleSessionExpired();
+        return;
+      }
 
       if (!workflowResponse.ok) {
         throw new Error("Unable to load workflow data.");
@@ -444,6 +481,10 @@ export default function App() {
     }));
   }
 
+  function handleRequestQuotationFileChange(event) {
+    setRequestQuotationFile(event.target.files?.[0] ?? null);
+  }
+
   function handleActionFormChange(event) {
     setActionForm((current) => ({
       ...current,
@@ -492,7 +533,6 @@ export default function App() {
       query: "",
       stage: "all",
       status: "all",
-      priority: "all",
       requestedFrom: "",
       requestedTo: ""
     });
@@ -517,11 +557,10 @@ export default function App() {
     const rows = filteredItems.map((item) => [
       item.requestNumber,
       item.title,
+      item.branch,
       item.department,
-      item.category,
       item.requester,
       item.amount,
-      item.priorityLabel,
       item.status,
       item.currentStage,
       formatExportDate(item.requestedAt),
@@ -564,7 +603,6 @@ export default function App() {
       requestFilters.query ? `Search: ${requestFilters.query}` : null,
       requestFilters.stage !== "all" ? `Stage: ${requestFilters.stage}` : null,
       requestFilters.status !== "all" ? `Status: ${requestFilters.status}` : null,
-      requestFilters.priority !== "all" ? `Priority: ${requestFilters.priority}` : null,
       requestFilters.requestedFrom ? `From: ${formatExportDate(requestFilters.requestedFrom)}` : null,
       requestFilters.requestedTo ? `To: ${formatExportDate(requestFilters.requestedTo)}` : null
     ]
@@ -572,9 +610,6 @@ export default function App() {
       .join(" | ");
 
     const exportTotalValue = filteredItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const exportHighPriority = filteredItems.filter((item) =>
-      ["high", "critical"].includes(item.priority)
-    ).length;
 
     const rowsHtml = filteredItems
       .map(
@@ -582,9 +617,9 @@ export default function App() {
           <tr>
             <td>${item.requestNumber}</td>
             <td>${item.title}</td>
+            <td>${item.branch ?? ""}</td>
             <td>${item.department}</td>
             <td>${item.requester}</td>
-            <td>${item.priorityLabel}</td>
             <td>${item.currentStage}</td>
             <td>${item.status}</td>
             <td>${formatExportDate(item.requestedAt)}</td>
@@ -704,8 +739,8 @@ export default function App() {
                   <strong>${filteredItems.length}</strong>
                 </div>
                 <div class="summary-card">
-                  <span>High Priority</span>
-                  <strong>${exportHighPriority}</strong>
+                  <span>Open Requests</span>
+                  <strong>${filteredItems.filter((item) => item.status === "open").length}</strong>
                 </div>
                 <div class="summary-card">
                   <span>Tracked Value</span>
@@ -736,9 +771,9 @@ export default function App() {
               <tr>
                 <th>Request Number</th>
                 <th>Title</th>
+                <th>Branch</th>
                 <th>Department</th>
                 <th>Requester</th>
-                <th>Priority</th>
                 <th>Current Stage</th>
                 <th>Status</th>
                 <th>Requested At</th>
@@ -765,6 +800,7 @@ export default function App() {
 
   function openCreateRequestModal() {
     setRequestForm(getInitialRequestForm(session?.user?.department || ""));
+    setRequestQuotationFile(null);
     setIsCreateRequestModalOpen(true);
   }
 
@@ -829,13 +865,44 @@ export default function App() {
         throw new Error(data.message || "Failed to create request.");
       }
 
-      setItems((current) => [data, ...current]);
-      setSelectedId(data.id);
+      let createdRequest = data;
+
+      if (requestQuotationFile) {
+        const formData = new FormData();
+        formData.append("type", "quotation");
+        formData.append(
+          "label",
+          "Attach the approved quotation if it has already been approved"
+        );
+        formData.append("document", requestQuotationFile);
+
+        const uploadResponse = await fetch(
+          `${API_BASE_URL}/workflows/purchase-requests/${data.id}/documents`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.token}`
+            },
+            body: formData
+          }
+        );
+
+        const uploadData = await uploadResponse.json();
+        if (!uploadResponse.ok) {
+          throw new Error(uploadData.message || "Request created, but quotation upload failed.");
+        }
+
+        createdRequest = uploadData;
+      }
+
+      setItems((current) => [createdRequest, ...current]);
+      setSelectedId(createdRequest.id);
       setRequestForm(getInitialRequestForm(session.user.department || ""));
+      setRequestQuotationFile(null);
       setIsCreateRequestModalOpen(false);
       pushToast({
         title: "Request created",
-        message: `${data.requestNumber} is now in the workflow.`,
+        message: `${createdRequest.requestNumber} is now in the workflow.`,
         variant: "success"
       });
     } catch (error) {
@@ -1271,20 +1338,7 @@ export default function App() {
   }
 
   function handleLogout() {
-    localStorage.removeItem("procurement-session");
-    setSession(null);
-    setItems([]);
-    setStages([]);
-    setUsers([]);
-    setSelectedId("");
-    setSelectedUserId("");
-    setRequestForm(getInitialRequestForm(""));
-    setRequestAdminForm(getRequestAdminForm(null));
-    setUserForm(getInitialUserForm());
-    setIsCreateRequestModalOpen(false);
-    setIsEditRequestModalOpen(false);
-    setIsUserModalOpen(false);
-    setConfirmDialog(null);
+    clearSession();
   }
 
   if (!session?.token) {
@@ -1313,33 +1367,32 @@ export default function App() {
   return (
     <main className="app-shell">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      <CompanyHeader isAuthenticated user={session.user} />
-      <section className="hero hero-with-user">
-        <div>
-          <p className="eyebrow">Januarius Procurement Hub</p>
-          <h1>Purchase Request to Payment Tracking</h1>
-          <p className="hero-copy">
-            Role-based processing for review, approval, supplier selection, PO, delivery, invoice,
-            matching, payment, and filing.
-          </p>
-          <div className="toolbar-actions left hero-actions">
+      <CompanyHeader isAuthenticated user={session.user} onLogout={handleLogout} />
+      <section className="hero">
+        <div className="hero-grid">
+          <div>
+            <p className="eyebrow">Januarius Procurement Hub</p>
+            <h1>Purchase Request to Payment Tracking</h1>
+            <p className="hero-copy">
+              Role-based processing for review, approval, supplier selection, PO, delivery, invoice,
+              matching, payment, and filing.
+            </p>
+          </div>
+          <div className="toolbar-actions left hero-actions hero-actions-side">
             <button type="button" onClick={openCreateRequestModal}>
               New purchase request
             </button>
             {isAdmin ? (
-              <button className="ghost-button" type="button" onClick={openEditRequestModal} disabled={!selectedItem}>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={openEditRequestModal}
+                disabled={!selectedItem}
+              >
                 Edit selected request
               </button>
             ) : null}
           </div>
-        </div>
-        <div className="user-card">
-          <strong>{session.user.name}</strong>
-          <span>{session.user.roleLabel}</span>
-          <small>{session.user.email}</small>
-          <button type="button" onClick={handleLogout}>
-            Log out
-          </button>
         </div>
       </section>
 
@@ -1451,7 +1504,10 @@ export default function App() {
         >
           <CreateRequestForm
             form={requestForm}
+            branchOptions={BRANCH_OPTIONS}
             onChange={handleRequestFormChange}
+            onQuotationFileChange={handleRequestQuotationFileChange}
+            quotationFileName={requestQuotationFile?.name ?? ""}
             onSubmit={handleCreateRequest}
             isSubmitting={isSubmitting}
             canCreate={["requester", "admin"].includes(session.user.role)}
@@ -1468,6 +1524,7 @@ export default function App() {
           <RequestAdminPanel
             item={selectedItem}
             stages={stages}
+            branchOptions={BRANCH_OPTIONS}
             form={requestAdminForm}
             onChange={handleRequestAdminFormChange}
             onSave={handleSaveRequest}

@@ -1,6 +1,7 @@
 export default function RequestAdminPanel({
   item,
   stages,
+  branchOptions,
   form,
   onChange,
   onSave,
@@ -14,38 +15,38 @@ export default function RequestAdminPanel({
 
   return (
     <section className="panel action-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Admin Request</p>
-          <h2>Edit or delete request</h2>
-        </div>
-      </div>
-
       <div className="form-grid two-column">
         <label>
           Title
           <input name="title" value={form.title} onChange={onChange} />
         </label>
         <label>
-          Category
-          <input name="category" value={form.category} onChange={onChange} />
-        </label>
-        <label>
           Department
           <input name="department" value={form.department} onChange={onChange} />
+        </label>
+        <label>
+          Branch
+          <select name="branch" value={form.branch} onChange={onChange}>
+            {branchOptions.map((branch) => (
+              <option key={branch} value={branch}>
+                {branch}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Amount
           <input name="amount" value={form.amount} onChange={onChange} />
         </label>
         <label>
-          Priority
-          <select name="priority" value={form.priority} onChange={onChange}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
+          Date needed
+          <input
+            name="dateNeeded"
+            type="date"
+            value={form.dateNeeded}
+            onChange={onChange}
+            onClick={(event) => event.target.showPicker?.()}
+          />
         </label>
         <label>
           Status

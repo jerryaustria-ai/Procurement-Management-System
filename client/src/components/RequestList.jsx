@@ -49,16 +49,6 @@ export default function RequestList({
           </select>
         </label>
         <label>
-          Priority
-          <select name="priority" value={filters.priority} onChange={onFilterChange}>
-            <option value="all">All priorities</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-        </label>
-        <label>
           Requested from
           <input
             name="requestedFrom"
@@ -100,10 +90,11 @@ export default function RequestList({
           >
             <div className="request-list-topline">
               <strong>{item.requestNumber}</strong>
-              <span className={`mini-pill priority-${item.priority}`}>{item.priorityLabel}</span>
             </div>
             <span>{item.title}</span>
-            <small>{item.department}</small>
+            <small>
+              {item.branch} · {item.department}
+            </small>
             <div className="request-list-footer">
               <small>{item.currentStage}</small>
               <small>{item.status === "completed" ? "Closed" : "Open"}</small>

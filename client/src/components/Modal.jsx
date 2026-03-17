@@ -56,14 +56,13 @@ export default function Modal({ title, eyebrow, onClose, children }) {
   }, []);
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="modal-backdrop" role="presentation">
       <div
         ref={shellRef}
         className="modal-shell"
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
           <div>

@@ -1,33 +1,19 @@
 export default function CreateRequestForm({
   form,
+  branchOptions,
   onChange,
+  onQuotationFileChange,
+  quotationFileName,
   onSubmit,
   isSubmitting,
   canCreate
 }) {
   return (
     <section className="panel action-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">New Request</p>
-          <h2>Create purchase request</h2>
-        </div>
-      </div>
-
       <div className="form-grid two-column">
         <label>
           Request title
           <input name="title" value={form.title} onChange={onChange} placeholder="Office chairs" />
-        </label>
-
-        <label>
-          Category
-          <input
-            name="category"
-            value={form.category}
-            onChange={onChange}
-            placeholder="IT Equipment"
-          />
         </label>
 
         <label>
@@ -41,12 +27,13 @@ export default function CreateRequestForm({
         </label>
 
         <label>
-          Priority
-          <select name="priority" value={form.priority} onChange={onChange}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+          Branch
+          <select name="branch" value={form.branch} onChange={onChange}>
+            {branchOptions.map((branch) => (
+              <option key={branch} value={branch}>
+                {branch}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -57,7 +44,13 @@ export default function CreateRequestForm({
 
         <label>
           Date needed
-          <input name="dateNeeded" type="date" value={form.dateNeeded} onChange={onChange} />
+          <input
+            name="dateNeeded"
+            type="date"
+            value={form.dateNeeded}
+            onChange={onChange}
+            onClick={(event) => event.target.showPicker?.()}
+          />
         </label>
 
         <label>
@@ -70,15 +63,6 @@ export default function CreateRequestForm({
           />
         </label>
 
-        <label>
-          Payment terms
-          <input
-            name="paymentTerms"
-            value={form.paymentTerms}
-            onChange={onChange}
-            placeholder="Net 30"
-          />
-        </label>
       </div>
 
       <label>
@@ -101,6 +85,17 @@ export default function CreateRequestForm({
           rows="4"
           placeholder="Why the purchase is needed"
         />
+      </label>
+
+      <label>
+        Attach the approved quotation if it has already been approved
+        <input
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp"
+          onChange={onQuotationFileChange}
+        />
+        <small>PDF, JPG, PNG, or WEBP only.</small>
+        {quotationFileName ? <small>{quotationFileName}</small> : null}
       </label>
 
       <button disabled={!canCreate || isSubmitting} onClick={onSubmit} type="button">

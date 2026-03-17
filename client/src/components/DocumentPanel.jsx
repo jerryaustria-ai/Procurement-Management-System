@@ -49,6 +49,7 @@ export default function DocumentPanel({
         <label>
           Document type
           <select name="type" value={uploadForm.type} onChange={onUploadFormChange}>
+            <option value="quotation">Quotation</option>
             <option value="po">PO</option>
             <option value="invoice">Invoice</option>
             <option value="delivery">Delivery</option>

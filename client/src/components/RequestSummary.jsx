@@ -46,16 +46,12 @@ export default function RequestSummary({ item }) {
 
       <div className="summary-grid">
         <div>
-          <span>Category</span>
-          <strong>{item.category}</strong>
+          <span>Branch</span>
+          <strong>{item.branch || "Not set"}</strong>
         </div>
         <div>
           <span>Department</span>
           <strong>{item.department}</strong>
-        </div>
-        <div>
-          <span>Priority</span>
-          <strong>{item.priorityLabel}</strong>
         </div>
         <div>
           <span>Requester</span>
@@ -96,10 +92,6 @@ export default function RequestSummary({ item }) {
         <div>
           <span>Inspection</span>
           <strong>{formatInspectionStatus(item.inspectionStatus)}</strong>
-        </div>
-        <div>
-          <span>Payment terms</span>
-          <strong>{item.paymentTerms}</strong>
         </div>
         <div>
           <span>Delivery address</span>
