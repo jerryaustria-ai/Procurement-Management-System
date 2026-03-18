@@ -10,12 +10,8 @@ function getAdvanceButtonLabel(currentStage, nextStage, isComplete) {
     return "Workflow complete";
   }
 
-  if (currentStage === "Review") {
+  if (currentStage === "Review" || currentStage === "Approval") {
     return "Approve";
-  }
-
-  if (currentStage === "Approval") {
-    return "Next to Supplier Selection";
   }
 
   if (currentStage === "Approve PO") {
@@ -66,7 +62,6 @@ export default function ActionPanel({
   onChange,
   onCreateSupplier = () => {},
   onAdvance,
-  onApproveStage,
   onBack,
   onOpenPurchaseOrderPage,
   isSubmitting,
@@ -83,7 +78,6 @@ export default function ActionPanel({
   const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
   const previousStage = stages[Math.max(currentIndex - 1, 0)];
   const showBackButton = !isFirstStage && previousStage !== "Purchase Request";
-  const isApprovalStage = item.currentStage === "Approval";
   const displayStage = item.currentStage === "Purchase Request" && !isComplete ? nextStage : item.currentStage;
   const displayOwner =
     item.currentStage === "Purchase Request" && !isComplete
@@ -323,30 +317,9 @@ export default function ActionPanel({
             {`Back to ${previousStage}`}
           </button>
         ) : null}
-        {isApprovalStage ? (
-          item.approvalCompleted ? (
-            <button
-              className="field-inline-link action-link-button"
-              disabled={isSubmitting || !canAdvance}
-              onClick={onAdvance}
-              type="button"
-            >
-              Next to Supplier Selection
-            </button>
-          ) : (
-            <button
-              disabled={isSubmitting || !canAdvance}
-              onClick={onApproveStage}
-              type="button"
-            >
-              Approve
-            </button>
-          )
-        ) : (
-          <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
-            {getAdvanceButtonLabel(item.currentStage, nextStage, isComplete)}
-          </button>
-        )}
+        <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
+          {getAdvanceButtonLabel(item.currentStage, nextStage, isComplete)}
+        </button>
       </div>
 
       {!canAdvance ? (

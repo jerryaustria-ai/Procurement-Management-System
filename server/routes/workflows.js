@@ -189,12 +189,6 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     });
   }
 
-  if (request.currentStage === "Approval" && !request.approvalCompleted) {
-    return res.status(400).json({
-      message: "Approval must be completed before moving to Supplier Selection."
-    });
-  }
-
   const nextStage = getNextStage(request.currentStage);
   request.history = request.history.map((entry) =>
     entry.stage === request.currentStage ? { ...entry.toObject(), status: "completed" } : entry

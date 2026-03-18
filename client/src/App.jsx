@@ -1607,62 +1607,6 @@ export default function App() {
     }
   }
 
-  async function handleApproveStage() {
-    if (!selectedItem || !session?.token) {
-      return;
-    }
-
-    setActionError("");
-    setIsSubmitting(true);
-
-    try {
-      const stageComment =
-        actionForm.notes.trim() ||
-        `${session.user.name} approved ${selectedItem.requestNumber}.`;
-
-      const response = await fetch(
-        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/approve`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.token}`
-          },
-          body: JSON.stringify({
-            notes: actionForm.notes,
-            comment: stageComment
-          })
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to approve request.");
-      }
-
-      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
-      setActionForm((current) => ({
-        ...current,
-        notes: ""
-      }));
-      pushToast({
-        title: "Approval completed",
-        message: `${data.requestNumber} is ready for Supplier Selection.`,
-        variant: "success"
-      });
-    } catch (error) {
-      setActionError(error.message);
-      pushToast({
-        title: "Approve failed",
-        message: error.message,
-        variant: "error",
-        duration: 4200
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   async function handleRevert() {
     if (!selectedItem || !session?.token) {
       return;
@@ -2317,7 +2261,6 @@ export default function App() {
           onActionChange={handleActionFormChange}
             onCreateSupplier={openCreateSupplierModal}
             onAdvance={handleAdvance}
-            onApproveStage={handleApproveStage}
             onBack={handleRevert}
             onOpenPurchaseOrderPage={openPurchaseOrderPage}
             isSubmitting={isSubmitting}
@@ -2444,7 +2387,6 @@ export default function App() {
               onChange={handleActionFormChange}
           onCreateSupplier={openCreateSupplierModal}
           onAdvance={handleAdvance}
-          onApproveStage={handleApproveStage}
           onBack={handleRevert}
           onOpenPurchaseOrderPage={openPurchaseOrderPage}
           isSubmitting={isSubmitting}
@@ -2554,7 +2496,6 @@ export default function App() {
               onChange={handleActionFormChange}
               onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
-              onApproveStage={handleApproveStage}
               onBack={handleRevert}
               onOpenPurchaseOrderPage={openPurchaseOrderPage}
               isSubmitting={isSubmitting}
