@@ -222,6 +222,34 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     request.notes = req.body.notes;
   }
 
+  if (request.currentStage === "Review") {
+    const approvalStage = "Approval";
+    const supplierSelectionStage = "Supplier Selection";
+
+    request.history.push({
+      stage: approvalStage,
+      status: "completed",
+      updatedAt: new Date(),
+      actor: req.user.name,
+      actorRole: req.user.role,
+      comment: req.body.comment || req.body.notes || "Approval completed."
+    });
+
+    request.currentStage = supplierSelectionStage;
+    request.approvalCompleted = true;
+    request.history.push({
+      stage: supplierSelectionStage,
+      status: "current",
+      updatedAt: new Date(),
+      actor: req.user.name,
+      actorRole: req.user.role,
+      comment: `Moved to ${supplierSelectionStage}`
+    });
+
+    await request.save();
+    return res.json(serializePurchaseRequest(request));
+  }
+
   if (nextStage !== request.currentStage) {
     request.currentStage = nextStage;
     if (nextStage === "Approval") {
