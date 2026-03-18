@@ -1,9 +1,61 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PanelExpandButton from "./PanelExpandButton.jsx";
 
 function StageField({ children }) {
   return <div className="stage-field">{children}</div>;
 }
+
+function getAdvanceButtonLabel(currentStage, nextStage, isComplete) {
+  if (isComplete) {
+    return "Workflow complete";
+  }
+
+  if (currentStage === "Review") {
+    return "Approve";
+  }
+
+  if (currentStage === "Approval") {
+    return "Next to Supplier Selection";
+  }
+
+  if (currentStage === "Approve PO") {
+    return "Approve PO";
+  }
+
+  return `Move to ${nextStage}`;
+}
+
+const STAGE_ROLE_LABELS = {
+  "Purchase Request": "Requester, System Admin",
+  Review: "Reviewer, System Admin",
+  Approval: "Approver, System Admin",
+  "Supplier Selection": "Procurement Officer, System Admin",
+  "Prepare PO": "Procurement Officer, System Admin",
+  "Approve PO": "Approver, System Admin",
+  "Send PO": "Procurement Officer, System Admin",
+  Delivery: "Receiving Officer, System Admin",
+  Inspection: "Inspector, System Admin",
+  Invoice: "Finance Officer, System Admin",
+  Matching: "Accountant, System Admin",
+  Payment: "Treasury Officer, System Admin",
+  Filing: "Records Officer, System Admin"
+};
+
+const STAGE_DESCRIPTIONS = {
+  "Purchase Request": "Create and justify the business need.",
+  Review: "Validate scope, budget, and completeness of the request.",
+  Approval: "Management approves the procurement request.",
+  "Supplier Selection": "Compare vendors and pick the preferred supplier.",
+  "Prepare PO": "Draft the purchase order details and reference numbers.",
+  "Approve PO": "Authorize the prepared purchase order for release.",
+  "Send PO": "Transmit the approved purchase order to the supplier.",
+  Delivery: "Receive delivered goods or services from the supplier.",
+  Inspection: "Inspect delivery for quantity and quality compliance.",
+  Invoice: "Collect and log supplier invoice documents.",
+  Matching: "Match request, PO, delivery, and invoice records.",
+  Payment: "Release payment and record treasury reference.",
+  Filing: "Archive the final procurement documents."
+};
 
 export default function ActionPanel({
   item,
@@ -14,23 +66,63 @@ export default function ActionPanel({
   onChange,
   onCreateSupplier = () => {},
   onAdvance,
+  onApproveStage,
   onBack,
+  onOpenPurchaseOrderPage,
   isSubmitting,
   error,
   onExpand,
   showExpand = true
 }) {
   const [isSupplierMenuOpen, setIsSupplierMenuOpen] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const supplierSelectRef = useRef(null);
   const currentIndex = stages.indexOf(item.currentStage);
   const isFirstStage = currentIndex <= 0;
   const isComplete = item.currentStage === stages[stages.length - 1];
   const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
   const previousStage = stages[Math.max(currentIndex - 1, 0)];
+  const showBackButton = !isFirstStage && previousStage !== "Purchase Request";
+  const isApprovalStage = item.currentStage === "Approval";
+  const displayStage = item.currentStage === "Purchase Request" && !isComplete ? nextStage : item.currentStage;
+  const displayOwner =
+    item.currentStage === "Purchase Request" && !isComplete
+      ? STAGE_ROLE_LABELS[displayStage] ?? item.allowedRoleLabels.join(", ")
+      : item.allowedRoleLabels.join(", ");
+  const displayDescription =
+    item.currentStage === "Purchase Request" && !isComplete
+      ? STAGE_DESCRIPTIONS[displayStage] ?? item.currentStageDescription
+      : item.currentStageDescription;
   const canAdvance = item.allowedRoles.includes(user.role);
-  const normalizedSupplier = form.supplier.trim().toLowerCase();
+  const normalizedSupplier = supplierSearch.trim().toLowerCase();
   const filteredSupplierOptions = supplierOptions.filter((supplier) =>
     normalizedSupplier ? supplier.toLowerCase().includes(normalizedSupplier) : true
   );
+  const showSupplierMenu =
+    isSupplierMenuOpen && (user.role === "admin" || filteredSupplierOptions.length || normalizedSupplier);
+
+  useEffect(() => {
+    setSupplierSearch(form.supplier || "");
+  }, [form.supplier]);
+
+  useEffect(() => {
+    if (!isSupplierMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event) {
+      if (!supplierSelectRef.current?.contains(event.target)) {
+        setIsSupplierMenuOpen(false);
+        setSupplierSearch(form.supplier || "");
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [form.supplier, isSupplierMenuOpen]);
 
   function handleSupplierPick(value) {
     onChange({
@@ -39,6 +131,7 @@ export default function ActionPanel({
         value
       }
     });
+    setSupplierSearch(value);
     setIsSupplierMenuOpen(false);
   }
 
@@ -50,43 +143,56 @@ export default function ActionPanel({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Stage Actions</p>
-          <h2>{item.currentStage}</h2>
+          <h2>{displayStage}</h2>
         </div>
       </div>
 
       <div className="approval-meta">
         <span>Current owner</span>
-        <strong>{item.allowedRoleLabels.join(", ")}</strong>
-        <small>{item.currentStageDescription}</small>
+        <strong>{displayOwner}</strong>
+        <small>{displayDescription}</small>
       </div>
 
       <div className="form-grid">
         {["Supplier Selection", "Prepare PO", "Send PO"].includes(item.currentStage) ? (
           <StageField>
             <label>
-              Supplier
-              <input
-                name="supplier"
-                value={form.supplier}
-                onChange={onChange}
-                placeholder="Enter supplier name"
-                autoComplete="off"
-                onFocus={() => setIsSupplierMenuOpen(true)}
-                onBlur={() => {
-                  window.setTimeout(() => {
-                    setIsSupplierMenuOpen(false);
-                  }, 120);
-                }}
-              />
-              {isSupplierMenuOpen && (user.role === "admin" || filteredSupplierOptions.length) ? (
+              Select with search
+              <div className="searchable-select" ref={supplierSelectRef}>
+                <div className="searchable-select-trigger-wrap">
+                  <button
+                    className="searchable-select-trigger"
+                    type="button"
+                    onClick={() => {
+                      setSupplierSearch(form.supplier || "");
+                      setIsSupplierMenuOpen((current) => !current);
+                    }}
+                  >
+                    <span>{form.supplier || "Select supplier"}</span>
+                    <span className="searchable-select-caret" aria-hidden="true">
+                      ▾
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {showSupplierMenu ? (
                 <div className="suggestion-menu">
+                  <div className="suggestion-search">
+                    <input
+                      value={supplierSearch}
+                      onChange={(event) => setSupplierSearch(event.target.value)}
+                      placeholder="Search"
+                      autoComplete="off"
+                    />
+                  </div>
                   {user.role === "admin" ? (
                     <button
-                      className="suggestion-item"
+                      className="suggestion-link"
                       type="button"
                       onMouseDown={(event) => {
                         event.preventDefault();
-                        handleSupplierPick("");
+                        setIsSupplierMenuOpen(false);
+                        onCreateSupplier();
                       }}
                     >
                       Create new supplier
@@ -105,6 +211,9 @@ export default function ActionPanel({
                       {supplier}
                     </button>
                   ))}
+                  {!filteredSupplierOptions.length ? (
+                    <div className="suggestion-empty">No matching suppliers</div>
+                  ) : null}
                 </div>
               ) : null}
             </label>
@@ -114,7 +223,14 @@ export default function ActionPanel({
         {["Prepare PO", "Approve PO", "Send PO"].includes(item.currentStage) ? (
           <StageField>
             <label>
-              PO number
+              <span className="field-label-row">
+                <span>PO number</span>
+                {onOpenPurchaseOrderPage ? (
+                  <button className="field-inline-link" type="button" onClick={onOpenPurchaseOrderPage}>
+                    Create
+                  </button>
+                ) : null}
+              </span>
               <input
                 name="poNumber"
                 value={form.poNumber}
@@ -197,7 +313,7 @@ export default function ActionPanel({
       </label>
 
       <div className="button-row">
-        {!isFirstStage ? (
+        {showBackButton ? (
           <button
             className="ghost-button"
             disabled={isSubmitting || !canAdvance}
@@ -207,9 +323,30 @@ export default function ActionPanel({
             {`Back to ${previousStage}`}
           </button>
         ) : null}
-        <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
-          {isComplete ? "Workflow complete" : `Approve Move to ${nextStage}`}
-        </button>
+        {isApprovalStage ? (
+          item.approvalCompleted ? (
+            <button
+              className="field-inline-link action-link-button"
+              disabled={isSubmitting || !canAdvance}
+              onClick={onAdvance}
+              type="button"
+            >
+              Next to Supplier Selection
+            </button>
+          ) : (
+            <button
+              disabled={isSubmitting || !canAdvance}
+              onClick={onApproveStage}
+              type="button"
+            >
+              Approve
+            </button>
+          )
+        ) : (
+          <button disabled={isSubmitting || isComplete || !canAdvance} onClick={onAdvance} type="button">
+            {getAdvanceButtonLabel(item.currentStage, nextStage, isComplete)}
+          </button>
+        )}
       </div>
 
       {!canAdvance ? (

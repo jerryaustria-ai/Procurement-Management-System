@@ -189,6 +189,12 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     });
   }
 
+  if (request.currentStage === "Approval" && !request.approvalCompleted) {
+    return res.status(400).json({
+      message: "Approval must be completed before moving to Supplier Selection."
+    });
+  }
+
   const nextStage = getNextStage(request.currentStage);
   request.history = request.history.map((entry) =>
     entry.stage === request.currentStage ? { ...entry.toObject(), status: "completed" } : entry
@@ -224,6 +230,9 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
 
   if (nextStage !== request.currentStage) {
     request.currentStage = nextStage;
+    if (nextStage === "Approval") {
+      request.approvalCompleted = false;
+    }
     request.history.push({
       stage: nextStage,
       status: isTerminalStage(nextStage) ? "completed" : "current",
@@ -236,6 +245,50 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
 
   if (isTerminalStage(nextStage)) {
     request.status = "completed";
+  }
+
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
+router.patch("/purchase-requests/:id/approve", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
+  }
+
+  if (request.currentStage !== "Approval") {
+    return res.status(400).json({ message: "Only Approval stage can be approved." });
+  }
+
+  const allowedRoles = getAllowedRoles(request.currentStage);
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      message: `Role ${req.user.role} cannot approve the ${request.currentStage} stage.`
+    });
+  }
+
+  request.approvalCompleted = true;
+  request.history = request.history.map((entry) =>
+    entry.stage === "Approval" && entry.status === "current"
+      ? {
+          ...entry.toObject(),
+          status: "completed",
+          updatedAt: new Date(),
+          actor: req.user.name,
+          actorRole: req.user.role,
+          comment: req.body.comment || req.body.notes || "Approval completed."
+        }
+      : entry
+  );
+
+  if (typeof req.body.notes === "string") {
+    request.notes = req.body.notes;
   }
 
   await request.save();
@@ -272,6 +325,7 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
   );
 
   request.currentStage = previousStage;
+  request.approvalCompleted = false;
   request.status = "open";
   request.history.push({
     stage: previousStage,

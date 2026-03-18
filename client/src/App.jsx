@@ -6,9 +6,12 @@ import DocumentPanel from "./components/DocumentPanel.jsx";
 import LoginForm from "./components/LoginForm.jsx";
 import Modal from "./components/Modal.jsx";
 import PanelExpandButton from "./components/PanelExpandButton.jsx";
+import PurchaseOrderPage from "./components/PurchaseOrderPage.jsx";
+import RequestForPaymentPage from "./components/RequestForPaymentPage.jsx";
 import RequestAdminPanel from "./components/RequestAdminPanel.jsx";
 import RequestList from "./components/RequestList.jsx";
 import RequestSummary from "./components/RequestSummary.jsx";
+import RequestWorkspacePage from "./components/RequestWorkspacePage.jsx";
 import SupplierForm from "./components/SupplierForm.jsx";
 import ToastStack from "./components/ToastStack.jsx";
 import UserEditorPanel from "./components/UserEditorPanel.jsx";
@@ -75,6 +78,66 @@ function getInitialSupplierForm() {
     address: "",
     notes: ""
   };
+}
+
+function getInitialPurchaseOrderLineItem() {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    qty: "1",
+    unit: "",
+    description: "",
+    unitPrice: "",
+    total: ""
+  };
+}
+
+function getInitialPurchaseOrderForm() {
+  return {
+    supplier: "",
+    poNumber: "",
+    notes: "",
+    salesTax: "",
+    shippingHandling: "",
+    other: "",
+    lineItems: [getInitialPurchaseOrderLineItem()]
+  };
+}
+
+function getInitialRequestForPaymentForm() {
+  return {
+    payee: "",
+    invoiceNumber: "",
+    paymentReference: "",
+    amountRequested: "",
+    dueDate: "",
+    notes: ""
+  };
+}
+
+function getNextPurchaseOrderNumber(items) {
+  const currentYear = new Date().getFullYear();
+  let highestYear = currentYear;
+  let highestSequence = 0;
+
+  items.forEach((item) => {
+    const value = String(item.poNumber || "").trim();
+    const match = value.match(/^PO-(\d{4})-(\d+)$/i);
+
+    if (!match) {
+      return;
+    }
+
+    const year = Number.parseInt(match[1], 10);
+    const sequence = Number.parseInt(match[2], 10);
+
+    if (year > highestYear || (year === highestYear && sequence > highestSequence)) {
+      highestYear = year;
+      highestSequence = sequence;
+    }
+  });
+
+  const nextSequence = String(highestSequence + 1).padStart(3, "0");
+  return `PO-${highestYear}-${nextSequence}`;
 }
 
 function getRequestAdminForm(item) {
@@ -165,6 +228,13 @@ function parseAmountValue(value) {
   return Number(normalized);
 }
 
+function formatCurrencyValue(value, currency = "PHP") {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency
+  }).format(value || 0);
+}
+
 function CompanyHeader({ isAuthenticated, user, onLogout, theme, onThemeChange }) {
   return (
     <header className="company-header">
@@ -235,7 +305,9 @@ export default function App() {
     invoiceNumber: "",
     paymentReference: "",
     deliveryDate: "",
-    inspectionStatus: "pending"
+    inspectionStatus: "pending",
+    selectedItemId: "",
+    selectedItemStage: ""
   });
   const [requestForm, setRequestForm] = useState(() =>
     getInitialRequestForm(
@@ -253,6 +325,11 @@ export default function App() {
   const [requestAdminForm, setRequestAdminForm] = useState(() => getRequestAdminForm(null));
   const [userForm, setUserForm] = useState(getInitialUserForm());
   const [supplierForm, setSupplierForm] = useState(getInitialSupplierForm());
+  const [isPurchaseOrderPageOpen, setIsPurchaseOrderPageOpen] = useState(false);
+  const [purchaseOrderForm, setPurchaseOrderForm] = useState(getInitialPurchaseOrderForm());
+  const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] = useState(false);
+  const [requestForPaymentForm, setRequestForPaymentForm] = useState(getInitialRequestForPaymentForm());
+  const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -262,7 +339,6 @@ export default function App() {
   const [supplierError, setSupplierError] = useState("");
   const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] = useState(false);
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false);
-  const [isRequestDetailsModalOpen, setIsRequestDetailsModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState("");
@@ -272,7 +348,6 @@ export default function App() {
 
   const isAdmin = session?.user?.role === "admin";
   const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
-  const showsInlineRequestSummary = ["approver", "admin"].includes(session?.user?.role);
   const requesterOptions = users;
   const supplierOptions = Array.from(
     new Set(
@@ -329,14 +404,31 @@ export default function App() {
       return;
     }
 
-    setActionForm({
-      supplier: selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier,
-      notes: "",
-      poNumber: selectedItem.poNumber ?? "",
-      invoiceNumber: selectedItem.invoiceNumber ?? "",
-      paymentReference: selectedItem.paymentReference ?? "",
-      deliveryDate: selectedItem.deliveryDate ? selectedItem.deliveryDate.slice(0, 10) : "",
-      inspectionStatus: selectedItem.inspectionStatus ?? "pending"
+    setActionForm((current) => {
+      const nextSupplier =
+        selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier;
+      const selectedIdChanged = current.selectedItemId !== selectedItem.id;
+      const selectedStageChanged = current.selectedItemStage !== selectedItem.currentStage;
+
+      if (!selectedIdChanged && !selectedStageChanged) {
+        return {
+          ...current,
+          selectedItemId: selectedItem.id,
+          selectedItemStage: selectedItem.currentStage
+        };
+      }
+
+      return {
+        supplier: nextSupplier,
+        notes: "",
+        poNumber: selectedItem.poNumber ?? "",
+        invoiceNumber: selectedItem.invoiceNumber ?? "",
+        paymentReference: selectedItem.paymentReference ?? "",
+        deliveryDate: selectedItem.deliveryDate ? selectedItem.deliveryDate.slice(0, 10) : "",
+        inspectionStatus: selectedItem.inspectionStatus ?? "pending",
+        selectedItemId: selectedItem.id,
+        selectedItemStage: selectedItem.currentStage
+      };
     });
     setRequestAdminForm(getRequestAdminForm(selectedItem));
     setUploadForm((current) => ({
@@ -417,9 +509,9 @@ export default function App() {
     setSupplierForm(getInitialSupplierForm());
     setIsCreateRequestModalOpen(false);
     setIsEditRequestModalOpen(false);
-    setIsRequestDetailsModalOpen(false);
     setIsUserModalOpen(false);
     setIsSupplierModalOpen(false);
+    setIsRequestWorkspacePageOpen(false);
     setExpandedPanel("");
     setConfirmDialog(null);
   }
@@ -660,6 +752,68 @@ export default function App() {
     setSupplierForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
+    }));
+  }
+
+  function handlePurchaseOrderFormChange(event) {
+    setPurchaseOrderForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
+
+  function handleRequestForPaymentFormChange(event) {
+    setRequestForPaymentForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
+
+  function handlePurchaseOrderLineItemChange(index, field, value) {
+    setPurchaseOrderForm((current) => {
+      const lineItems = current.lineItems.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        const nextItem = {
+          ...item,
+          [field]: value
+        };
+
+        const qty = Number.parseFloat(String(field === "qty" ? value : nextItem.qty).replaceAll(",", "")) || 0;
+        const unitPrice =
+          Number.parseFloat(
+            String(field === "unitPrice" ? value : nextItem.unitPrice).replaceAll(",", "")
+          ) || 0;
+
+        return {
+          ...nextItem,
+          total: qty > 0 && unitPrice > 0 ? String(qty * unitPrice) : ""
+        };
+      });
+
+      return {
+        ...current,
+        lineItems
+      };
+    });
+  }
+
+  function handleAddPurchaseOrderLineItem() {
+    setPurchaseOrderForm((current) => ({
+      ...current,
+      lineItems: [...current.lineItems, getInitialPurchaseOrderLineItem()]
+    }));
+  }
+
+  function handleRemovePurchaseOrderLineItem(index) {
+    setPurchaseOrderForm((current) => ({
+      ...current,
+      lineItems:
+        current.lineItems.length === 1
+          ? [getInitialPurchaseOrderLineItem()]
+          : current.lineItems.filter((_, itemIndex) => itemIndex !== index)
     }));
   }
 
@@ -933,7 +1087,7 @@ export default function App() {
       return;
     }
 
-    setIsRequestDetailsModalOpen(true);
+    setIsRequestWorkspacePageOpen(true);
   }
 
   function openCreateUserModal() {
@@ -978,6 +1132,233 @@ export default function App() {
 
   function closeExpandedPanel() {
     setExpandedPanel("");
+  }
+
+  function openPurchaseOrderPage() {
+    if (!selectedItem) {
+      return;
+    }
+
+    const suggestedPoNumber = getNextPurchaseOrderNumber(items);
+
+    setPurchaseOrderForm((current) => ({
+      ...current,
+      supplier:
+        current.supplier ||
+        actionForm.supplier ||
+        (selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier || ""),
+      poNumber: current.poNumber || actionForm.poNumber || selectedItem.poNumber || suggestedPoNumber,
+      notes: current.notes || actionForm.notes || ""
+    }));
+    setIsPurchaseOrderPageOpen(true);
+  }
+
+  function closePurchaseOrderPage() {
+    setIsPurchaseOrderPageOpen(false);
+  }
+
+  function openRequestForPaymentPage() {
+    if (!selectedItem) {
+      return;
+    }
+
+    setRequestForPaymentForm((current) => ({
+      ...current,
+      payee:
+        current.payee ||
+        (selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier || ""),
+      invoiceNumber: current.invoiceNumber || actionForm.invoiceNumber || selectedItem.invoiceNumber || "",
+      paymentReference:
+        current.paymentReference ||
+        actionForm.paymentReference ||
+        selectedItem.paymentReference ||
+        "",
+      amountRequested: current.amountRequested || String(selectedItem.amount || ""),
+      dueDate: current.dueDate || (selectedItem.dateNeeded ? selectedItem.dateNeeded.slice(0, 10) : ""),
+      notes: current.notes || actionForm.notes || ""
+    }));
+    setIsRequestForPaymentPageOpen(true);
+  }
+
+  function closeRequestForPaymentPage() {
+    setIsRequestForPaymentPageOpen(false);
+  }
+
+  function closeRequestWorkspacePage() {
+    setIsRequestWorkspacePageOpen(false);
+  }
+
+  function handleSavePurchaseOrderPage() {
+    setActionForm((current) => ({
+      ...current,
+      supplier: purchaseOrderForm.supplier,
+      poNumber: purchaseOrderForm.poNumber,
+      notes: purchaseOrderForm.notes
+    }));
+    setIsPurchaseOrderPageOpen(false);
+    pushToast({
+      title: "Purchase order draft saved",
+      message: "The PO details were copied back into the workflow form.",
+      variant: "success"
+    });
+  }
+
+  function handleSaveRequestForPaymentPage() {
+    setActionForm((current) => ({
+      ...current,
+      invoiceNumber: requestForPaymentForm.invoiceNumber,
+      paymentReference: requestForPaymentForm.paymentReference,
+      notes: requestForPaymentForm.notes
+    }));
+    setIsRequestForPaymentPageOpen(false);
+    pushToast({
+      title: "Request for payment draft saved",
+      message: "The payment request details were copied back into the workflow form.",
+      variant: "success"
+    });
+  }
+
+  function handlePrintPurchaseOrderPage() {
+    if (!selectedItem) {
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1200,height=900");
+    if (!printWindow) {
+      pushToast({
+        title: "Popup blocked",
+        message: "Allow popups to print the purchase order.",
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
+    const currency = selectedItem.currency || "PHP";
+    const subTotal = purchaseOrderForm.lineItems.reduce(
+      (sum, lineItem) => sum + parseAmountValue(lineItem.total),
+      0
+    );
+    const salesTax = parseAmountValue(purchaseOrderForm.salesTax);
+    const shippingHandling = parseAmountValue(purchaseOrderForm.shippingHandling);
+    const other = parseAmountValue(purchaseOrderForm.other);
+    const netTotal = subTotal + salesTax + shippingHandling + other;
+
+    const rowsHtml = purchaseOrderForm.lineItems
+      .map(
+        (lineItem) => `
+          <tr>
+            <td>${lineItem.qty || ""}</td>
+            <td>${lineItem.unit || ""}</td>
+            <td>${lineItem.description || ""}</td>
+            <td>${lineItem.unitPrice ? formatCurrencyValue(parseAmountValue(lineItem.unitPrice), currency) : ""}</td>
+            <td>${lineItem.total ? formatCurrencyValue(parseAmountValue(lineItem.total), currency) : ""}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Purchase Order ${purchaseOrderForm.poNumber || selectedItem.requestNumber}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 30px; color: #12202d; }
+            .sheet { border: 1px solid #d7dee7; border-radius: 20px; padding: 28px; }
+            .topbar { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+            .brand-kicker { margin: 0 0 4px; color: #8b6d2b; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; }
+            h1 { margin: 0 0 8px; font-size: 34px; }
+            .sub { margin: 0; color: #4b5d70; }
+            .po-number { padding: 14px 16px; min-width: 220px; border: 1px solid #d7dee7; border-radius: 16px; background: #f8fafc; }
+            .po-number span, .meta-card span, .totals-card span { display: block; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+            .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+            .meta-card { padding: 14px 16px; border: 1px solid #d7dee7; border-radius: 16px; background: #fff; }
+            .meta-card strong, .po-number strong, .totals-card strong { font-size: 18px; }
+            .notes { margin: 20px 0; padding: 16px; border: 1px solid #d7dee7; border-radius: 16px; background: #f8fafc; }
+            .notes h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
+            .notes p { margin: 0; line-height: 1.6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #d7dee7; padding: 10px; text-align: left; font-size: 12px; vertical-align: top; }
+            th { background: #eef3f8; color: #1e293b; text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; }
+            .totals { width: 360px; margin-left: auto; margin-top: 18px; display: grid; gap: 10px; }
+            .totals-card { padding: 12px 14px; border: 1px solid #d7dee7; border-radius: 14px; background: #fff; }
+            .totals-card.net { background: #f6e1a4; border-color: #d5b56c; }
+            .footer { margin-top: 24px; font-size: 11px; color: #64748b; }
+            @media print { body { padding: 0; } .sheet { border: 0; border-radius: 0; padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <section class="sheet">
+            <div class="topbar">
+              <div>
+                <p class="brand-kicker">Januarius Holdings Inc.</p>
+                <h1>Purchase Order</h1>
+                <p class="sub">Generated from the Procurement Management System.</p>
+              </div>
+              <div class="po-number">
+                <span>PO Number</span>
+                <strong>${purchaseOrderForm.poNumber || "Pending"}</strong>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="meta-card"><span>Request No.</span><strong>${selectedItem.requestNumber}</strong></div>
+              <div class="meta-card"><span>Requester</span><strong>${selectedItem.requester}</strong></div>
+              <div class="meta-card"><span>Supplier</span><strong>${purchaseOrderForm.supplier || selectedItem.supplier || "Pending selection"}</strong></div>
+              <div class="meta-card"><span>Date Needed</span><strong>${formatExportDate(selectedItem.dateNeeded)}</strong></div>
+              <div class="meta-card"><span>Branch</span><strong>${selectedItem.branch || "Not set"}</strong></div>
+              <div class="meta-card"><span>Department</span><strong>${selectedItem.department || "Not set"}</strong></div>
+              <div class="meta-card"><span>Delivery Address</span><strong>${selectedItem.deliveryAddress || "Not set"}</strong></div>
+              <div class="meta-card"><span>Current Stage</span><strong>${selectedItem.currentStage}</strong></div>
+            </div>
+
+            <div class="notes">
+              <h2>Request Title</h2>
+              <p>${selectedItem.title || "No title provided."}</p>
+            </div>
+
+            <div class="notes">
+              <h2>PO Notes</h2>
+              <p>${purchaseOrderForm.notes || "No purchase order notes provided."}</p>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Qty</th>
+                  <th>Unit</th>
+                  <th>Description</th>
+                  <th>Unit Price</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+
+            <div class="totals">
+              <div class="totals-card"><span>Sub Total</span><strong>${formatCurrencyValue(subTotal, currency)}</strong></div>
+              <div class="totals-card"><span>Sales Tax</span><strong>${formatCurrencyValue(salesTax, currency)}</strong></div>
+              <div class="totals-card"><span>Shipping & Handling</span><strong>${formatCurrencyValue(shippingHandling, currency)}</strong></div>
+              <div class="totals-card"><span>Other</span><strong>${formatCurrencyValue(other, currency)}</strong></div>
+              <div class="totals-card net"><span>Net Total</span><strong>${formatCurrencyValue(netTotal, currency)}</strong></div>
+            </div>
+
+            <p class="footer">Prepared on ${formatExportDate(new Date().toISOString())}. Use the browser print dialog to print or save as PDF.</p>
+          </section>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+
+    pushToast({
+      title: "PO print view opened",
+      message: "Use the print dialog to print or save the purchase order as PDF.",
+      variant: "success"
+    });
   }
 
   function renderRequestLaunch(showExpand = true) {
@@ -1217,6 +1598,62 @@ export default function App() {
       setActionError(error.message);
       pushToast({
         title: "Advance failed",
+        message: error.message,
+        variant: "error",
+        duration: 4200
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleApproveStage() {
+    if (!selectedItem || !session?.token) {
+      return;
+    }
+
+    setActionError("");
+    setIsSubmitting(true);
+
+    try {
+      const stageComment =
+        actionForm.notes.trim() ||
+        `${session.user.name} approved ${selectedItem.requestNumber}.`;
+
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/approve`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.token}`
+          },
+          body: JSON.stringify({
+            notes: actionForm.notes,
+            comment: stageComment
+          })
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to approve request.");
+      }
+
+      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setActionForm((current) => ({
+        ...current,
+        notes: ""
+      }));
+      pushToast({
+        title: "Approval completed",
+        message: `${data.requestNumber} is ready for Supplier Selection.`,
+        variant: "success"
+      });
+    } catch (error) {
+      setActionError(error.message);
+      pushToast({
+        title: "Approve failed",
         message: error.message,
         variant: "error",
         duration: 4200
@@ -1721,9 +2158,62 @@ export default function App() {
     setSelectedId(id);
   }
 
-  function handleOpenRequestDetails(id) {
+  async function handleOpenRequestDetails(id) {
+    const targetItem = items.find((item) => item.id === id);
+
+    if (!targetItem) {
+      return;
+    }
+
     setSelectedId(id);
-    setIsRequestDetailsModalOpen(true);
+
+    if (targetItem.currentStage === "Purchase Request" && session?.token) {
+      setActionError("");
+      setIsSubmitting(true);
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/workflows/purchase-requests/${targetItem.id}/advance`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.token}`
+            },
+            body: JSON.stringify({
+              comment: `${session.user.name} opened ${targetItem.requestNumber} and moved it to Review.`
+            })
+          }
+        );
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to move request to Review.");
+        }
+
+        setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+        setSelectedId(data.id);
+        pushToast({
+          title: "Moved to Review",
+          message: `${data.requestNumber} is now in Review.`,
+          variant: "success"
+        });
+      } catch (error) {
+        setActionError(error.message);
+        pushToast({
+          title: "Open request failed",
+          message: error.message,
+          variant: "error",
+          duration: 4200
+        });
+        setIsSubmitting(false);
+        return;
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+
+    setIsRequestWorkspacePageOpen(true);
   }
 
   function handleSelectUser(id) {
@@ -1752,6 +2242,97 @@ export default function App() {
           onSubmit={handleLogin}
           isSubmitting={isSubmitting}
           error={authError}
+        />
+      </main>
+    );
+  }
+
+  if (isPurchaseOrderPageOpen && selectedItem) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+        />
+        <PurchaseOrderPage
+          item={selectedItem}
+          form={purchaseOrderForm}
+          onChange={handlePurchaseOrderFormChange}
+          onLineItemChange={handlePurchaseOrderLineItemChange}
+          onAddLineItem={handleAddPurchaseOrderLineItem}
+          onRemoveLineItem={handleRemovePurchaseOrderLineItem}
+          onPrint={handlePrintPurchaseOrderPage}
+          onSave={handleSavePurchaseOrderPage}
+          onClose={closePurchaseOrderPage}
+          isSubmitting={isSubmitting}
+        />
+      </main>
+    );
+  }
+
+  if (isRequestForPaymentPageOpen && selectedItem) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+        />
+        <RequestForPaymentPage
+          item={selectedItem}
+          form={requestForPaymentForm}
+          onChange={handleRequestForPaymentFormChange}
+          onSave={handleSaveRequestForPaymentPage}
+          onClose={closeRequestForPaymentPage}
+          isSubmitting={isSubmitting}
+        />
+      </main>
+    );
+  }
+
+  if (isRequestWorkspacePageOpen && selectedItem) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+        />
+        <RequestWorkspacePage
+          item={selectedItem}
+          stages={stages}
+          user={session.user}
+          actionForm={actionForm}
+          supplierOptions={supplierOptions}
+          onActionChange={handleActionFormChange}
+            onCreateSupplier={openCreateSupplierModal}
+            onAdvance={handleAdvance}
+            onApproveStage={handleApproveStage}
+            onBack={handleRevert}
+            onOpenPurchaseOrderPage={openPurchaseOrderPage}
+            isSubmitting={isSubmitting}
+          actionError={actionError}
+          uploadForm={uploadForm}
+          onUploadFormChange={handleUploadFormChange}
+          onUploadFileChange={handleUploadFileChange}
+          onUpload={handleUploadDocument}
+          onDeleteDocument={handleDeleteDocument}
+          canManageDocuments={canManageDocuments}
+          uploadError={uploadError}
+          apiOrigin={API_ORIGIN}
+          onClose={closeRequestWorkspacePage}
+          onEditRequest={openEditRequestModal}
+          isAdmin={isAdmin}
         />
       </main>
     );
@@ -1831,6 +2412,7 @@ export default function App() {
               stages={stages}
               currentStage={selectedItem.currentStage}
               history={selectedItem.history}
+              onOpenRequestForPaymentPage={openRequestForPaymentPage}
               onExpand={() => openExpandedPanel("workflow")}
             />
           ) : null}
@@ -1846,14 +2428,11 @@ export default function App() {
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel("request-list")}
           />
-          {selectedItem && showsInlineRequestSummary ? (
+          {selectedItem ? (
             <RequestSummary
               item={selectedItem}
               onExpand={() => openExpandedPanel("request-summary")}
             />
-          ) : null}
-          {selectedItem && !showsInlineRequestSummary ? (
-            renderRequestLaunch()
           ) : null}
           {selectedItem ? (
             <ActionPanel
@@ -1863,10 +2442,12 @@ export default function App() {
               form={actionForm}
               supplierOptions={supplierOptions}
               onChange={handleActionFormChange}
-              onCreateSupplier={openCreateSupplierModal}
-              onAdvance={handleAdvance}
-              onBack={handleRevert}
-              isSubmitting={isSubmitting}
+          onCreateSupplier={openCreateSupplierModal}
+          onAdvance={handleAdvance}
+          onApproveStage={handleApproveStage}
+          onBack={handleRevert}
+          onOpenPurchaseOrderPage={openPurchaseOrderPage}
+          isSubmitting={isSubmitting}
               error={actionError}
               onExpand={() => openExpandedPanel("stage-actions")}
             />
@@ -1880,6 +2461,7 @@ export default function App() {
             stages={stages}
             currentStage={selectedItem.currentStage}
             history={selectedItem.history}
+            onOpenRequestForPaymentPage={openRequestForPaymentPage}
             onExpand={() => openExpandedPanel("workflow")}
           />
         </div>
@@ -1937,30 +2519,6 @@ export default function App() {
         </Modal>
       ) : null}
 
-      {isRequestDetailsModalOpen && selectedItem ? (
-        <Modal
-          eyebrow="Purchase Request"
-          title={selectedItem.requestNumber}
-          onClose={() => setIsRequestDetailsModalOpen(false)}
-          actions={
-            isAdmin ? (
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() => {
-                  setIsRequestDetailsModalOpen(false);
-                  openEditRequestModal();
-                }}
-              >
-                Edit
-              </button>
-            ) : null
-          }
-        >
-          <RequestSummary item={selectedItem} showHeader={false} />
-        </Modal>
-      ) : null}
-
       {isSupplierModalOpen ? (
         <Modal eyebrow="New Supplier" title="Create supplier" onClose={() => setIsSupplierModalOpen(false)}>
           <SupplierForm
@@ -1986,10 +2544,6 @@ export default function App() {
               showExpand={false}
             />
           ) : null}
-          {expandedPanel === "request-summary" && selectedItem ? (
-            <RequestSummary item={selectedItem} showExpand={false} />
-          ) : null}
-          {expandedPanel === "request-launch" ? renderRequestLaunch(false) : null}
           {expandedPanel === "stage-actions" && selectedItem ? (
             <ActionPanel
               item={selectedItem}
@@ -2000,17 +2554,23 @@ export default function App() {
               onChange={handleActionFormChange}
               onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
+              onApproveStage={handleApproveStage}
               onBack={handleRevert}
+              onOpenPurchaseOrderPage={openPurchaseOrderPage}
               isSubmitting={isSubmitting}
               error={actionError}
               showExpand={false}
             />
+          ) : null}
+          {expandedPanel === "request-summary" && selectedItem ? (
+            <RequestSummary item={selectedItem} showExpand={false} />
           ) : null}
           {expandedPanel === "workflow" && selectedItem ? (
             <WorkflowTimeline
               stages={stages}
               currentStage={selectedItem.currentStage}
               history={selectedItem.history}
+              onOpenRequestForPaymentPage={openRequestForPaymentPage}
               showExpand={false}
             />
           ) : null}

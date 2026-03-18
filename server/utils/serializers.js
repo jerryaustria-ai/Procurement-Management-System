@@ -46,6 +46,7 @@ export function serializePurchaseRequest(request) {
     requestedAt: request.requestedAt,
     currentStage: request.currentStage,
     currentStageDescription: stageDescriptions[request.currentStage],
+    approvalCompleted: Boolean(request.approvalCompleted),
     status: request.status,
     notes: request.notes,
     progressIndex: workflowStages.indexOf(request.currentStage),
