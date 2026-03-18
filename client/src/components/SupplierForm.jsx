@@ -19,6 +19,28 @@ export default function SupplierForm({
           />
         </label>
         <label>
+          Supplier Category
+          <select name="category" value={form.category} onChange={onChange}>
+            <option value="Product">Product</option>
+            <option value="Service">Service</option>
+            <option value="Contractor">Contractor</option>
+          </select>
+        </label>
+        <label>
+          Supplier Type
+          <select name="supplierType" value={form.supplierType} onChange={onChange}>
+            <option value="Manufacturer">Manufacturer</option>
+            <option value="Distributor">Distributor</option>
+            <option value="Reseller">Reseller</option>
+            <option value="Wholesaler">Wholesaler</option>
+            <option value="Retailer">Retailer</option>
+            <option value="Service Provider">Service Provider</option>
+            <option value="Contractor">Contractor</option>
+            <option value="Consultant">Consultant</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+        <label>
           Contact person
           <input
             name="contactPerson"

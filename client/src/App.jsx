@@ -72,6 +72,8 @@ function getInitialUserForm() {
 function getInitialSupplierForm() {
   return {
     name: "",
+    category: "Product",
+    supplierType: "Manufacturer",
     contactPerson: "",
     email: "",
     phone: "",
@@ -732,6 +734,15 @@ export default function App() {
       ...current,
       file
     }));
+  }
+
+  function handleReviewApprovalFileChange(event) {
+    const file = event.target.files?.[0] ?? null;
+    setUploadForm({
+      type: "other",
+      label: "Boss approval attachment",
+      file
+    });
   }
 
   function handleRequestAdminFormChange(event) {
@@ -2257,18 +2268,19 @@ export default function App() {
           stages={stages}
           user={session.user}
           actionForm={actionForm}
-          supplierOptions={supplierOptions}
-          onActionChange={handleActionFormChange}
-            onCreateSupplier={openCreateSupplierModal}
-            onAdvance={handleAdvance}
-            onBack={handleRevert}
-            onOpenPurchaseOrderPage={openPurchaseOrderPage}
-            isSubmitting={isSubmitting}
-          actionError={actionError}
           uploadForm={uploadForm}
+          suppliers={suppliers}
+          onActionChange={handleActionFormChange}
           onUploadFormChange={handleUploadFormChange}
           onUploadFileChange={handleUploadFileChange}
+          onReviewAttachmentFileChange={handleReviewApprovalFileChange}
           onUpload={handleUploadDocument}
+          onCreateSupplier={openCreateSupplierModal}
+          onAdvance={handleAdvance}
+          onBack={handleRevert}
+          onOpenPurchaseOrderPage={openPurchaseOrderPage}
+          isSubmitting={isSubmitting}
+          actionError={actionError}
           onDeleteDocument={handleDeleteDocument}
           canManageDocuments={canManageDocuments}
           uploadError={uploadError}
@@ -2277,6 +2289,17 @@ export default function App() {
           onEditRequest={openEditRequestModal}
           isAdmin={isAdmin}
         />
+        {isSupplierModalOpen ? (
+          <Modal eyebrow="New Supplier" title="Create supplier" onClose={() => setIsSupplierModalOpen(false)}>
+            <SupplierForm
+              form={supplierForm}
+              onChange={handleSupplierFormChange}
+              onSubmit={handleCreateSupplier}
+              isSubmitting={isSubmitting}
+              error={supplierError}
+            />
+          </Modal>
+        ) : null}
       </main>
     );
   }
@@ -2383,13 +2406,16 @@ export default function App() {
               stages={stages}
               user={session.user}
               form={actionForm}
-              supplierOptions={supplierOptions}
+              uploadForm={uploadForm}
+              suppliers={suppliers}
               onChange={handleActionFormChange}
-          onCreateSupplier={openCreateSupplierModal}
-          onAdvance={handleAdvance}
-          onBack={handleRevert}
-          onOpenPurchaseOrderPage={openPurchaseOrderPage}
-          isSubmitting={isSubmitting}
+              onReviewAttachmentFileChange={handleReviewApprovalFileChange}
+              onUpload={handleUploadDocument}
+              onCreateSupplier={openCreateSupplierModal}
+              onAdvance={handleAdvance}
+              onBack={handleRevert}
+              onOpenPurchaseOrderPage={openPurchaseOrderPage}
+              isSubmitting={isSubmitting}
               error={actionError}
               onExpand={() => openExpandedPanel("stage-actions")}
             />
@@ -2492,8 +2518,11 @@ export default function App() {
               stages={stages}
               user={session.user}
               form={actionForm}
-              supplierOptions={supplierOptions}
+              uploadForm={uploadForm}
+              suppliers={suppliers}
               onChange={handleActionFormChange}
+              onReviewAttachmentFileChange={handleReviewApprovalFileChange}
+              onUpload={handleUploadDocument}
               onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
               onBack={handleRevert}

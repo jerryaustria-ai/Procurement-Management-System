@@ -12,6 +12,8 @@ router.get("/", async (_req, res) => {
     items: items.map((supplier) => ({
       id: supplier._id.toString(),
       name: supplier.name,
+      category: supplier.category,
+      supplierType: supplier.supplierType,
       contactPerson: supplier.contactPerson,
       email: supplier.email,
       phone: supplier.phone,
@@ -23,7 +25,7 @@ router.get("/", async (_req, res) => {
 });
 
 router.post("/", requireRole("admin"), async (req, res) => {
-  const { name, contactPerson, email, phone, address, notes } = req.body;
+  const { name, category, supplierType, contactPerson, email, phone, address, notes } = req.body;
 
   if (!name?.trim()) {
     return res.status(400).json({ message: "Supplier name is required." });
@@ -37,6 +39,8 @@ router.post("/", requireRole("admin"), async (req, res) => {
 
   const created = await Supplier.create({
     name: normalizedName,
+    category: category || "Product",
+    supplierType: supplierType || "Manufacturer",
     contactPerson: contactPerson || "",
     email: email || "",
     phone: phone || "",
@@ -48,6 +52,8 @@ router.post("/", requireRole("admin"), async (req, res) => {
   return res.status(201).json({
     id: created._id.toString(),
     name: created.name,
+    category: created.category,
+    supplierType: created.supplierType,
     contactPerson: created.contactPerson,
     email: created.email,
     phone: created.phone,

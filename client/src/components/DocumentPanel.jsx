@@ -41,20 +41,20 @@ export default function DocumentPanel({
       ) : null}
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Documents</p>
-          <h2>PO, invoice, and delivery files</h2>
+          <p className="eyebrow">Attachments</p>
+          <h2>Upload documents</h2>
         </div>
         <span className="panel-counter">{item.documents?.length ?? 0} files</span>
       </div>
 
       <p className="panel-support">
-        Keep the request packet complete with supplier paperwork, delivery proofs, and finance
-        attachments.
+        Attach quotation, PO, invoice, delivery proof, inspection file, or other supporting
+        documents for this request.
       </p>
 
       <div className="form-grid two-column">
         <label>
-          Document type
+          Attachment type
           <select name="type" value={uploadForm.type} onChange={onUploadFormChange}>
             <option value="quotation">Quotation</option>
             <option value="po">PO</option>
@@ -65,7 +65,7 @@ export default function DocumentPanel({
           </select>
         </label>
         <label>
-          Label
+          Attachment label
           <input
             name="label"
             value={uploadForm.label}
@@ -76,12 +76,12 @@ export default function DocumentPanel({
       </div>
 
       <label>
-        File
+        Attachment file
         <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx" onChange={onFileChange} />
       </label>
 
       <button disabled={!canManage || isSubmitting || !uploadForm.file} type="button" onClick={onUpload}>
-        {isSubmitting ? "Uploading..." : "Upload document"}
+        {isSubmitting ? "Uploading..." : "Upload attachment"}
       </button>
 
       <div className="document-list">

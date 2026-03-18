@@ -58,8 +58,11 @@ export default function ActionPanel({
   stages,
   user,
   form,
-  supplierOptions,
+  uploadForm,
+  suppliers = [],
   onChange,
+  onReviewAttachmentFileChange,
+  onUpload,
   onCreateSupplier = () => {},
   onAdvance,
   onBack,
@@ -69,9 +72,7 @@ export default function ActionPanel({
   onExpand,
   showExpand = true
 }) {
-  const [isSupplierMenuOpen, setIsSupplierMenuOpen] = useState(false);
   const [supplierSearch, setSupplierSearch] = useState("");
-  const supplierSelectRef = useRef(null);
   const currentIndex = stages.indexOf(item.currentStage);
   const isFirstStage = currentIndex <= 0;
   const isComplete = item.currentStage === stages[stages.length - 1];
@@ -88,35 +89,26 @@ export default function ActionPanel({
       ? STAGE_DESCRIPTIONS[displayStage] ?? item.currentStageDescription
       : item.currentStageDescription;
   const canAdvance = item.allowedRoles.includes(user.role);
+  const showSupplierSearchField = item.currentStage === "Supplier Selection";
+  const showSupplierReadonlyField = ["Prepare PO", "Send PO"].includes(item.currentStage);
   const normalizedSupplier = supplierSearch.trim().toLowerCase();
-  const filteredSupplierOptions = supplierOptions.filter((supplier) =>
-    normalizedSupplier ? supplier.toLowerCase().includes(normalizedSupplier) : true
+  const filteredSuppliers = suppliers.filter((supplier) =>
+    normalizedSupplier
+      ? [
+          supplier.name,
+          supplier.contactPerson,
+          supplier.email,
+          supplier.phone,
+          supplier.address
+        ]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(normalizedSupplier))
+      : true
   );
-  const showSupplierMenu =
-    isSupplierMenuOpen && (user.role === "admin" || filteredSupplierOptions.length || normalizedSupplier);
 
   useEffect(() => {
     setSupplierSearch(form.supplier || "");
   }, [form.supplier]);
-
-  useEffect(() => {
-    if (!isSupplierMenuOpen) {
-      return undefined;
-    }
-
-    function handlePointerDown(event) {
-      if (!supplierSelectRef.current?.contains(event.target)) {
-        setIsSupplierMenuOpen(false);
-        setSupplierSearch(form.supplier || "");
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-    };
-  }, [form.supplier, isSupplierMenuOpen]);
 
   function handleSupplierPick(value) {
     onChange({
@@ -126,7 +118,6 @@ export default function ActionPanel({
       }
     });
     setSupplierSearch(value);
-    setIsSupplierMenuOpen(false);
   }
 
   return (
@@ -148,68 +139,67 @@ export default function ActionPanel({
       </div>
 
       <div className="form-grid">
-        {["Supplier Selection", "Prepare PO", "Send PO"].includes(item.currentStage) ? (
+        {showSupplierSearchField ? (
           <StageField>
             <label>
-              Select with search
-              <div className="searchable-select" ref={supplierSelectRef}>
-                <div className="searchable-select-trigger-wrap">
-                  <button
-                    className="searchable-select-trigger"
-                    type="button"
-                    onClick={() => {
-                      setSupplierSearch(form.supplier || "");
-                      setIsSupplierMenuOpen((current) => !current);
-                    }}
-                  >
-                    <span>{form.supplier || "Select supplier"}</span>
-                    <span className="searchable-select-caret" aria-hidden="true">
-                      ▾
-                    </span>
-                  </button>
-                </div>
-              </div>
-              {showSupplierMenu ? (
-                <div className="suggestion-menu">
-                  <div className="suggestion-search">
-                    <input
-                      value={supplierSearch}
-                      onChange={(event) => setSupplierSearch(event.target.value)}
-                      placeholder="Search"
-                      autoComplete="off"
-                    />
-                  </div>
-                  {user.role === "admin" ? (
-                    <button
-                      className="suggestion-link"
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        setIsSupplierMenuOpen(false);
-                        onCreateSupplier();
-                      }}
-                    >
-                      Create new supplier
-                    </button>
-                  ) : null}
-                  {filteredSupplierOptions.map((supplier) => (
-                    <button
-                      key={supplier}
-                      className="suggestion-item"
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        handleSupplierPick(supplier);
-                      }}
-                    >
-                      {supplier}
-                    </button>
-                  ))}
-                  {!filteredSupplierOptions.length ? (
-                    <div className="suggestion-empty">No matching suppliers</div>
-                  ) : null}
-                </div>
+              Search supplier
+              <input
+                value={supplierSearch}
+                onChange={(event) => setSupplierSearch(event.target.value)}
+                placeholder="Search by supplier, contact person, email, or phone"
+                autoComplete="off"
+              />
+            </label>
+            <div className="supplier-table">
+              {user.role === "admin" ? (
+                <button className="suggestion-link supplier-create-link" type="button" onClick={onCreateSupplier}>
+                  Create new supplier
+                </button>
               ) : null}
+              <table className="supplier-table-grid">
+                <thead>
+                  <tr className="supplier-table-header">
+                    <th>Supplier</th>
+                    <th>Contact</th>
+                    <th>Email / Phone</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSuppliers.map((supplier) => (
+                    <tr
+                      key={supplier.id}
+                      className={form.supplier === supplier.name ? "supplier-row selected" : "supplier-row"}
+                      onClick={() => handleSupplierPick(supplier.name)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleSupplierPick(supplier.name);
+                        }
+                      }}
+                      tabIndex={0}
+                    >
+                      <td>{supplier.name}</td>
+                      <td>{supplier.contactPerson || "Not set"}</td>
+                      <td>{supplier.email || supplier.phone || "Not set"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredSuppliers.length ? <div className="suggestion-empty">No matching suppliers</div> : null}
+            </div>
+          </StageField>
+        ) : null}
+
+        {showSupplierReadonlyField ? (
+          <StageField>
+            <label>
+              Supplier
+              <input
+                name="supplier"
+                value={form.supplier}
+                onChange={onChange}
+                placeholder="Enter supplier name"
+              />
             </label>
           </StageField>
         ) : null}
@@ -294,6 +284,38 @@ export default function ActionPanel({
           </StageField>
         ) : null}
       </div>
+
+      {item.currentStage === "Review" ? (
+        <>
+          <label>
+            Approval attachment
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+              onChange={onReviewAttachmentFileChange}
+            />
+          </label>
+
+          {uploadForm.file ? (
+            <p className="panel-support">
+              Selected file: <strong>{uploadForm.file.name}</strong>
+            </p>
+          ) : (
+            <p className="panel-support">
+              Upload the attachment that proves this purchase request was approved by the boss.
+            </p>
+          )}
+
+          <button
+            className="ghost-button"
+            disabled={isSubmitting || !uploadForm.file}
+            type="button"
+            onClick={onUpload}
+          >
+            Upload approval attachment
+          </button>
+        </>
+      ) : null}
 
       <label>
         Stage notes

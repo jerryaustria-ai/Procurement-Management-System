@@ -8,18 +8,19 @@ export default function RequestWorkspacePage({
   stages,
   user,
   actionForm,
-  supplierOptions,
+  uploadForm,
+  suppliers,
   onActionChange,
+  onUploadFormChange,
+  onUploadFileChange,
+  onReviewAttachmentFileChange,
+  onUpload,
   onCreateSupplier,
   onAdvance,
   onBack,
   onOpenPurchaseOrderPage,
   isSubmitting,
   actionError,
-  uploadForm,
-  onUploadFormChange,
-  onUploadFileChange,
-  onUpload,
   onDeleteDocument,
   canManageDocuments,
   uploadError,
@@ -77,8 +78,11 @@ export default function RequestWorkspacePage({
               stages={stages}
               user={user}
               form={actionForm}
-              supplierOptions={supplierOptions}
+              uploadForm={uploadForm}
+              suppliers={suppliers}
               onChange={onActionChange}
+              onReviewAttachmentFileChange={onReviewAttachmentFileChange}
+              onUpload={onUpload}
               onCreateSupplier={onCreateSupplier}
               onAdvance={onAdvance}
               onBack={onBack}
