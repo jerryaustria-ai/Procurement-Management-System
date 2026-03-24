@@ -57,6 +57,28 @@ function getOfficeDeliveryAddress(branch, fallbackAddress = "") {
   );
 }
 
+function getInitialIdentityForm(defaults = DEFAULT_COMPANY_SETTINGS) {
+  return {
+    branchName: "",
+    address: defaults.address,
+    logoUrl: defaults.logoUrl
+  };
+}
+
+function getCompanyIdentityForBranch(branch, companySettings, identities = []) {
+  const normalizedBranch = String(branch || "").trim().toLowerCase();
+
+  if (!normalizedBranch) {
+    return companySettings;
+  }
+
+  const matchedIdentity = identities.find(
+    (identity) => String(identity.branchName || "").trim().toLowerCase() === normalizedBranch
+  );
+
+  return matchedIdentity || companySettings;
+}
+
 function getStoredSession() {
   try {
     return JSON.parse(localStorage.getItem("procurement-session") || "null");
@@ -412,7 +434,11 @@ function CompanyHeader({
 export default function App() {
   const [theme, setTheme] = useState(() => getStoredTheme());
   const [companySettings, setCompanySettings] = useState(DEFAULT_COMPANY_SETTINGS);
+  const [companyIdentities, setCompanyIdentities] = useState([]);
   const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS);
+  const [identityForm, setIdentityForm] = useState(getInitialIdentityForm());
+  const [editingIdentityId, setEditingIdentityId] = useState("");
+  const [isMainSettingsEditing, setIsMainSettingsEditing] = useState(false);
   const [session, setSession] = useState(() => getStoredSession());
   const [credentials, setCredentials] = useState({
     email: "admin@januarius.app",
@@ -480,6 +506,9 @@ export default function App() {
   const dashboardRefreshInFlight = useRef(false);
 
   const isAdmin = session?.user?.role === "admin";
+  const branchOptions = Array.from(
+    new Set([...BRANCH_OPTIONS, ...companyIdentities.map((identity) => identity.branchName).filter(Boolean)])
+  );
   const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
   const requesterOptions = users;
   const supplierOptions = Array.from(
@@ -494,8 +523,8 @@ export default function App() {
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
   const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null;
   const dashboardStats = getDashboardStats(items);
-  const activePurchaseOrders = items.filter(
-    (item) => item.status === "open" && String(item.poNumber || "").trim()
+  const purchaseOrderRecords = items.filter(
+    (item) => String(item.poNumber || item.poDraft?.poNumber || "").trim()
   );
   const shouldPauseDashboardRefresh =
     isCreateRequestModalOpen ||
@@ -519,6 +548,25 @@ export default function App() {
       (session.user.role === "admin" || session.user.email === selectedItem.requesterEmail)
   );
 
+  async function syncCompanySettings() {
+    const response = await fetch(`${API_BASE_URL}/settings`);
+    if (!response.ok) {
+      throw new Error("Unable to load company settings.");
+    }
+
+    const data = await response.json();
+    const nextSettings = {
+      companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
+      address: data.address || DEFAULT_COMPANY_SETTINGS.address,
+      logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
+    };
+
+    setCompanySettings(nextSettings);
+    setSettingsForm(nextSettings);
+    setCompanyIdentities(Array.isArray(data.identities) ? data.identities : []);
+    return nextSettings;
+  }
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("procurement-theme", theme);
@@ -536,24 +584,16 @@ export default function App() {
 
     async function loadSettings() {
       try {
-        const response = await fetch(`${API_BASE_URL}/settings`);
-        if (!response.ok) {
-          throw new Error("Unable to load company settings.");
-        }
-
-        const data = await response.json();
         if (ignore) {
           return;
         }
 
-        const nextSettings = {
-          companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
-          address: data.address || DEFAULT_COMPANY_SETTINGS.address,
-          logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
-        };
+        const nextSettings = await syncCompanySettings();
+        if (ignore) {
+          return;
+        }
 
-        setCompanySettings(nextSettings);
-        setSettingsForm(nextSettings);
+        setIdentityForm(getInitialIdentityForm(nextSettings));
       } catch (_error) {
         if (ignore) {
           return;
@@ -561,6 +601,8 @@ export default function App() {
 
         setCompanySettings(DEFAULT_COMPANY_SETTINGS);
         setSettingsForm(DEFAULT_COMPANY_SETTINGS);
+        setCompanyIdentities([]);
+        setIdentityForm(getInitialIdentityForm());
       }
     }
 
@@ -1011,21 +1053,36 @@ export default function App() {
     }));
   }
 
-  function handleSettingsLogoChange(event) {
-    const file = event.target.files?.[0];
+  function handleIdentityFormChange(event) {
+    setIdentityForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  }
 
+  function loadImageIntoForm(file, setter) {
     if (!file) {
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
-      setSettingsForm((current) => ({
+      setter((current) => ({
         ...current,
         logoUrl: String(reader.result || current.logoUrl)
       }));
     };
     reader.readAsDataURL(file);
+  }
+
+  function handleSettingsLogoChange(event) {
+    const file = event.target.files?.[0];
+    loadImageIntoForm(file, setSettingsForm);
+  }
+
+  function handleIdentityLogoChange(event) {
+    const file = event.target.files?.[0];
+    loadImageIntoForm(file, setIdentityForm);
   }
 
   function handleRequestForPaymentFormChange(event) {
@@ -1637,9 +1694,14 @@ export default function App() {
     const shippingHandling = parseAmountValue(purchaseOrderForm.shippingHandling);
     const other = parseAmountValue(purchaseOrderForm.other);
     const netTotal = subTotal + salesTax + shippingHandling + other;
+    const activeCompanyIdentity = getCompanyIdentityForBranch(
+      selectedItem.branch,
+      companySettings,
+      companyIdentities
+    );
     const officeDeliveryAddress = getOfficeDeliveryAddress(
       selectedItem.branch,
-      companySettings.address || selectedItem.deliveryAddress
+      activeCompanyIdentity.address || selectedItem.deliveryAddress
     );
 
     const rowsHtml = purchaseOrderForm.lineItems
@@ -1690,7 +1752,7 @@ export default function App() {
           <section class="sheet">
             <div class="topbar">
               <div>
-                <p class="brand-kicker">${companySettings.companyName}</p>
+                <p class="brand-kicker">${activeCompanyIdentity.companyName}</p>
                 <h1>Purchase Order</h1>
                 <p class="sub">Generated from the Procurement Management System.</p>
               </div>
@@ -1965,6 +2027,7 @@ export default function App() {
             paymentReference: actionForm.paymentReference,
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
+            poDraft: purchaseOrderForm,
             comment: stageComment
           })
         }
@@ -1976,8 +2039,14 @@ export default function App() {
       }
 
       setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setPurchaseOrderDrafts((current) => ({
+        ...current,
+        [data.id]: data.poDraft ?? purchaseOrderForm
+      }));
       setActionForm((current) => ({
         ...current,
+        supplier: data.supplier || current.supplier,
+        poNumber: data.poNumber || current.poNumber,
         notes: ""
       }));
       pushToast({
@@ -2718,6 +2787,9 @@ export default function App() {
   function handleOpenSettingsPage() {
     closeHeaderMenuPages();
     setSettingsForm(companySettings);
+    setIdentityForm(getInitialIdentityForm(companySettings));
+    setEditingIdentityId("");
+    setIsMainSettingsEditing(false);
     setIsSettingsPageOpen(true);
   }
 
@@ -2730,7 +2802,17 @@ export default function App() {
   }
 
   function closeSettingsPage() {
+    setIsMainSettingsEditing(false);
     setIsSettingsPageOpen(false);
+  }
+
+  function handleStartMainSettingsEdit() {
+    setIsMainSettingsEditing(true);
+  }
+
+  function handleCancelMainSettingsEdit() {
+    setSettingsForm(companySettings);
+    setIsMainSettingsEditing(false);
   }
 
   function handleSaveSettings() {
@@ -2768,7 +2850,10 @@ export default function App() {
 
         setCompanySettings(nextSettings);
         setSettingsForm(nextSettings);
-        setIsSettingsPageOpen(false);
+        setCompanyIdentities(Array.isArray(data.identities) ? data.identities : []);
+        setIdentityForm(getInitialIdentityForm(nextSettings));
+        setEditingIdentityId("");
+        setIsMainSettingsEditing(false);
         pushToast({
           title: "Settings saved",
           message: "Company branding was updated.",
@@ -2787,8 +2872,129 @@ export default function App() {
     })();
   }
 
-  function handleResetSettings() {
-    setSettingsForm(DEFAULT_COMPANY_SETTINGS);
+  function handleEditIdentity(identityId) {
+    const targetIdentity = companyIdentities.find((identity) => identity.id === identityId);
+
+    if (!targetIdentity) {
+      return;
+    }
+
+    setEditingIdentityId(targetIdentity.id);
+    setIdentityForm({
+      branchName: targetIdentity.branchName || "",
+      address: targetIdentity.address || DEFAULT_COMPANY_SETTINGS.address,
+      logoUrl: targetIdentity.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
+    });
+  }
+
+  function handleResetIdentity() {
+    setEditingIdentityId("");
+    setIdentityForm(getInitialIdentityForm(companySettings));
+  }
+
+  function handleSaveIdentity() {
+    void (async () => {
+      if (!session?.token || !isAdmin) {
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      try {
+        const endpoint = editingIdentityId
+          ? `${API_BASE_URL}/settings/identities/${editingIdentityId}`
+          : `${API_BASE_URL}/settings/identities`;
+        const method = editingIdentityId ? "PATCH" : "POST";
+        const response = await fetch(endpoint, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.token}`
+          },
+          body: JSON.stringify({
+            branchName: identityForm.branchName.trim(),
+            address: identityForm.address.trim() || companySettings.address,
+            logoUrl: identityForm.logoUrl || companySettings.logoUrl
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to save company identity.");
+        }
+
+        const nextSettings = await syncCompanySettings();
+        setEditingIdentityId("");
+        setIdentityForm(getInitialIdentityForm(nextSettings));
+        pushToast({
+          title: editingIdentityId ? "Identity updated" : "Identity created",
+          message: "The subsidiary or branch identity was saved.",
+          variant: "success"
+        });
+      } catch (error) {
+        pushToast({
+          title: "Save identity failed",
+          message: error.message,
+          variant: "error",
+          duration: 4200
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
+  }
+
+  function handleDeleteIdentity(identityId) {
+    const targetIdentity = companyIdentities.find((identity) => identity.id === identityId);
+
+    if (!targetIdentity || !session?.token || !isAdmin) {
+      return;
+    }
+
+    openConfirmDialog({
+      title: "Delete company identity?",
+      message: `Are you sure you want to delete ${targetIdentity.branchName}? This action cannot be undone.`,
+      confirmLabel: "Yes, delete identity",
+      onConfirm: async () => {
+        setIsSubmitting(true);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/settings/identities/${identityId}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${session.token}`
+            }
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || "Failed to delete company identity.");
+          }
+
+          setCompanyIdentities((current) => current.filter((identity) => identity.id !== identityId));
+          if (editingIdentityId === identityId) {
+            setEditingIdentityId("");
+            setIdentityForm(getInitialIdentityForm(companySettings));
+          }
+          setConfirmDialog(null);
+          pushToast({
+            title: "Identity deleted",
+            message: "The branch or subsidiary identity was removed.",
+            variant: "success"
+          });
+        } catch (error) {
+          setConfirmDialog(null);
+          pushToast({
+            title: "Delete identity failed",
+            message: error.message,
+            variant: "error",
+            duration: 4200
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
   }
 
   if (!session?.token) {
@@ -2896,7 +3102,7 @@ export default function App() {
           companySettings={companySettings}
         />
         <PurchaseOrderDirectoryPage
-          items={activePurchaseOrders}
+          items={purchaseOrderRecords}
           onOpen={openPurchaseOrderPage}
           onClose={closePurchaseOrderDirectory}
         />
@@ -3052,12 +3258,32 @@ export default function App() {
         />
         <SettingsPage
           form={settingsForm}
+          identities={companyIdentities}
+          identityForm={identityForm}
+          editingIdentityId={editingIdentityId}
+          isMainSettingsEditing={isMainSettingsEditing}
           onChange={handleSettingsFormChange}
           onLogoFileChange={handleSettingsLogoChange}
+          onStartMainSettingsEdit={handleStartMainSettingsEdit}
+          onCancelMainSettingsEdit={handleCancelMainSettingsEdit}
           onSave={handleSaveSettings}
-          onReset={handleResetSettings}
+          onIdentityChange={handleIdentityFormChange}
+          onIdentityLogoFileChange={handleIdentityLogoChange}
+          onEditIdentity={handleEditIdentity}
+          onSaveIdentity={handleSaveIdentity}
+          onDeleteIdentity={handleDeleteIdentity}
           onClose={closeSettingsPage}
         />
+        {confirmDialog ? (
+          <ConfirmDialog
+            title={confirmDialog.title}
+            message={confirmDialog.message}
+            confirmLabel={confirmDialog.confirmLabel}
+            onConfirm={confirmDialog.onConfirm}
+            onClose={() => setConfirmDialog(null)}
+            isSubmitting={isSubmitting}
+          />
+        ) : null}
       </main>
     );
   }
@@ -3292,7 +3518,7 @@ export default function App() {
         >
           <CreateRequestForm
             form={requestForm}
-            branchOptions={BRANCH_OPTIONS}
+            branchOptions={branchOptions}
             isAdmin={isAdmin}
             requesterOptions={requesterOptions}
             onChange={handleRequestFormChange}
@@ -3407,7 +3633,7 @@ export default function App() {
           <RequestAdminPanel
             item={selectedItem}
             stages={stages}
-            branchOptions={BRANCH_OPTIONS}
+            branchOptions={branchOptions}
             form={requestAdminForm}
             onChange={handleRequestAdminFormChange}
             onSave={handleSaveRequest}

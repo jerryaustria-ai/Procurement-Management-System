@@ -289,6 +289,28 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     request.notes = req.body.notes;
   }
 
+  if (req.body.poDraft && typeof req.body.poDraft === "object") {
+    const draft = req.body.poDraft;
+    request.poDraft = {
+      supplier: String(draft.supplier ?? ""),
+      poNumber: String(draft.poNumber ?? ""),
+      notes: String(draft.notes ?? ""),
+      salesTax: String(draft.salesTax ?? ""),
+      shippingHandling: String(draft.shippingHandling ?? ""),
+      other: String(draft.other ?? ""),
+      lineItems: Array.isArray(draft.lineItems)
+        ? draft.lineItems.map((lineItem, index) => ({
+            id: String(lineItem.id || `${Date.now()}-${index}`),
+            qty: String(lineItem.qty ?? ""),
+            unit: String(lineItem.unit ?? ""),
+            description: String(lineItem.description ?? ""),
+            unitPrice: String(lineItem.unitPrice ?? ""),
+            total: String(lineItem.total ?? "")
+          }))
+        : []
+    };
+  }
+
   if (isTerminalStage(request.currentStage)) {
     request.history = request.history.map((entry) =>
       entry.stage === request.currentStage && entry.status === "current"
