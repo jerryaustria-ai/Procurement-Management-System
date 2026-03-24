@@ -1,18 +1,15 @@
 export default function SettingsPage({
-  form,
   identities,
-  identityForm,
-  editingIdentityId,
+  canManageIdentities,
   isMainSettingsEditing,
+  form,
   onChange,
   onLogoFileChange,
   onStartMainSettingsEdit,
   onCancelMainSettingsEdit,
   onSave,
-  onIdentityChange,
-  onIdentityLogoFileChange,
+  onCreateIdentity,
   onEditIdentity,
-  onSaveIdentity,
   onDeleteIdentity,
   onClose
 }) {
@@ -109,79 +106,41 @@ export default function SettingsPage({
               Create a different address and logo for a branch or subsidiary.
             </p>
           </div>
+          {canManageIdentities ? (
+            <button className="ghost-button" type="button" onClick={onCreateIdentity}>
+              New identity
+            </button>
+          ) : null}
         </div>
 
-        <div className="settings-grid">
-          <div className="settings-form-card">
-            <div className="settings-preview-panel">
-              <span>Logo preview</span>
-              <div className="settings-logo-preview">
-                <img src={identityForm.logoUrl} alt={identityForm.branchName || "Company identity"} />
-              </div>
-            </div>
-            <label className="settings-file-field">
-              Replace logo
-              <input type="file" accept=".ico,.png,.jpg,.jpeg,.svg,.webp" onChange={onIdentityLogoFileChange} />
-            </label>
-            {identities.length ? (
-              <div className="settings-identity-list">
-                {identities.map((identity) => (
-                  <article className="settings-identity-card" key={identity.id}>
-                    <div className="settings-identity-top">
-                      <div className="settings-identity-logo">
-                        <img src={identity.logoUrl} alt={identity.branchName} />
-                      </div>
-                      <div>
-                        <strong>{identity.branchName}</strong>
-                      </div>
+        <div className="settings-form-card">
+          {identities.length ? (
+            <div className="settings-identity-list">
+              {identities.map((identity) => (
+                <article className="settings-identity-card" key={identity.id}>
+                  <div className="settings-identity-top">
+                    <div className="settings-identity-logo">
+                      <img src={identity.logoUrl} alt={identity.branchName} />
                     </div>
-                    <small>{identity.address}</small>
-                    <div className="request-card-actions">
-                      <button className="ghost-button" type="button" onClick={() => onEditIdentity(identity.id)}>
-                        Edit
-                      </button>
-                      <button className="ghost-button danger-link" type="button" onClick={() => onDeleteIdentity(identity.id)}>
-                        Delete
-                      </button>
+                    <div>
+                      <strong>{identity.branchName}</strong>
                     </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="empty-state">No branch or subsidiary identities yet.</p>
-            )}
-          </div>
-
-          <div className="settings-form-card">
-            <div className="settings-inline-heading">
-              <h3>{editingIdentityId ? "Edit identity" : "New identity"}</h3>
+                  </div>
+                  <small>{identity.address}</small>
+                  <div className="request-card-actions">
+                    <button className="ghost-button" type="button" onClick={() => onEditIdentity(identity.id)}>
+                      Edit
+                    </button>
+                    <button className="ghost-button danger-link" type="button" onClick={() => onDeleteIdentity(identity.id)}>
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
-
-            <label>
-              Branch or subsidiary
-              <input
-                name="branchName"
-                value={identityForm.branchName}
-                onChange={onIdentityChange}
-                placeholder="Example: Stats or Januarius Holdings Cebu"
-              />
-            </label>
-
-            <label>
-              Address
-              <textarea
-                name="address"
-                value={identityForm.address}
-                onChange={onIdentityChange}
-                rows="4"
-                placeholder="Enter the complete branch or subsidiary address"
-              />
-            </label>
-
-            <button type="button" onClick={onSaveIdentity}>
-              {editingIdentityId ? "Save identity" : "Add identity"}
-            </button>
-          </div>
+          ) : (
+            <p className="empty-state">No branch or subsidiary identities yet.</p>
+          )}
         </div>
       </section>
     </section>

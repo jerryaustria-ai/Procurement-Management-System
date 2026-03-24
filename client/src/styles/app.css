@@ -1456,17 +1456,15 @@ label,
   font-size: 0.88rem;
 }
 
-.settings-preview-panel {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
+.settings-inline-status {
+  margin: -4px 0 0;
+  color: var(--success);
+  font-size: 0.9rem;
 }
 
-.settings-preview-panel > span {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.modal-form {
+  display: grid;
+  gap: 14px;
 }
 
 .settings-identity-list {

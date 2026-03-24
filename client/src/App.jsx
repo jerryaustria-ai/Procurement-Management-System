@@ -438,6 +438,8 @@ export default function App() {
   const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS);
   const [identityForm, setIdentityForm] = useState(getInitialIdentityForm());
   const [editingIdentityId, setEditingIdentityId] = useState("");
+  const [identitySaveMessage, setIdentitySaveMessage] = useState("");
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
   const [isMainSettingsEditing, setIsMainSettingsEditing] = useState(false);
   const [session, setSession] = useState(() => getStoredSession());
   const [credentials, setCredentials] = useState({
@@ -1054,6 +1056,7 @@ export default function App() {
   }
 
   function handleIdentityFormChange(event) {
+    setIdentitySaveMessage("");
     setIdentityForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
@@ -1082,6 +1085,7 @@ export default function App() {
 
   function handleIdentityLogoChange(event) {
     const file = event.target.files?.[0];
+    setIdentitySaveMessage("");
     loadImageIntoForm(file, setIdentityForm);
   }
 
@@ -2803,6 +2807,7 @@ export default function App() {
 
   function closeSettingsPage() {
     setIsMainSettingsEditing(false);
+    setIsIdentityModalOpen(false);
     setIsSettingsPageOpen(false);
   }
 
@@ -2880,16 +2885,27 @@ export default function App() {
     }
 
     setEditingIdentityId(targetIdentity.id);
+    setIdentitySaveMessage("");
     setIdentityForm({
       branchName: targetIdentity.branchName || "",
       address: targetIdentity.address || DEFAULT_COMPANY_SETTINGS.address,
       logoUrl: targetIdentity.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
     });
+    setIsIdentityModalOpen(true);
   }
 
   function handleResetIdentity() {
     setEditingIdentityId("");
+    setIdentitySaveMessage("");
     setIdentityForm(getInitialIdentityForm(companySettings));
+    setIsIdentityModalOpen(false);
+  }
+
+  function handleOpenCreateIdentityModal() {
+    setEditingIdentityId("");
+    setIdentitySaveMessage("");
+    setIdentityForm(getInitialIdentityForm(companySettings));
+    setIsIdentityModalOpen(true);
   }
 
   function handleSaveIdentity() {
@@ -2926,6 +2942,8 @@ export default function App() {
         const nextSettings = await syncCompanySettings();
         setEditingIdentityId("");
         setIdentityForm(getInitialIdentityForm(nextSettings));
+        setIdentitySaveMessage("Saved to database");
+        setIsIdentityModalOpen(false);
         pushToast({
           title: editingIdentityId ? "Identity updated" : "Identity created",
           message: "The subsidiary or branch identity was saved.",
@@ -3257,23 +3275,64 @@ export default function App() {
           companySettings={companySettings}
         />
         <SettingsPage
-          form={settingsForm}
           identities={companyIdentities}
-          identityForm={identityForm}
-          editingIdentityId={editingIdentityId}
+          canManageIdentities={isAdmin}
           isMainSettingsEditing={isMainSettingsEditing}
+          form={settingsForm}
           onChange={handleSettingsFormChange}
           onLogoFileChange={handleSettingsLogoChange}
           onStartMainSettingsEdit={handleStartMainSettingsEdit}
           onCancelMainSettingsEdit={handleCancelMainSettingsEdit}
           onSave={handleSaveSettings}
-          onIdentityChange={handleIdentityFormChange}
-          onIdentityLogoFileChange={handleIdentityLogoChange}
+          onCreateIdentity={handleOpenCreateIdentityModal}
           onEditIdentity={handleEditIdentity}
-          onSaveIdentity={handleSaveIdentity}
           onDeleteIdentity={handleDeleteIdentity}
           onClose={closeSettingsPage}
         />
+        {isIdentityModalOpen ? (
+          <Modal
+            eyebrow="Subsidiaries"
+            title={editingIdentityId ? "Edit identity" : "New identity"}
+            onClose={handleResetIdentity}
+          >
+            <div className="modal-form">
+              <label>
+                Branch or subsidiary
+                <input
+                  name="branchName"
+                  value={identityForm.branchName}
+                  onChange={handleIdentityFormChange}
+                  placeholder="Example: Stats or Januarius Holdings Cebu"
+                />
+              </label>
+
+              <label>
+                Address
+                <textarea
+                  name="address"
+                  value={identityForm.address}
+                  onChange={handleIdentityFormChange}
+                  rows="4"
+                  placeholder="Enter the complete branch or subsidiary address"
+                />
+              </label>
+
+              <label className="settings-file-field">
+                Replace logo
+                <input
+                  type="file"
+                  accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
+                  onChange={handleIdentityLogoChange}
+                />
+              </label>
+
+              <button type="button" onClick={handleSaveIdentity}>
+                {editingIdentityId ? "Save identity" : "Add identity"}
+              </button>
+              {identitySaveMessage ? <p className="settings-inline-status">{identitySaveMessage}</p> : null}
+            </div>
+          </Modal>
+        ) : null}
         {confirmDialog ? (
           <ConfirmDialog
             title={confirmDialog.title}
