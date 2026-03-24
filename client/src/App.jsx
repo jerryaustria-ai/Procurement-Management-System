@@ -79,6 +79,57 @@ function getCompanyIdentityForBranch(branch, companySettings, identities = []) {
   return matchedIdentity || companySettings;
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Unable to read the selected image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageElement(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to process the selected image."));
+    image.src = source;
+  });
+}
+
+async function optimizeLogoFile(file) {
+  const fileName = String(file?.name || "").toLowerCase();
+  const isIco = file?.type === "image/x-icon" || fileName.endsWith(".ico");
+
+  if (isIco) {
+    if ((file?.size || 0) > 600 * 1024) {
+      throw new Error("ICO logo is too large. Please use a smaller icon file.");
+    }
+
+    return readFileAsDataUrl(file);
+  }
+
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImageElement(source);
+  const maxDimension = 320;
+  const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
+  const width = Math.max(1, Math.round((image.width || 1) * scale));
+  const height = Math.max(1, Math.round((image.height || 1) * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to prepare the selected image.");
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  return canvas.toDataURL("image/webp", 0.82);
+}
+
 function getStoredSession() {
   try {
     return JSON.parse(localStorage.getItem("procurement-session") || "null");
@@ -1063,30 +1114,53 @@ export default function App() {
     }));
   }
 
-  function loadImageIntoForm(file, setter) {
+  function loadImageIntoForm(file, setter, options = {}) {
     if (!file) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setter((current) => ({
-        ...current,
-        logoUrl: String(reader.result || current.logoUrl)
-      }));
-    };
-    reader.readAsDataURL(file);
+    const { onStart, onDone, onError } = options;
+
+    void (async () => {
+      try {
+        onStart?.();
+        const optimizedLogoUrl = await optimizeLogoFile(file);
+        setter((current) => ({
+          ...current,
+          logoUrl: optimizedLogoUrl || current.logoUrl
+        }));
+        onDone?.();
+      } catch (error) {
+        onError?.(error);
+      }
+    })();
   }
 
   function handleSettingsLogoChange(event) {
     const file = event.target.files?.[0];
-    loadImageIntoForm(file, setSettingsForm);
+    loadImageIntoForm(file, setSettingsForm, {
+      onError: (error) =>
+        pushToast({
+          title: "Logo update failed",
+          message: error.message,
+          variant: "error",
+          duration: 4200
+        })
+    });
   }
 
   function handleIdentityLogoChange(event) {
     const file = event.target.files?.[0];
-    setIdentitySaveMessage("");
-    loadImageIntoForm(file, setIdentityForm);
+    loadImageIntoForm(file, setIdentityForm, {
+      onStart: () => setIdentitySaveMessage(""),
+      onError: (error) =>
+        pushToast({
+          title: "Logo update failed",
+          message: error.message,
+          variant: "error",
+          duration: 4200
+        })
+    });
   }
 
   function handleRequestForPaymentFormChange(event) {
@@ -2934,8 +3008,20 @@ export default function App() {
           })
         });
 
-        const data = await response.json();
+        const raw = await response.text();
+        let data = {};
+
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          data = {};
+        }
+
         if (!response.ok) {
+          if (response.status === 413) {
+            throw new Error("Logo upload is too large. Please use a smaller image.");
+          }
+
           throw new Error(data.message || "Failed to save company identity.");
         }
 

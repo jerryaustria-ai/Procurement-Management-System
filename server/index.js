@@ -41,7 +41,7 @@ app.use(
     }
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
 app.get("/api/health", (_req, res) => {
@@ -53,6 +53,23 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workflows", workflowRoutes);
+
+app.use((error, _req, res, next) => {
+  if (!error) {
+    return next();
+  }
+
+  if (error.type === "entity.too.large") {
+    return res.status(413).json({ message: "Uploaded data is too large." });
+  }
+
+  if (error instanceof SyntaxError && "body" in error) {
+    return res.status(400).json({ message: "Invalid JSON payload." });
+  }
+
+  console.error("Unhandled server error.", error);
+  return res.status(500).json({ message: "Internal server error." });
+});
 
 connectDatabase()
   .then(() => {
