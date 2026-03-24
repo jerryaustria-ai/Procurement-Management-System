@@ -8,9 +8,15 @@ export default function RequestWorkspacePage({
   stages,
   user,
   actionForm,
+  purchaseOrderForm,
   uploadForm,
   suppliers,
   onActionChange,
+  onPurchaseOrderChange,
+  onPurchaseOrderLineItemChange,
+  onAddPurchaseOrderLineItem,
+  onRemovePurchaseOrderLineItem,
+  onPrintPurchaseOrder,
   onUploadFormChange,
   onUploadFileChange,
   onReviewAttachmentFileChange,
@@ -18,7 +24,6 @@ export default function RequestWorkspacePage({
   onCreateSupplier,
   onAdvance,
   onBack,
-  onOpenPurchaseOrderPage,
   isSubmitting,
   actionError,
   onDeleteDocument,
@@ -27,7 +32,7 @@ export default function RequestWorkspacePage({
   apiOrigin,
   onClose,
   onEditRequest,
-  isAdmin
+  canEditRequest
 }) {
   const stageActionsRef = useRef(null);
 
@@ -60,7 +65,7 @@ export default function RequestWorkspacePage({
           <button className="ghost-button" type="button" onClick={onClose}>
             Back to dashboard
           </button>
-          {isAdmin ? (
+          {canEditRequest ? (
             <button className="ghost-button" type="button" onClick={onEditRequest}>
               Edit request
             </button>
@@ -78,15 +83,20 @@ export default function RequestWorkspacePage({
               stages={stages}
               user={user}
               form={actionForm}
+              purchaseOrderForm={purchaseOrderForm}
               uploadForm={uploadForm}
               suppliers={suppliers}
               onChange={onActionChange}
+              onPurchaseOrderChange={onPurchaseOrderChange}
+              onPurchaseOrderLineItemChange={onPurchaseOrderLineItemChange}
+              onAddPurchaseOrderLineItem={onAddPurchaseOrderLineItem}
+              onRemovePurchaseOrderLineItem={onRemovePurchaseOrderLineItem}
+              onPrintPurchaseOrder={onPrintPurchaseOrder}
               onReviewAttachmentFileChange={onReviewAttachmentFileChange}
               onUpload={onUpload}
               onCreateSupplier={onCreateSupplier}
               onAdvance={onAdvance}
               onBack={onBack}
-              onOpenPurchaseOrderPage={onOpenPurchaseOrderPage}
               isSubmitting={isSubmitting}
               error={actionError}
               showExpand={false}

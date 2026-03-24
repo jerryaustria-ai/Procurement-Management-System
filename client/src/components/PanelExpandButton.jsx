@@ -1,9 +1,16 @@
 export default function PanelExpandButton({ onClick, label = "Expand panel" }) {
   return (
-    <button
+    <span
       className="panel-expand-button"
-      type="button"
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
       aria-label={label}
       title={label}
     >
@@ -18,6 +25,6 @@ export default function PanelExpandButton({ onClick, label = "Expand panel" }) {
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-    </button>
+    </span>
   );
 }

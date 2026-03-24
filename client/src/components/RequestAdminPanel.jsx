@@ -6,6 +6,8 @@ export default function RequestAdminPanel({
   onChange,
   onSave,
   onDelete,
+  canDelete,
+  isAdmin,
   isSubmitting,
   error
 }) {
@@ -48,47 +50,51 @@ export default function RequestAdminPanel({
             onClick={(event) => event.target.showPicker?.()}
           />
         </label>
-        <label>
-          Status
-          <select name="status" value={form.status} onChange={onChange}>
-            <option value="open">Open</option>
-            <option value="completed">Completed</option>
-          </select>
-        </label>
-        <label>
-          Current stage
-          <select name="currentStage" value={form.currentStage} onChange={onChange}>
-            {stages.map((stage) => (
-              <option key={stage} value={stage}>
-                {stage}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Inspection
-          <select name="inspectionStatus" value={form.inspectionStatus} onChange={onChange}>
-            <option value="pending">Pending</option>
-            <option value="passed">Passed</option>
-            <option value="failed">Failed</option>
-          </select>
-        </label>
-        <label>
-          Supplier
-          <input name="supplier" value={form.supplier} onChange={onChange} />
-        </label>
-        <label>
-          PO number
-          <input name="poNumber" value={form.poNumber} onChange={onChange} />
-        </label>
-        <label>
-          Invoice number
-          <input name="invoiceNumber" value={form.invoiceNumber} onChange={onChange} />
-        </label>
-        <label>
-          Payment reference
-          <input name="paymentReference" value={form.paymentReference} onChange={onChange} />
-        </label>
+        {isAdmin ? (
+          <>
+            <label>
+              Status
+              <select name="status" value={form.status} onChange={onChange}>
+                <option value="open">Open</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <label>
+              Current stage
+              <select name="currentStage" value={form.currentStage} onChange={onChange}>
+                {stages.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {stage}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Inspection
+              <select name="inspectionStatus" value={form.inspectionStatus} onChange={onChange}>
+                <option value="pending">Pending</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+              </select>
+            </label>
+            <label>
+              Supplier
+              <input name="supplier" value={form.supplier} onChange={onChange} />
+            </label>
+            <label>
+              PO number
+              <input name="poNumber" value={form.poNumber} onChange={onChange} />
+            </label>
+            <label>
+              Invoice number
+              <input name="invoiceNumber" value={form.invoiceNumber} onChange={onChange} />
+            </label>
+            <label>
+              Payment reference
+              <input name="paymentReference" value={form.paymentReference} onChange={onChange} />
+            </label>
+          </>
+        ) : null}
       </div>
 
       <label>
@@ -105,9 +111,11 @@ export default function RequestAdminPanel({
         <button disabled={isSubmitting} type="button" onClick={onSave}>
           {isSubmitting ? "Saving..." : "Save changes"}
         </button>
-        <button className="danger-button" disabled={isSubmitting} type="button" onClick={onDelete}>
-          Delete request
-        </button>
+        {canDelete ? (
+          <button className="danger-button" disabled={isSubmitting} type="button" onClick={onDelete}>
+            Delete request
+          </button>
+        ) : null}
       </div>
       {error ? <p className="error-text">{error}</p> : null}
     </section>

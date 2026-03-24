@@ -33,6 +33,31 @@ const documentSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const purchaseOrderLineItemSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    qty: { type: String, default: "1" },
+    unit: { type: String, default: "" },
+    description: { type: String, default: "" },
+    unitPrice: { type: String, default: "" },
+    total: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
+const purchaseOrderDraftSchema = new mongoose.Schema(
+  {
+    supplier: { type: String, default: "" },
+    poNumber: { type: String, default: "" },
+    notes: { type: String, default: "" },
+    salesTax: { type: String, default: "" },
+    shippingHandling: { type: String, default: "" },
+    other: { type: String, default: "" },
+    lineItems: { type: [purchaseOrderLineItemSchema], default: [] }
+  },
+  { _id: false }
+);
+
 const purchaseRequestSchema = new mongoose.Schema(
   {
     requestNumber: { type: String, required: true, unique: true },
@@ -66,8 +91,10 @@ const purchaseRequestSchema = new mongoose.Schema(
     requestedAt: { type: Date, required: true, default: Date.now },
     currentStage: { type: String, enum: workflowStages, required: true },
     approvalCompleted: { type: Boolean, default: false },
+    filingCompleted: { type: Boolean, default: false },
     status: { type: String, enum: ["open", "completed"], default: "open" },
     notes: { type: String, default: "" },
+    poDraft: { type: purchaseOrderDraftSchema, default: () => ({}) },
     history: [historySchema],
     documents: [documentSchema]
   },

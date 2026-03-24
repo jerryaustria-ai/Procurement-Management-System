@@ -34,6 +34,18 @@ function isRequesterAccessingOwnRequest(req, request) {
   return req.user.role !== "requester" || request.requesterEmail === req.user.email;
 }
 
+function canEditRequest(req, request) {
+  return req.user.role === "admin" || request.requesterEmail === req.user.email;
+}
+
+function canManageRequestDrafts(req, request) {
+  return (
+    req.user.role === "admin" ||
+    request.requesterEmail === req.user.email ||
+    getAllowedRoles(request.currentStage).includes(req.user.role)
+  );
+}
+
 router.get("/purchase-requests", async (req, res) => {
   const query = req.user.role === "requester" ? { requesterEmail: req.user.email } : {};
   const items = await PurchaseRequest.find(query).sort({ createdAt: -1 });
@@ -118,32 +130,39 @@ router.post("/purchase-requests", async (req, res) => {
   return res.status(201).json(serializePurchaseRequest(created));
 });
 
-router.patch("/purchase-requests/:id", requireRole("admin"), async (req, res) => {
+router.patch("/purchase-requests/:id", async (req, res) => {
   const request = await PurchaseRequest.findById(req.params.id);
 
   if (!request) {
     return res.status(404).json({ message: "Purchase request not found." });
   }
 
-  const editableFields = [
-    "title",
-    "description",
-    "category",
-    "branch",
-    "department",
-    "currency",
-    "priority",
-    "deliveryAddress",
-    "paymentTerms",
-    "supplier",
-    "poNumber",
-    "invoiceNumber",
-    "paymentReference",
-    "notes",
-    "currentStage",
-    "status",
-    "inspectionStatus"
-  ];
+  if (!canEditRequest(req, request)) {
+    return res.status(403).json({ message: "Only the requester or an admin can edit this request." });
+  }
+
+  const editableFields =
+    req.user.role === "admin"
+      ? [
+          "title",
+          "description",
+          "category",
+          "branch",
+          "department",
+          "currency",
+          "priority",
+          "deliveryAddress",
+          "paymentTerms",
+          "supplier",
+          "poNumber",
+          "invoiceNumber",
+          "paymentReference",
+          "notes",
+          "currentStage",
+          "status",
+          "inspectionStatus"
+        ]
+      : ["title", "description", "branch", "department", "notes"];
 
   for (const field of editableFields) {
     if (typeof req.body[field] === "string") {
@@ -163,8 +182,56 @@ router.patch("/purchase-requests/:id", requireRole("admin"), async (req, res) =>
     request.dateNeeded = req.body.dateNeeded || null;
   }
 
-  if (typeof req.body.deliveryDate !== "undefined") {
+  if (req.user.role === "admin" && typeof req.body.deliveryDate !== "undefined") {
     request.deliveryDate = req.body.deliveryDate || null;
+  }
+
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
+router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!canManageRequestDrafts(req, request)) {
+    return res.status(403).json({ message: "Your role cannot update the purchase order draft." });
+  }
+
+  const lineItems = Array.isArray(req.body.lineItems)
+    ? req.body.lineItems.map((lineItem, index) => ({
+        id: String(lineItem.id || `${Date.now()}-${index}`),
+        qty: String(lineItem.qty ?? ""),
+        unit: String(lineItem.unit ?? ""),
+        description: String(lineItem.description ?? ""),
+        unitPrice: String(lineItem.unitPrice ?? ""),
+        total: String(lineItem.total ?? "")
+      }))
+    : [];
+
+  request.poDraft = {
+    supplier: String(req.body.supplier ?? ""),
+    poNumber: String(req.body.poNumber ?? ""),
+    notes: String(req.body.notes ?? ""),
+    salesTax: String(req.body.salesTax ?? ""),
+    shippingHandling: String(req.body.shippingHandling ?? ""),
+    other: String(req.body.other ?? ""),
+    lineItems
+  };
+
+  if (typeof req.body.supplier === "string") {
+    request.supplier = req.body.supplier;
+  }
+
+  if (typeof req.body.poNumber === "string") {
+    request.poNumber = req.body.poNumber;
+  }
+
+  if (typeof req.body.notes === "string") {
+    request.notes = req.body.notes;
   }
 
   await request.save();
@@ -222,9 +289,30 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     request.notes = req.body.notes;
   }
 
+  if (isTerminalStage(request.currentStage)) {
+    request.history = request.history.map((entry) =>
+      entry.stage === request.currentStage && entry.status === "current"
+        ? {
+            ...entry.toObject(),
+            status: "completed",
+            updatedAt: new Date(),
+            actor: req.user.name,
+            actorRole: req.user.role,
+            comment: req.body.comment || req.body.notes || "Workflow completed."
+          }
+        : entry
+    );
+
+    request.filingCompleted = true;
+    request.status = "completed";
+
+    await request.save();
+    return res.json(serializePurchaseRequest(request));
+  }
+
   if (request.currentStage === "Review") {
     const approvalStage = "Approval";
-    const supplierSelectionStage = "Supplier Selection";
+    const preparePoStage = "Prepare PO";
 
     request.history.push({
       stage: approvalStage,
@@ -235,15 +323,15 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
       comment: req.body.comment || req.body.notes || "Approval completed."
     });
 
-    request.currentStage = supplierSelectionStage;
+    request.currentStage = preparePoStage;
     request.approvalCompleted = true;
     request.history.push({
-      stage: supplierSelectionStage,
+      stage: preparePoStage,
       status: "current",
       updatedAt: new Date(),
       actor: req.user.name,
       actorRole: req.user.role,
-      comment: `Moved to ${supplierSelectionStage}`
+      comment: `Moved to ${preparePoStage}`
     });
 
     await request.save();
@@ -255,18 +343,18 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     if (nextStage === "Approval") {
       request.approvalCompleted = false;
     }
+    if (nextStage === "Filing") {
+      request.filingCompleted = false;
+      request.status = "open";
+    }
     request.history.push({
       stage: nextStage,
-      status: isTerminalStage(nextStage) ? "completed" : "current",
+      status: "current",
       updatedAt: new Date(),
       actor: req.user.name,
       actorRole: req.user.role,
       comment: req.body.comment || req.body.notes || `Moved to ${nextStage}`
     });
-  }
-
-  if (isTerminalStage(nextStage)) {
-    request.status = "completed";
   }
 
   await request.save();
@@ -348,6 +436,7 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
 
   request.currentStage = previousStage;
   request.approvalCompleted = false;
+  request.filingCompleted = false;
   request.status = "open";
   request.history.push({
     stage: previousStage,

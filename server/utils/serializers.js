@@ -41,12 +41,31 @@ export function serializePurchaseRequest(request) {
     poNumber: request.poNumber,
     invoiceNumber: request.invoiceNumber,
     paymentReference: request.paymentReference,
+    poDraft: request.poDraft
+      ? {
+          supplier: request.poDraft.supplier ?? "",
+          poNumber: request.poDraft.poNumber ?? "",
+          notes: request.poDraft.notes ?? "",
+          salesTax: request.poDraft.salesTax ?? "",
+          shippingHandling: request.poDraft.shippingHandling ?? "",
+          other: request.poDraft.other ?? "",
+          lineItems: (request.poDraft.lineItems ?? []).map((lineItem) => ({
+            id: lineItem.id,
+            qty: lineItem.qty,
+            unit: lineItem.unit,
+            description: lineItem.description,
+            unitPrice: lineItem.unitPrice,
+            total: lineItem.total
+          }))
+        }
+      : null,
     deliveryDate: request.deliveryDate,
     inspectionStatus: request.inspectionStatus,
     requestedAt: request.requestedAt,
     currentStage: request.currentStage,
     currentStageDescription: stageDescriptions[request.currentStage],
     approvalCompleted: Boolean(request.approvalCompleted),
+    filingCompleted: Boolean(request.filingCompleted),
     status: request.status,
     notes: request.notes,
     progressIndex: workflowStages.indexOf(request.currentStage),

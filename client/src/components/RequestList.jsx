@@ -11,6 +11,8 @@ export default function RequestList({
   selectedId,
   onSelect,
   onOpenDetails,
+  onEdit,
+  canEditItem,
   onExportCsv,
   onExportPdf,
   onExpand,
@@ -56,9 +58,16 @@ export default function RequestList({
             </button>
             <div className="request-list-footer">
               <small>{getProcurementStatus(item)}</small>
-              <button className="request-open-link" type="button" onClick={() => onOpenDetails(item.id)}>
-                Open
-              </button>
+              <div className="request-list-actions-inline">
+                {canEditItem?.(item) ? (
+                  <button className="request-open-link" type="button" onClick={() => onEdit(item.id)}>
+                    Edit
+                  </button>
+                ) : null}
+                <button className="request-open-link" type="button" onClick={() => onOpenDetails(item.id)}>
+                  Open
+                </button>
+              </div>
             </div>
           </article>
         ))}

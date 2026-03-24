@@ -3,7 +3,8 @@ export default function SupplierForm({
   onChange,
   onSubmit,
   isSubmitting,
-  error
+  error,
+  submitLabel = "Create supplier"
 }) {
   return (
     <section className="panel action-panel">
@@ -92,7 +93,7 @@ export default function SupplierForm({
       </label>
 
       <button disabled={isSubmitting} onClick={onSubmit} type="button">
-        {isSubmitting ? "Saving..." : "Create supplier"}
+        {isSubmitting ? "Saving..." : submitLabel}
       </button>
 
       {error ? <p className="error-text">{error}</p> : null}

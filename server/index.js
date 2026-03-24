@@ -4,6 +4,7 @@ import express from "express";
 import path from "path";
 import { connectDatabase } from "./config/database.js";
 import authRoutes from "./routes/auth.js";
+import settingsRoutes from "./routes/settings.js";
 import supplierRoutes from "./routes/suppliers.js";
 import userRoutes from "./routes/users.js";
 import workflowRoutes from "./routes/workflows.js";
@@ -48,6 +49,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/settings", settingsRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workflows", workflowRoutes);

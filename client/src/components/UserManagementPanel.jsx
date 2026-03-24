@@ -6,6 +6,7 @@ export default function UserManagementPanel({
   onSelect,
   onCreateNew,
   onEditSelected,
+  onDeleteSelected,
   onExpand,
   showExpand = true
 }) {
@@ -30,23 +31,39 @@ export default function UserManagementPanel({
         <button type="button" onClick={onCreateNew}>
           New user
         </button>
-        <button className="ghost-button" type="button" onClick={onEditSelected} disabled={!selectedUserId}>
-          Edit selected user
-        </button>
       </div>
 
       <div className="user-admin-list">
         {users.map((user) => (
-          <button
+          <article
             key={user.id}
-            type="button"
             className={`request-list-item ${selectedUserId === user.id ? "selected" : ""}`}
-            onClick={() => onSelect(user.id)}
           >
-            <strong>{user.name}</strong>
-            <span>{user.roleLabel}</span>
-            <small>{user.email}</small>
-          </button>
+            <button className="supplier-card-button" type="button" onClick={() => onSelect(user.id)}>
+              <strong>{user.name}</strong>
+              <span>{user.roleLabel}</span>
+              <small>{user.email}</small>
+            </button>
+            <div className="request-list-footer">
+              <small>{user.department || "No department set"}</small>
+              <div className="request-list-actions-inline">
+                <button
+                  className="request-open-link"
+                  type="button"
+                  onClick={() => onEditSelected(user.id)}
+                >
+                  Edit
+                </button>
+                <button
+                  className="request-open-link danger-link"
+                  type="button"
+                  onClick={() => onDeleteSelected(user.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </article>
         ))}
       </div>
     </section>

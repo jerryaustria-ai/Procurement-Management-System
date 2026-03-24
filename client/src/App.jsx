@@ -6,13 +6,16 @@ import DocumentPanel from "./components/DocumentPanel.jsx";
 import LoginForm from "./components/LoginForm.jsx";
 import Modal from "./components/Modal.jsx";
 import PanelExpandButton from "./components/PanelExpandButton.jsx";
+import PurchaseOrderDirectoryPage from "./components/PurchaseOrderDirectoryPage.jsx";
 import PurchaseOrderPage from "./components/PurchaseOrderPage.jsx";
 import RequestForPaymentPage from "./components/RequestForPaymentPage.jsx";
 import RequestAdminPanel from "./components/RequestAdminPanel.jsx";
 import RequestList from "./components/RequestList.jsx";
 import RequestSummary from "./components/RequestSummary.jsx";
 import RequestWorkspacePage from "./components/RequestWorkspacePage.jsx";
+import SettingsPage from "./components/SettingsPage.jsx";
 import SupplierForm from "./components/SupplierForm.jsx";
+import SupplierManagementPage from "./components/SupplierManagementPage.jsx";
 import ToastStack from "./components/ToastStack.jsx";
 import UserEditorPanel from "./components/UserEditorPanel.jsx";
 import UserManagementPanel from "./components/UserManagementPanel.jsx";
@@ -26,6 +29,17 @@ const BRANCH_OPTIONS = [
   "Stats",
   "Januarius Performance Center"
 ];
+const DEFAULT_COMPANY_SETTINGS = {
+  companyName: "Januarius Holdings Inc.",
+  logoUrl: "/JANUARIUS.ico",
+  address: "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines"
+};
+const OFFICE_ADDRESS_MAP = {
+  "Januarius Holdings": "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines",
+  Stats: "Stats Office, Mandaluyong City, Metro Manila, Philippines",
+  "Januarius Performance Center":
+    "Januarius Performance Center, Quezon City, Metro Manila, Philippines"
+};
 
 function getStoredTheme() {
   try {
@@ -33,6 +47,14 @@ function getStoredTheme() {
   } catch {
     return "dark";
   }
+}
+
+function getOfficeDeliveryAddress(branch, fallbackAddress = "") {
+  return (
+    OFFICE_ADDRESS_MAP[branch] ||
+    fallbackAddress ||
+    "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines"
+  );
 }
 
 function getStoredSession() {
@@ -105,6 +127,33 @@ function getInitialPurchaseOrderForm() {
   };
 }
 
+function getPurchaseOrderDraft(item, items) {
+  if (item?.poDraft) {
+    return {
+      supplier: item.poDraft.supplier ?? "",
+      poNumber: item.poDraft.poNumber || getAssignedPurchaseOrderNumber(item, items),
+      notes: item.poDraft.notes ?? "",
+      salesTax: item.poDraft.salesTax ?? "",
+      shippingHandling: item.poDraft.shippingHandling ?? "",
+      other: item.poDraft.other ?? "",
+      lineItems:
+        item.poDraft.lineItems && item.poDraft.lineItems.length
+          ? item.poDraft.lineItems
+          : [getInitialPurchaseOrderLineItem()]
+    };
+  }
+
+  return {
+    supplier: item?.supplier === "Pending selection" ? "" : item?.supplier || "",
+    poNumber: getAssignedPurchaseOrderNumber(item, items),
+    notes: item?.notes || "",
+    salesTax: "",
+    shippingHandling: "",
+    other: "",
+    lineItems: [getInitialPurchaseOrderLineItem()]
+  };
+}
+
 function getInitialRequestForPaymentForm() {
   return {
     payee: "",
@@ -140,6 +189,10 @@ function getNextPurchaseOrderNumber(items) {
 
   const nextSequence = String(highestSequence + 1).padStart(3, "0");
   return `PO-${highestYear}-${nextSequence}`;
+}
+
+function getAssignedPurchaseOrderNumber(item, items) {
+  return item?.poNumber || getNextPurchaseOrderNumber(items);
 }
 
 function getRequestAdminForm(item) {
@@ -237,15 +290,60 @@ function formatCurrencyValue(value, currency = "PHP") {
   }).format(value || 0);
 }
 
-function CompanyHeader({ isAuthenticated, user, onLogout, theme, onThemeChange }) {
+function CompanyHeader({
+  isAuthenticated,
+  user,
+  onLogout,
+  theme,
+  onThemeChange,
+  onOpenSuppliers,
+  onOpenUsers,
+  onOpenPurchaseOrder,
+  onOpenSettings,
+  companySettings = DEFAULT_COMPANY_SETTINGS
+}) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event) {
+      if (!menuRef.current?.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  function handleMenuAction(action) {
+    setIsMenuOpen(false);
+    action?.();
+  }
+
   return (
     <header className="company-header">
       <div className="brand-lockup">
         <div className="brand-mark" aria-hidden="true">
-          <span>J</span>
+          <img src={companySettings.logoUrl} alt="" />
         </div>
         <div>
-          <p className="brand-kicker">Januarius Holdings Inc.</p>
+          <p className="brand-kicker">{companySettings.companyName}</p>
           <strong>Procurement Management System</strong>
         </div>
       </div>
@@ -268,19 +366,43 @@ function CompanyHeader({ isAuthenticated, user, onLogout, theme, onThemeChange }
           </button>
         </div>
         {user ? (
-          <>
-            <div className="header-identity">
-              <span>{user.roleLabel}</span>
-              <div className="header-userline">
-                <strong>{user.name}</strong>
+          <div className="header-menu-wrap" ref={menuRef}>
+            <button
+              className="header-menu-trigger"
+              type="button"
+              onClick={() => setIsMenuOpen((current) => !current)}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+            >
+              <span>{user.name}</span>
+              <span className="header-menu-caret" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+            {isMenuOpen ? (
+              <div className="header-menu-dropdown" role="menu" aria-label="Account menu">
+                <button type="button" role="menuitem" onClick={() => handleMenuAction(onOpenSuppliers)}>
+                  Suppliers
+                </button>
+                <button type="button" role="menuitem" onClick={() => handleMenuAction(onOpenUsers)}>
+                  Users
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleMenuAction(onOpenPurchaseOrder)}
+                >
+                  Purchase Order
+                </button>
+                <button type="button" role="menuitem" onClick={() => handleMenuAction(onOpenSettings)}>
+                  Settings
+                </button>
+                <button type="button" role="menuitem" onClick={() => handleMenuAction(onLogout)}>
+                  Logout
+                </button>
               </div>
-            </div>
-            {onLogout ? (
-              <button className="header-logout" type="button" onClick={onLogout}>
-                Log out
-              </button>
             ) : null}
-          </>
+          </div>
         ) : null}
       </div>
     </header>
@@ -289,6 +411,8 @@ function CompanyHeader({ isAuthenticated, user, onLogout, theme, onThemeChange }
 
 export default function App() {
   const [theme, setTheme] = useState(() => getStoredTheme());
+  const [companySettings, setCompanySettings] = useState(DEFAULT_COMPANY_SETTINGS);
+  const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS);
   const [session, setSession] = useState(() => getStoredSession());
   const [credentials, setCredentials] = useState({
     email: "admin@januarius.app",
@@ -300,6 +424,7 @@ export default function App() {
   const [suppliers, setSuppliers] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [actionForm, setActionForm] = useState({
     supplier: "",
     notes: "",
@@ -327,8 +452,10 @@ export default function App() {
   const [requestAdminForm, setRequestAdminForm] = useState(() => getRequestAdminForm(null));
   const [userForm, setUserForm] = useState(getInitialUserForm());
   const [supplierForm, setSupplierForm] = useState(getInitialSupplierForm());
-  const [isPurchaseOrderPageOpen, setIsPurchaseOrderPageOpen] = useState(false);
   const [purchaseOrderForm, setPurchaseOrderForm] = useState(getInitialPurchaseOrderForm());
+  const [purchaseOrderDrafts, setPurchaseOrderDrafts] = useState({});
+  const [isPurchaseOrderPageOpen, setIsPurchaseOrderPageOpen] = useState(false);
+  const [isPurchaseOrderDirectoryOpen, setIsPurchaseOrderDirectoryOpen] = useState(false);
   const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] = useState(false);
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(getInitialRequestForPaymentForm());
   const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] = useState(false);
@@ -343,6 +470,10 @@ export default function App() {
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isSupplierDirectoryOpen, setIsSupplierDirectoryOpen] = useState(false);
+  const [isUserDirectoryOpen, setIsUserDirectoryOpen] = useState(false);
+  const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(false);
+  const [supplierModalMode, setSupplierModalMode] = useState("create");
   const [expandedPanel, setExpandedPanel] = useState("");
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -361,7 +492,20 @@ export default function App() {
   const selectedItem =
     filteredItems.find((item) => item.id === selectedId) ?? filteredItems[0] ?? null;
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null;
   const dashboardStats = getDashboardStats(items);
+  const activePurchaseOrders = items.filter(
+    (item) => item.status === "open" && String(item.poNumber || "").trim()
+  );
+  const shouldPauseDashboardRefresh =
+    isCreateRequestModalOpen ||
+    isEditRequestModalOpen ||
+    isUserModalOpen ||
+    isSupplierModalOpen ||
+    isRequestWorkspacePageOpen ||
+    isRequestForPaymentPageOpen ||
+    isPurchaseOrderPageOpen ||
+    isSettingsPageOpen;
   const canManageDocuments = Boolean(
     selectedItem &&
       session?.user &&
@@ -369,11 +513,63 @@ export default function App() {
         session.user.email === selectedItem.requesterEmail ||
         selectedItem.allowedRoles.includes(session.user.role))
   );
+  const canEditSelectedRequest = Boolean(
+    selectedItem &&
+      session?.user &&
+      (session.user.role === "admin" || session.user.email === selectedItem.requesterEmail)
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("procurement-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const favicon = document.querySelector("link[rel='icon']");
+    if (favicon) {
+      favicon.setAttribute("href", companySettings.logoUrl);
+    }
+  }, [companySettings]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/settings`);
+        if (!response.ok) {
+          throw new Error("Unable to load company settings.");
+        }
+
+        const data = await response.json();
+        if (ignore) {
+          return;
+        }
+
+        const nextSettings = {
+          companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
+          address: data.address || DEFAULT_COMPANY_SETTINGS.address,
+          logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
+        };
+
+        setCompanySettings(nextSettings);
+        setSettingsForm(nextSettings);
+      } catch (_error) {
+        if (ignore) {
+          return;
+        }
+
+        setCompanySettings(DEFAULT_COMPANY_SETTINGS);
+        setSettingsForm(DEFAULT_COMPANY_SETTINGS);
+      }
+    }
+
+    void loadSettings();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!toasts.length) {
@@ -423,7 +619,7 @@ export default function App() {
       return {
         supplier: nextSupplier,
         notes: "",
-        poNumber: selectedItem.poNumber ?? "",
+        poNumber: getAssignedPurchaseOrderNumber(selectedItem, items),
         invoiceNumber: selectedItem.invoiceNumber ?? "",
         paymentReference: selectedItem.paymentReference ?? "",
         deliveryDate: selectedItem.deliveryDate ? selectedItem.deliveryDate.slice(0, 10) : "",
@@ -433,15 +629,22 @@ export default function App() {
       };
     });
     setRequestAdminForm(getRequestAdminForm(selectedItem));
+    setPurchaseOrderForm(
+      purchaseOrderDrafts[selectedItem.id] ?? getPurchaseOrderDraft(selectedItem, items)
+    );
     setUploadForm((current) => ({
       ...current,
       label: "",
       file: null
     }));
     setSelectedId(selectedItem.id);
-  }, [selectedItem]);
+  }, [selectedItem, purchaseOrderDrafts, items]);
 
   useEffect(() => {
+    if (isUserModalOpen) {
+      return;
+    }
+
     if (!selectedUser) {
       setUserForm(getInitialUserForm());
       return;
@@ -454,7 +657,7 @@ export default function App() {
       department: selectedUser.department ?? "",
       password: ""
     });
-  }, [selectedUser]);
+  }, [selectedUser, isUserModalOpen]);
 
   useEffect(() => {
     if (!session?.token) {
@@ -623,6 +826,10 @@ export default function App() {
       return;
     }
 
+    if (shouldPauseDashboardRefresh) {
+      return;
+    }
+
     const refreshDashboard = () => {
       if (document.hidden) {
         return;
@@ -640,7 +847,7 @@ export default function App() {
       window.removeEventListener("focus", refreshDashboard);
       document.removeEventListener("visibilitychange", refreshDashboard);
     };
-  }, [session]);
+  }, [session, shouldPauseDashboardRefresh]);
 
   function handleCredentialChange(event) {
     setCredentials((current) => ({
@@ -767,10 +974,58 @@ export default function App() {
   }
 
   function handlePurchaseOrderFormChange(event) {
-    setPurchaseOrderForm((current) => ({
+    const { name, value } = event.target;
+
+    if (name === "poNumber") {
+      return;
+    }
+
+    setPurchaseOrderForm((current) => {
+      const nextForm = {
+        ...current,
+        [name]: value
+      };
+
+      if (selectedItem?.id) {
+        setPurchaseOrderDrafts((drafts) => ({
+          ...drafts,
+          [selectedItem.id]: nextForm
+        }));
+      }
+
+      return nextForm;
+    });
+
+    if (["supplier", "notes"].includes(name)) {
+      setActionForm((current) => ({
+        ...current,
+        [name]: value
+      }));
+    }
+  }
+
+  function handleSettingsFormChange(event) {
+    setSettingsForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
     }));
+  }
+
+  function handleSettingsLogoChange(event) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSettingsForm((current) => ({
+        ...current,
+        logoUrl: String(reader.result || current.logoUrl)
+      }));
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleRequestForPaymentFormChange(event) {
@@ -804,28 +1059,59 @@ export default function App() {
         };
       });
 
-      return {
+      const nextForm = {
         ...current,
         lineItems
       };
+
+      if (selectedItem?.id) {
+        setPurchaseOrderDrafts((drafts) => ({
+          ...drafts,
+          [selectedItem.id]: nextForm
+        }));
+      }
+
+      return nextForm;
     });
   }
 
   function handleAddPurchaseOrderLineItem() {
-    setPurchaseOrderForm((current) => ({
-      ...current,
-      lineItems: [...current.lineItems, getInitialPurchaseOrderLineItem()]
-    }));
+    setPurchaseOrderForm((current) => {
+      const nextForm = {
+        ...current,
+        lineItems: [...current.lineItems, getInitialPurchaseOrderLineItem()]
+      };
+
+      if (selectedItem?.id) {
+        setPurchaseOrderDrafts((drafts) => ({
+          ...drafts,
+          [selectedItem.id]: nextForm
+        }));
+      }
+
+      return nextForm;
+    });
   }
 
   function handleRemovePurchaseOrderLineItem(index) {
-    setPurchaseOrderForm((current) => ({
-      ...current,
-      lineItems:
-        current.lineItems.length === 1
-          ? [getInitialPurchaseOrderLineItem()]
-          : current.lineItems.filter((_, itemIndex) => itemIndex !== index)
-    }));
+    setPurchaseOrderForm((current) => {
+      const nextForm = {
+        ...current,
+        lineItems:
+          current.lineItems.length === 1
+            ? [getInitialPurchaseOrderLineItem()]
+            : current.lineItems.filter((_, itemIndex) => itemIndex !== index)
+      };
+
+      if (selectedItem?.id) {
+        setPurchaseOrderDrafts((drafts) => ({
+          ...drafts,
+          [selectedItem.id]: nextForm
+        }));
+      }
+
+      return nextForm;
+    });
   }
 
   function handleExportCsv() {
@@ -1008,7 +1294,7 @@ export default function App() {
               <div class="brand">
                 <div class="brand-mark">J</div>
                 <div>
-                  <p class="kicker">Januarius Holdings Inc.</p>
+                  <p class="kicker">${companySettings.companyName}</p>
                   <h1>Procurement Request Report</h1>
                   <p class="subhead">Filtered registry export from the Procurement Management System.</p>
                 </div>
@@ -1085,11 +1371,27 @@ export default function App() {
   }
 
   function openEditRequestModal() {
-    if (!selectedItem) {
+    if (!selectedItem || !canEditSelectedRequest) {
       return;
     }
 
     setRequestAdminForm(getRequestAdminForm(selectedItem));
+    setIsEditRequestModalOpen(true);
+  }
+
+  function openEditRequestModalForItem(requestId) {
+    const targetItem = items.find((item) => item.id === requestId);
+
+    if (
+      !targetItem ||
+      !session?.user ||
+      (session.user.role !== "admin" && session.user.email !== targetItem.requesterEmail)
+    ) {
+      return;
+    }
+
+    setSelectedId(targetItem.id);
+    setRequestAdminForm(getRequestAdminForm(targetItem));
     setIsEditRequestModalOpen(true);
   }
 
@@ -1113,8 +1415,33 @@ export default function App() {
       return;
     }
 
+    setSupplierModalMode("create");
+    setSelectedSupplierId("");
     setSupplierError("");
     setSupplierForm(getInitialSupplierForm());
+    setIsSupplierModalOpen(true);
+  }
+
+  function openEditSupplierModal(supplierId = selectedSupplierId) {
+    const targetSupplier = suppliers.find((supplier) => supplier.id === supplierId);
+
+    if (!isAdmin || !targetSupplier) {
+      return;
+    }
+
+    setSupplierModalMode("edit");
+    setSelectedSupplierId(targetSupplier.id);
+    setSupplierError("");
+    setSupplierForm({
+      name: targetSupplier.name,
+      category: targetSupplier.category,
+      supplierType: targetSupplier.supplierType,
+      contactPerson: targetSupplier.contactPerson ?? "",
+      email: targetSupplier.email ?? "",
+      phone: targetSupplier.phone ?? "",
+      address: targetSupplier.address ?? "",
+      notes: targetSupplier.notes ?? ""
+    });
     setIsSupplierModalOpen(true);
   }
 
@@ -1122,16 +1449,19 @@ export default function App() {
     setConfirmDialog(config);
   }
 
-  function openEditUserModal() {
-    if (!selectedUser) {
+  function openEditUserModal(userId = selectedUserId) {
+    const targetUser = users.find((user) => user.id === userId);
+
+    if (!targetUser) {
       return;
     }
 
+    setSelectedUserId(targetUser.id);
     setUserForm({
-      name: selectedUser.name,
-      email: selectedUser.email,
-      role: selectedUser.role,
-      department: selectedUser.department ?? "",
+      name: targetUser.name,
+      email: targetUser.email,
+      role: targetUser.role,
+      department: targetUser.department ?? "",
       password: ""
     });
     setIsUserModalOpen(true);
@@ -1143,29 +1473,6 @@ export default function App() {
 
   function closeExpandedPanel() {
     setExpandedPanel("");
-  }
-
-  function openPurchaseOrderPage() {
-    if (!selectedItem) {
-      return;
-    }
-
-    const suggestedPoNumber = getNextPurchaseOrderNumber(items);
-
-    setPurchaseOrderForm((current) => ({
-      ...current,
-      supplier:
-        current.supplier ||
-        actionForm.supplier ||
-        (selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier || ""),
-      poNumber: current.poNumber || actionForm.poNumber || selectedItem.poNumber || suggestedPoNumber,
-      notes: current.notes || actionForm.notes || ""
-    }));
-    setIsPurchaseOrderPageOpen(true);
-  }
-
-  function closePurchaseOrderPage() {
-    setIsPurchaseOrderPageOpen(false);
   }
 
   function openRequestForPaymentPage() {
@@ -1191,27 +1498,47 @@ export default function App() {
     setIsRequestForPaymentPageOpen(true);
   }
 
+  function openPurchaseOrderPage(requestId = selectedId) {
+    const targetItem = items.find((item) => item.id === requestId) ?? selectedItem;
+
+    if (!targetItem) {
+      pushToast({
+        title: "No request selected",
+        message: "Select a request first before opening the purchase order page.",
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
+    setSelectedId(targetItem.id);
+    setPurchaseOrderForm(
+      purchaseOrderDrafts[targetItem.id] ?? {
+        ...getPurchaseOrderDraft(targetItem, items),
+        supplier:
+          actionForm.supplier ||
+          (targetItem.supplier === "Pending selection" ? "" : targetItem.supplier || ""),
+        notes: actionForm.notes || targetItem.notes || ""
+      }
+    );
+    setIsPurchaseOrderDirectoryOpen(false);
+    setIsPurchaseOrderPageOpen(true);
+  }
+
   function closeRequestForPaymentPage() {
     setIsRequestForPaymentPageOpen(false);
   }
 
-  function closeRequestWorkspacePage() {
-    setIsRequestWorkspacePageOpen(false);
+  function closePurchaseOrderPage() {
+    setIsPurchaseOrderPageOpen(false);
   }
 
-  function handleSavePurchaseOrderPage() {
-    setActionForm((current) => ({
-      ...current,
-      supplier: purchaseOrderForm.supplier,
-      poNumber: purchaseOrderForm.poNumber,
-      notes: purchaseOrderForm.notes
-    }));
-    setIsPurchaseOrderPageOpen(false);
-    pushToast({
-      title: "Purchase order draft saved",
-      message: "The PO details were copied back into the workflow form.",
-      variant: "success"
-    });
+  function closePurchaseOrderDirectory() {
+    setIsPurchaseOrderDirectoryOpen(false);
+  }
+
+  function closeRequestWorkspacePage() {
+    setIsRequestWorkspacePageOpen(false);
   }
 
   function handleSaveRequestForPaymentPage() {
@@ -1227,6 +1554,62 @@ export default function App() {
       message: "The payment request details were copied back into the workflow form.",
       variant: "success"
     });
+  }
+
+  function handleSavePurchaseOrderPage() {
+    void (async () => {
+      if (!selectedItem || !session?.token) {
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/po-draft`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.token}`
+            },
+            body: JSON.stringify(purchaseOrderForm)
+          }
+        );
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to save purchase order draft.");
+        }
+
+        setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+        setPurchaseOrderDrafts((drafts) => ({
+          ...drafts,
+          [data.id]: data.poDraft ?? purchaseOrderForm
+        }));
+        setActionForm((current) => ({
+          ...current,
+          supplier: data.supplier || purchaseOrderForm.supplier,
+          poNumber: data.poNumber || purchaseOrderForm.poNumber,
+          notes: purchaseOrderForm.notes
+        }));
+        setIsPurchaseOrderPageOpen(false);
+        pushToast({
+          title: "Purchase order draft saved",
+          message: "The PO details and breakdown were saved.",
+          variant: "success"
+        });
+      } catch (error) {
+        pushToast({
+          title: "Save purchase order failed",
+          message: error.message,
+          variant: "error",
+          duration: 4200
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
   }
 
   function handlePrintPurchaseOrderPage() {
@@ -1254,6 +1637,10 @@ export default function App() {
     const shippingHandling = parseAmountValue(purchaseOrderForm.shippingHandling);
     const other = parseAmountValue(purchaseOrderForm.other);
     const netTotal = subTotal + salesTax + shippingHandling + other;
+    const officeDeliveryAddress = getOfficeDeliveryAddress(
+      selectedItem.branch,
+      companySettings.address || selectedItem.deliveryAddress
+    );
 
     const rowsHtml = purchaseOrderForm.lineItems
       .map(
@@ -1303,7 +1690,7 @@ export default function App() {
           <section class="sheet">
             <div class="topbar">
               <div>
-                <p class="brand-kicker">Januarius Holdings Inc.</p>
+                <p class="brand-kicker">${companySettings.companyName}</p>
                 <h1>Purchase Order</h1>
                 <p class="sub">Generated from the Procurement Management System.</p>
               </div>
@@ -1319,14 +1706,7 @@ export default function App() {
               <div class="meta-card"><span>Supplier</span><strong>${purchaseOrderForm.supplier || selectedItem.supplier || "Pending selection"}</strong></div>
               <div class="meta-card"><span>Date Needed</span><strong>${formatExportDate(selectedItem.dateNeeded)}</strong></div>
               <div class="meta-card"><span>Branch</span><strong>${selectedItem.branch || "Not set"}</strong></div>
-              <div class="meta-card"><span>Department</span><strong>${selectedItem.department || "Not set"}</strong></div>
-              <div class="meta-card"><span>Delivery Address</span><strong>${selectedItem.deliveryAddress || "Not set"}</strong></div>
-              <div class="meta-card"><span>Current Stage</span><strong>${selectedItem.currentStage}</strong></div>
-            </div>
-
-            <div class="notes">
-              <h2>Request Title</h2>
-              <p>${selectedItem.title || "No title provided."}</p>
+              <div class="meta-card"><span>Delivery Address</span><strong>${officeDeliveryAddress}</strong></div>
             </div>
 
             <div class="notes">
@@ -1779,7 +2159,11 @@ export default function App() {
   }
 
   async function handleSaveRequest() {
-    if (!selectedItem || !session?.token || !isAdmin) {
+    if (
+      !selectedItem ||
+      !session?.token ||
+      (session.user.role !== "admin" && session.user.email !== selectedItem.requesterEmail)
+    ) {
       return;
     }
 
@@ -1996,21 +2380,23 @@ export default function App() {
     }
   }
 
-  async function handleDeleteUser() {
-    if (!session?.token || !isAdmin || !selectedUserId) {
+  async function handleDeleteUser(userId = selectedUserId) {
+    const targetUser = users.find((user) => user.id === userId);
+
+    if (!session?.token || !isAdmin || !targetUser) {
       return;
     }
 
     openConfirmDialog({
       title: "Delete user account",
-      message: "This account will lose access to the procurement workflow immediately.",
-      confirmLabel: "Delete user",
+      message: `Are you sure you want to delete ${targetUser.name}? This account will lose access to the procurement workflow immediately.`,
+      confirmLabel: "Yes, delete user",
       onConfirm: async () => {
         setUserError("");
         setIsSubmitting(true);
 
         try {
-          const response = await fetch(`${API_BASE_URL}/users/${selectedUserId}`, {
+          const response = await fetch(`${API_BASE_URL}/users/${targetUser.id}`, {
             method: "DELETE",
             headers: {
               Authorization: `Bearer ${session.token}`
@@ -2022,8 +2408,8 @@ export default function App() {
             throw new Error(data.message || "Failed to delete user.");
           }
 
-          setUsers((current) => current.filter((user) => user.id !== selectedUserId));
-          setSelectedUserId("");
+          setUsers((current) => current.filter((user) => user.id !== targetUser.id));
+          setSelectedUserId((current) => (current === targetUser.id ? "" : current));
           setUserForm(getInitialUserForm());
           setIsUserModalOpen(false);
           setConfirmDialog(null);
@@ -2109,8 +2495,126 @@ export default function App() {
     }
   }
 
+  async function handleUpdateSupplier() {
+    if (!session?.token || !isAdmin || !selectedSupplier) {
+      return;
+    }
+
+    if (!supplierForm.name.trim()) {
+      const message = "Supplier name is required.";
+      setSupplierError(message);
+      pushToast({
+        title: "Missing supplier name",
+        message,
+        variant: "error",
+        duration: 4200
+      });
+      return;
+    }
+
+    setSupplierError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/suppliers/${selectedSupplier.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.token}`
+        },
+        body: JSON.stringify(supplierForm)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update supplier.");
+      }
+
+      setSuppliers((current) =>
+        current
+          .map((supplier) => (supplier.id === data.id ? data : supplier))
+          .sort((left, right) => left.name.localeCompare(right.name))
+      );
+      setSelectedSupplierId(data.id);
+      setIsSupplierModalOpen(false);
+      setSupplierForm(getInitialSupplierForm());
+      pushToast({
+        title: "Supplier updated",
+        message: `${data.name} changes were saved.`,
+        variant: "success"
+      });
+    } catch (error) {
+      setSupplierError(error.message);
+      pushToast({
+        title: "Update supplier failed",
+        message: error.message,
+        variant: "error",
+        duration: 4200
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteSupplier(supplierId = selectedSupplierId) {
+    const targetSupplier = suppliers.find((supplier) => supplier.id === supplierId);
+
+    if (!session?.token || !isAdmin || !targetSupplier) {
+      return;
+    }
+
+    openConfirmDialog({
+      title: "Delete supplier",
+      message: `Are you sure you want to delete ${targetSupplier.name}? This action cannot be undone and the supplier will be removed from the directory.`,
+      confirmLabel: "Yes, delete supplier",
+      onConfirm: async () => {
+        setSupplierError("");
+        setIsSubmitting(true);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/suppliers/${targetSupplier.id}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${session.token}`
+            }
+          });
+
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || "Failed to delete supplier.");
+          }
+
+          setSuppliers((current) =>
+            current.filter((supplier) => supplier.id !== targetSupplier.id)
+          );
+          setSelectedSupplierId((current) => (current === targetSupplier.id ? "" : current));
+          setConfirmDialog(null);
+          pushToast({
+            title: "Supplier deleted",
+            message: `${targetSupplier.name} was removed from the directory.`,
+            variant: "success"
+          });
+        } catch (error) {
+          setSupplierError(error.message);
+          pushToast({
+            title: "Delete supplier failed",
+            message: error.message,
+            variant: "error",
+            duration: 4200
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
+  }
+
   function handleSelect(id) {
     setSelectedId(id);
+  }
+
+  function handleSelectSupplier(id) {
+    setSelectedSupplierId(id);
   }
 
   async function handleOpenRequestDetails(id) {
@@ -2121,6 +2625,11 @@ export default function App() {
     }
 
     setSelectedId(id);
+
+    if (session?.user?.role === "requester") {
+      setIsRequestWorkspacePageOpen(true);
+      return;
+    }
 
     if (targetItem.currentStage === "Purchase Request" && session?.token) {
       setActionError("");
@@ -2179,10 +2688,118 @@ export default function App() {
     clearSession();
   }
 
+  function closeHeaderMenuPages() {
+    setIsSupplierDirectoryOpen(false);
+    setIsUserDirectoryOpen(false);
+    setIsPurchaseOrderDirectoryOpen(false);
+    setIsPurchaseOrderPageOpen(false);
+    setIsSettingsPageOpen(false);
+  }
+
+  function handleOpenUsersDirectory() {
+    if (session?.user?.role !== "admin") {
+      return;
+    }
+
+    closeHeaderMenuPages();
+    setIsUserDirectoryOpen(true);
+  }
+
+  function handleOpenSuppliersMenu() {
+    closeHeaderMenuPages();
+    setIsSupplierDirectoryOpen(true);
+  }
+
+  function handleOpenPurchaseOrderMenu() {
+    closeHeaderMenuPages();
+    setIsPurchaseOrderDirectoryOpen(true);
+  }
+
+  function handleOpenSettingsPage() {
+    closeHeaderMenuPages();
+    setSettingsForm(companySettings);
+    setIsSettingsPageOpen(true);
+  }
+
+  function closeSupplierDirectory() {
+    setIsSupplierDirectoryOpen(false);
+  }
+
+  function closeUserDirectory() {
+    setIsUserDirectoryOpen(false);
+  }
+
+  function closeSettingsPage() {
+    setIsSettingsPageOpen(false);
+  }
+
+  function handleSaveSettings() {
+    void (async () => {
+      if (!session?.token || !isAdmin) {
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/settings`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.token}`
+          },
+          body: JSON.stringify({
+            companyName: settingsForm.companyName.trim() || DEFAULT_COMPANY_SETTINGS.companyName,
+            address: settingsForm.address.trim() || DEFAULT_COMPANY_SETTINGS.address,
+            logoUrl: settingsForm.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to save settings.");
+        }
+
+        const nextSettings = {
+          companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
+          address: data.address || DEFAULT_COMPANY_SETTINGS.address,
+          logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
+        };
+
+        setCompanySettings(nextSettings);
+        setSettingsForm(nextSettings);
+        setIsSettingsPageOpen(false);
+        pushToast({
+          title: "Settings saved",
+          message: "Company branding was updated.",
+          variant: "success"
+        });
+      } catch (error) {
+        pushToast({
+          title: "Save settings failed",
+          message: error.message,
+          variant: "error",
+          duration: 4200
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
+  }
+
+  function handleResetSettings() {
+    setSettingsForm(DEFAULT_COMPANY_SETTINGS);
+  }
+
   if (!session?.token) {
     return (
       <main className="app-shell">
-        <CompanyHeader isAuthenticated={false} theme={theme} onThemeChange={setTheme} />
+        <CompanyHeader
+          isAuthenticated={false}
+          theme={theme}
+          onThemeChange={setTheme}
+          companySettings={companySettings}
+        />
         <section className="hero">
           <p className="eyebrow">Januarius Procurement Hub</p>
           <h1>From purchase request to filing, in one workflow.</h1>
@@ -2202,6 +2819,34 @@ export default function App() {
     );
   }
 
+  if (isRequestForPaymentPageOpen && selectedItem) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
+        />
+        <RequestForPaymentPage
+          item={selectedItem}
+          form={requestForPaymentForm}
+          onChange={handleRequestForPaymentFormChange}
+          onSave={handleSaveRequestForPaymentPage}
+          onClose={closeRequestForPaymentPage}
+          isSubmitting={isSubmitting}
+        />
+      </main>
+    );
+  }
+
   if (isPurchaseOrderPageOpen && selectedItem) {
     return (
       <main className="app-shell">
@@ -2212,6 +2857,11 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
         />
         <PurchaseOrderPage
           item={selectedItem}
@@ -2229,7 +2879,7 @@ export default function App() {
     );
   }
 
-  if (isRequestForPaymentPageOpen && selectedItem) {
+  if (isPurchaseOrderDirectoryOpen) {
     return (
       <main className="app-shell">
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
@@ -2239,14 +2889,174 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
         />
-        <RequestForPaymentPage
-          item={selectedItem}
-          form={requestForPaymentForm}
-          onChange={handleRequestForPaymentFormChange}
-          onSave={handleSaveRequestForPaymentPage}
-          onClose={closeRequestForPaymentPage}
-          isSubmitting={isSubmitting}
+        <PurchaseOrderDirectoryPage
+          items={activePurchaseOrders}
+          onOpen={openPurchaseOrderPage}
+          onClose={closePurchaseOrderDirectory}
+        />
+      </main>
+    );
+  }
+
+  if (isSupplierDirectoryOpen) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
+        />
+        <SupplierManagementPage
+          suppliers={suppliers}
+          selectedSupplierId={selectedSupplierId}
+          onSelect={handleSelectSupplier}
+          onCreateNew={openCreateSupplierModal}
+          onEditSelected={openEditSupplierModal}
+          onDeleteSelected={handleDeleteSupplier}
+          onClose={closeSupplierDirectory}
+          canManage={isAdmin}
+        />
+        {confirmDialog ? (
+          <ConfirmDialog
+            title={confirmDialog.title}
+            message={confirmDialog.message}
+            confirmLabel={confirmDialog.confirmLabel}
+            onConfirm={confirmDialog.onConfirm}
+            onClose={() => setConfirmDialog(null)}
+            isSubmitting={isSubmitting}
+          />
+        ) : null}
+        {isSupplierModalOpen ? (
+          <Modal
+            eyebrow={supplierModalMode === "edit" ? "Edit Supplier" : "New Supplier"}
+            title={supplierModalMode === "edit" ? "Update supplier" : "Create supplier"}
+            onClose={() => setIsSupplierModalOpen(false)}
+          >
+            <SupplierForm
+              form={supplierForm}
+              onChange={handleSupplierFormChange}
+              onSubmit={supplierModalMode === "edit" ? handleUpdateSupplier : handleCreateSupplier}
+              isSubmitting={isSubmitting}
+              error={supplierError}
+              submitLabel={supplierModalMode === "edit" ? "Save changes" : "Create supplier"}
+            />
+          </Modal>
+        ) : null}
+      </main>
+    );
+  }
+
+  if (isUserDirectoryOpen) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
+        />
+        <section className="po-page">
+          <div className="po-page-header">
+            <div>
+              <p className="eyebrow">Admin Users</p>
+              <h1>Users</h1>
+              <p className="hero-copy">
+                View all user accounts and manage access from one page.
+              </p>
+            </div>
+            <div className="po-page-actions">
+              <button className="ghost-button" type="button" onClick={closeUserDirectory}>
+                Back to dashboard
+              </button>
+            </div>
+          </div>
+
+          <UserManagementPanel
+            users={users}
+            selectedUserId={selectedUserId}
+            onSelect={handleSelectUser}
+            onCreateNew={openCreateUserModal}
+            onEditSelected={openEditUserModal}
+            onDeleteSelected={handleDeleteUser}
+            showExpand={false}
+          />
+        </section>
+        {isUserModalOpen ? (
+          <Modal
+            eyebrow="Admin Users"
+            title={selectedUserId ? "Edit user account" : "Create user account"}
+            onClose={() => setIsUserModalOpen(false)}
+          >
+            <UserEditorPanel
+              selectedUserId={selectedUserId}
+              form={userForm}
+              onChange={handleUserFormChange}
+              onCreate={handleCreateUser}
+              onUpdate={handleUpdateUser}
+              onDelete={handleDeleteUser}
+              isSubmitting={isSubmitting}
+              error={userError}
+            />
+          </Modal>
+        ) : null}
+        {confirmDialog ? (
+          <ConfirmDialog
+            title={confirmDialog.title}
+            message={confirmDialog.message}
+            confirmLabel={confirmDialog.confirmLabel}
+            onConfirm={confirmDialog.onConfirm}
+            onClose={() => setConfirmDialog(null)}
+            isSubmitting={isSubmitting}
+          />
+        ) : null}
+      </main>
+    );
+  }
+
+  if (isSettingsPageOpen) {
+    return (
+      <main className="app-shell">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
+        />
+        <SettingsPage
+          form={settingsForm}
+          onChange={handleSettingsFormChange}
+          onLogoFileChange={handleSettingsLogoChange}
+          onSave={handleSaveSettings}
+          onReset={handleResetSettings}
+          onClose={closeSettingsPage}
         />
       </main>
     );
@@ -2262,15 +3072,26 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
         />
         <RequestWorkspacePage
           item={selectedItem}
           stages={stages}
           user={session.user}
           actionForm={actionForm}
+          purchaseOrderForm={purchaseOrderForm}
           uploadForm={uploadForm}
           suppliers={suppliers}
           onActionChange={handleActionFormChange}
+          onPurchaseOrderChange={handlePurchaseOrderFormChange}
+          onPurchaseOrderLineItemChange={handlePurchaseOrderLineItemChange}
+          onAddPurchaseOrderLineItem={handleAddPurchaseOrderLineItem}
+          onRemovePurchaseOrderLineItem={handleRemovePurchaseOrderLineItem}
+          onPrintPurchaseOrder={handlePrintPurchaseOrderPage}
           onUploadFormChange={handleUploadFormChange}
           onUploadFileChange={handleUploadFileChange}
           onReviewAttachmentFileChange={handleReviewApprovalFileChange}
@@ -2278,7 +3099,6 @@ export default function App() {
           onCreateSupplier={openCreateSupplierModal}
           onAdvance={handleAdvance}
           onBack={handleRevert}
-          onOpenPurchaseOrderPage={openPurchaseOrderPage}
           isSubmitting={isSubmitting}
           actionError={actionError}
           onDeleteDocument={handleDeleteDocument}
@@ -2286,8 +3106,8 @@ export default function App() {
           uploadError={uploadError}
           apiOrigin={API_ORIGIN}
           onClose={closeRequestWorkspacePage}
-          onEditRequest={openEditRequestModal}
-          isAdmin={isAdmin}
+            onEditRequest={openEditRequestModal}
+            canEditRequest={canEditSelectedRequest}
         />
         {isSupplierModalOpen ? (
           <Modal eyebrow="New Supplier" title="Create supplier" onClose={() => setIsSupplierModalOpen(false)}>
@@ -2313,6 +3133,11 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onThemeChange={setTheme}
+        onOpenSuppliers={handleOpenSuppliersMenu}
+        onOpenUsers={handleOpenUsersDirectory}
+        onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+        onOpenSettings={handleOpenSettingsPage}
+        companySettings={companySettings}
       />
       <section className="hero">
         <div className="hero-grid">
@@ -2329,21 +3154,21 @@ export default function App() {
             </p>
           </div>
           <div className="toolbar-actions left hero-actions hero-actions-side">
-            {canCreateRequest ? (
-              <button type="button" onClick={openCreateRequestModal}>
-                New purchase request
-              </button>
-            ) : null}
-            {isAdmin ? (
+            <div className="hero-action-stack">
+              {canCreateRequest ? (
+                <button type="button" onClick={openCreateRequestModal}>
+                  New purchase request
+                </button>
+              ) : null}
               <button
-                className="ghost-button"
+                className="hero-inline-link"
                 type="button"
-                onClick={openEditRequestModal}
+                onClick={openRequestForPaymentPage}
                 disabled={!selectedItem}
               >
-                Edit selected request
+                Request for Payment
               </button>
-            ) : null}
+            </div>
           </div>
         </div>
       </section>
@@ -2369,6 +3194,13 @@ export default function App() {
             selectedId={selectedId}
             onSelect={handleSelect}
             onOpenDetails={handleOpenRequestDetails}
+            onEdit={openEditRequestModalForItem}
+            canEditItem={(item) =>
+              Boolean(
+                session?.user &&
+                  (session.user.role === "admin" || session.user.email === item.requesterEmail)
+              )
+            }
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel("request-list")}
@@ -2384,12 +3216,19 @@ export default function App() {
           ) : null}
         </div>
       ) : (
-        <div className="layout-grid three-column">
+        <div className="layout-grid">
           <RequestList
             items={filteredItems}
             selectedId={selectedId}
             onSelect={handleSelect}
             onOpenDetails={handleOpenRequestDetails}
+            onEdit={openEditRequestModalForItem}
+            canEditItem={(item) =>
+              Boolean(
+                session?.user &&
+                  (session.user.role === "admin" || session.user.email === item.requesterEmail)
+              )
+            }
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel("request-list")}
@@ -2398,26 +3237,6 @@ export default function App() {
             <RequestSummary
               item={selectedItem}
               onExpand={() => openExpandedPanel("request-summary")}
-            />
-          ) : null}
-          {selectedItem ? (
-            <ActionPanel
-              item={selectedItem}
-              stages={stages}
-              user={session.user}
-              form={actionForm}
-              uploadForm={uploadForm}
-              suppliers={suppliers}
-              onChange={handleActionFormChange}
-              onReviewAttachmentFileChange={handleReviewApprovalFileChange}
-              onUpload={handleUploadDocument}
-              onCreateSupplier={openCreateSupplierModal}
-              onAdvance={handleAdvance}
-              onBack={handleRevert}
-              onOpenPurchaseOrderPage={openPurchaseOrderPage}
-              isSubmitting={isSubmitting}
-              error={actionError}
-              onExpand={() => openExpandedPanel("stage-actions")}
             />
           ) : null}
         </div>
@@ -2518,15 +3337,20 @@ export default function App() {
               stages={stages}
               user={session.user}
               form={actionForm}
+              purchaseOrderForm={purchaseOrderForm}
               uploadForm={uploadForm}
               suppliers={suppliers}
               onChange={handleActionFormChange}
+              onPurchaseOrderChange={handlePurchaseOrderFormChange}
+              onPurchaseOrderLineItemChange={handlePurchaseOrderLineItemChange}
+              onAddPurchaseOrderLineItem={handleAddPurchaseOrderLineItem}
+              onRemovePurchaseOrderLineItem={handleRemovePurchaseOrderLineItem}
+              onPrintPurchaseOrder={handlePrintPurchaseOrderPage}
               onReviewAttachmentFileChange={handleReviewApprovalFileChange}
               onUpload={handleUploadDocument}
               onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
               onBack={handleRevert}
-              onOpenPurchaseOrderPage={openPurchaseOrderPage}
               isSubmitting={isSubmitting}
               error={actionError}
               showExpand={false}
@@ -2567,6 +3391,7 @@ export default function App() {
               onSelect={handleSelectUser}
               onCreateNew={openCreateUserModal}
               onEditSelected={openEditUserModal}
+              onDeleteSelected={handleDeleteUser}
               showExpand={false}
             />
           ) : null}
@@ -2575,7 +3400,7 @@ export default function App() {
 
       {isEditRequestModalOpen && selectedItem ? (
         <Modal
-          eyebrow="Admin Request"
+          eyebrow={isAdmin ? "Admin Request" : "Edit Request"}
           title={`Edit ${selectedItem.requestNumber}`}
           onClose={() => setIsEditRequestModalOpen(false)}
         >
@@ -2587,6 +3412,8 @@ export default function App() {
             onChange={handleRequestAdminFormChange}
             onSave={handleSaveRequest}
             onDelete={handleDeleteRequest}
+            canDelete={isAdmin}
+            isAdmin={isAdmin}
             isSubmitting={isSubmitting}
             error={actionError}
           />
