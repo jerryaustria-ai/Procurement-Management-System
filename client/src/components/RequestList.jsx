@@ -45,7 +45,9 @@ export default function RequestList({
         {items.map((item) => (
           <article
             key={item.id}
-            className={`request-list-item ${selectedId === item.id ? "selected" : ""}`}
+            className={`request-list-item ${selectedId === item.id ? "selected" : ""} ${
+              item.status === "completed" ? "completed" : ""
+            }`}
           >
             <button className="request-card-select" type="button" onClick={() => onSelect(item.id)}>
               <div className="request-list-topline">

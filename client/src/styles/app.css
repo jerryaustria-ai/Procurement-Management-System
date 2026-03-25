@@ -648,6 +648,8 @@ label,
 }
 
 .request-list-item {
+  position: relative;
+  overflow: hidden;
   text-align: left;
   border-radius: 18px;
   border: 1px solid var(--card-border);
@@ -688,6 +690,42 @@ label,
   border-color: rgba(213, 181, 108, 0.36);
   background: linear-gradient(180deg, rgba(213, 181, 108, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
   box-shadow: inset 0 0 0 1px rgba(213, 181, 108, 0.08);
+}
+
+.request-list-item.completed {
+  border-color: rgba(114, 197, 154, 0.38);
+  background: linear-gradient(180deg, rgba(114, 197, 154, 0.16) 0%, rgba(255, 255, 255, 0.04) 100%);
+  box-shadow: inset 0 0 0 1px rgba(114, 197, 154, 0.12);
+}
+
+.request-list-item.completed::after {
+  content: "COMPLETED";
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-14deg);
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(114, 197, 154, 0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.request-list-item.completed.selected {
+  border-color: rgba(114, 197, 154, 0.56);
+  background: linear-gradient(180deg, rgba(114, 197, 154, 0.22) 0%, rgba(255, 255, 255, 0.06) 100%);
+  box-shadow: inset 0 0 0 1px rgba(114, 197, 154, 0.18);
+}
+
+.request-list-item.completed:hover {
+  border-color: rgba(114, 197, 154, 0.5);
+}
+
+.request-list-item.completed .request-card-select,
+.request-list-item.completed .request-list-footer {
+  position: relative;
+  z-index: 1;
 }
 
 .request-list-topline,

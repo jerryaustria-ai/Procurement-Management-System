@@ -24,11 +24,6 @@ import WorkflowTimeline from "./components/WorkflowTimeline.jsx";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 const DASHBOARD_REFRESH_MS = 5000;
-const BRANCH_OPTIONS = [
-  "Januarius Holdings",
-  "Stats",
-  "Januarius Performance Center"
-];
 const DEFAULT_COMPANY_SETTINGS = {
   companyName: "Januarius Holdings Inc.",
   logoUrl: "/JANUARIUS.ico",
@@ -138,13 +133,18 @@ function getStoredSession() {
   }
 }
 
-function getInitialRequestForm(department = "", requesterName = "", requesterEmail = "") {
+function getInitialRequestForm(
+  department = "",
+  requesterName = "",
+  requesterEmail = "",
+  branch = DEFAULT_COMPANY_SETTINGS.companyName
+) {
   return {
     requesterName,
     requesterEmail,
     title: "",
     description: "",
-    branch: "Januarius Holdings",
+    branch,
     department,
     amount: "",
     currency: "PHP",
@@ -268,12 +268,12 @@ function getAssignedPurchaseOrderNumber(item, items) {
   return item?.poNumber || getNextPurchaseOrderNumber(items);
 }
 
-function getRequestAdminForm(item) {
+function getRequestAdminForm(item, defaultBranch = DEFAULT_COMPANY_SETTINGS.companyName) {
   if (!item) {
     return {
       title: "",
       description: "",
-      branch: "Januarius Holdings",
+      branch: defaultBranch,
       department: "",
       amount: "",
       dateNeeded: "",
@@ -519,7 +519,8 @@ export default function App() {
     getInitialRequestForm(
       session?.user?.department || "",
       session?.user?.role === "admin" ? "" : session?.user?.name || "",
-      session?.user?.role === "admin" ? "" : session?.user?.email || ""
+      session?.user?.role === "admin" ? "" : session?.user?.email || "",
+      companySettings.companyName
     )
   );
   const [requestQuotationFile, setRequestQuotationFile] = useState(null);
@@ -560,7 +561,7 @@ export default function App() {
 
   const isAdmin = session?.user?.role === "admin";
   const branchOptions = Array.from(
-    new Set([...BRANCH_OPTIONS, ...companyIdentities.map((identity) => identity.branchName).filter(Boolean)])
+    new Set([companySettings.companyName, ...companyIdentities.map((identity) => identity.branchName).filter(Boolean)])
   );
   const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
   const requesterOptions = users;
@@ -693,13 +694,14 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedItem) {
-      setRequestAdminForm(getRequestAdminForm(null));
+      setRequestAdminForm(getRequestAdminForm(null, companySettings.companyName));
       return;
     }
 
     setActionForm((current) => {
       const nextSupplier =
         selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier;
+      const savedDraft = purchaseOrderDrafts[selectedItem.id] ?? getPurchaseOrderDraft(selectedItem, items);
       const selectedIdChanged = current.selectedItemId !== selectedItem.id;
       const selectedStageChanged = current.selectedItemStage !== selectedItem.currentStage;
 
@@ -712,9 +714,9 @@ export default function App() {
       }
 
       return {
-        supplier: nextSupplier,
-        notes: "",
-        poNumber: getAssignedPurchaseOrderNumber(selectedItem, items),
+        supplier: savedDraft.supplier || nextSupplier,
+        notes: savedDraft.notes || "",
+        poNumber: savedDraft.poNumber || getAssignedPurchaseOrderNumber(selectedItem, items),
         invoiceNumber: selectedItem.invoiceNumber ?? "",
         paymentReference: selectedItem.paymentReference ?? "",
         deliveryDate: selectedItem.deliveryDate ? selectedItem.deliveryDate.slice(0, 10) : "",
@@ -723,7 +725,7 @@ export default function App() {
         selectedItemStage: selectedItem.currentStage
       };
     });
-    setRequestAdminForm(getRequestAdminForm(selectedItem));
+    setRequestAdminForm(getRequestAdminForm(selectedItem, companySettings.companyName));
     setPurchaseOrderForm(
       purchaseOrderDrafts[selectedItem.id] ?? getPurchaseOrderDraft(selectedItem, items)
     );
@@ -733,7 +735,7 @@ export default function App() {
       file: null
     }));
     setSelectedId(selectedItem.id);
-  }, [selectedItem, purchaseOrderDrafts, items]);
+  }, [selectedItem, purchaseOrderDrafts, items, companySettings.companyName]);
 
   useEffect(() => {
     if (isUserModalOpen) {
@@ -764,11 +766,12 @@ export default function App() {
       getInitialRequestForm(
         session.user.department || "",
         session.user.role === "admin" ? "" : session.user.name || "",
-        session.user.role === "admin" ? "" : session.user.email || ""
+        session.user.role === "admin" ? "" : session.user.email || "",
+        companySettings.companyName
       )
     );
     void loadDashboard(session.token, session.user.role);
-  }, [session]);
+  }, [session, companySettings.companyName]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -793,6 +796,23 @@ export default function App() {
     });
   }, [isAdmin, users]);
 
+  useEffect(() => {
+    if (!branchOptions.length) {
+      return;
+    }
+
+    setRequestForm((current) => {
+      if (branchOptions.includes(current.branch)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        branch: branchOptions[0]
+      };
+    });
+  }, [branchOptions]);
+
   function clearSession() {
     localStorage.removeItem("procurement-session");
     setSession(null);
@@ -802,9 +822,9 @@ export default function App() {
     setSuppliers([]);
     setSelectedId("");
     setSelectedUserId("");
-    setRequestForm(getInitialRequestForm("", "", ""));
+    setRequestForm(getInitialRequestForm("", "", "", DEFAULT_COMPANY_SETTINGS.companyName));
     setRequestQuotationFile(null);
-    setRequestAdminForm(getRequestAdminForm(null));
+    setRequestAdminForm(getRequestAdminForm(null, DEFAULT_COMPANY_SETTINGS.companyName));
     setUserForm(getInitialUserForm());
     setSupplierForm(getInitialSupplierForm());
     setIsCreateRequestModalOpen(false);
@@ -1500,7 +1520,14 @@ export default function App() {
   }
 
   function openCreateRequestModal() {
-    setRequestForm(getInitialRequestForm(session?.user?.department || ""));
+    setRequestForm(
+      getInitialRequestForm(
+        session?.user?.department || "",
+        session?.user?.role === "admin" ? "" : session?.user?.name || "",
+        session?.user?.role === "admin" ? "" : session?.user?.email || "",
+        companySettings.companyName
+      )
+    );
     setRequestQuotationFile(null);
     setIsCreateRequestModalOpen(true);
   }
@@ -1535,6 +1562,7 @@ export default function App() {
       return;
     }
 
+    setIsPurchaseOrderPageOpen(false);
     setIsRequestWorkspacePageOpen(true);
   }
 
@@ -1646,16 +1674,17 @@ export default function App() {
       return;
     }
 
+    const baseDraft = purchaseOrderDrafts[targetItem.id] ?? getPurchaseOrderDraft(targetItem, items);
     setSelectedId(targetItem.id);
-    setPurchaseOrderForm(
-      purchaseOrderDrafts[targetItem.id] ?? {
-        ...getPurchaseOrderDraft(targetItem, items),
-        supplier:
-          actionForm.supplier ||
-          (targetItem.supplier === "Pending selection" ? "" : targetItem.supplier || ""),
-        notes: actionForm.notes || targetItem.notes || ""
-      }
-    );
+    setPurchaseOrderForm({
+      ...baseDraft,
+      supplier:
+        baseDraft.supplier ||
+        actionForm.supplier ||
+        (targetItem.supplier === "Pending selection" ? "" : targetItem.supplier || ""),
+      notes: baseDraft.notes || actionForm.notes || targetItem.notes || "",
+      poNumber: baseDraft.poNumber || getAssignedPurchaseOrderNumber(targetItem, items)
+    });
     setIsPurchaseOrderDirectoryOpen(false);
     setIsPurchaseOrderPageOpen(true);
   }
@@ -1777,10 +1806,21 @@ export default function App() {
       companySettings,
       companyIdentities
     );
+    const printDate = formatExportDate(new Date().toISOString());
     const officeDeliveryAddress = getOfficeDeliveryAddress(
       selectedItem.branch,
       activeCompanyIdentity.address || selectedItem.deliveryAddress
     );
+    const printableCompanyIdentity = companySettings;
+    const supplierName =
+      purchaseOrderForm.supplier || selectedItem.supplier || "Pending selection";
+    const matchedSupplier = suppliers.find(
+      (supplier) => String(supplier.name || "").trim().toLowerCase() === supplierName.trim().toLowerCase()
+    );
+    const supplierAddress = matchedSupplier?.address || "";
+    const logoMarkup = printableCompanyIdentity.logoUrl
+      ? `<img src="${printableCompanyIdentity.logoUrl}" alt="${printableCompanyIdentity.companyName}" />`
+      : "";
 
     const rowsHtml = purchaseOrderForm.lineItems
       .map(
@@ -1802,59 +1842,95 @@ export default function App() {
           <title>Purchase Order ${purchaseOrderForm.poNumber || selectedItem.requestNumber}</title>
           <style>
             * { box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; padding: 30px; color: #12202d; }
-            .sheet { border: 1px solid #d7dee7; border-radius: 20px; padding: 28px; }
-            .topbar { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
-            .brand-kicker { margin: 0 0 4px; color: #8b6d2b; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; }
-            h1 { margin: 0 0 8px; font-size: 34px; }
-            .sub { margin: 0; color: #4b5d70; }
-            .po-number { padding: 14px 16px; min-width: 220px; border: 1px solid #d7dee7; border-radius: 16px; background: #f8fafc; }
-            .po-number span, .meta-card span, .totals-card span { display: block; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-            .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
-            .meta-card { padding: 14px 16px; border: 1px solid #d7dee7; border-radius: 16px; background: #fff; }
-            .meta-card strong, .po-number strong, .totals-card strong { font-size: 18px; }
-            .notes { margin: 20px 0; padding: 16px; border: 1px solid #d7dee7; border-radius: 16px; background: #f8fafc; }
-            .notes h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
-            .notes p { margin: 0; line-height: 1.6; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { border: 1px solid #d7dee7; padding: 10px; text-align: left; font-size: 12px; vertical-align: top; }
-            th { background: #eef3f8; color: #1e293b; text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; }
-            .totals { width: 360px; margin-left: auto; margin-top: 18px; display: grid; gap: 10px; }
-            .totals-card { padding: 12px 14px; border: 1px solid #d7dee7; border-radius: 14px; background: #fff; }
-            .totals-card.net { background: #f6e1a4; border-color: #d5b56c; }
-            .footer { margin-top: 24px; font-size: 11px; color: #64748b; }
-            @media print { body { padding: 0; } .sheet { border: 0; border-radius: 0; padding: 0; } }
+            @page { size: A4 portrait; margin: 0; }
+            body { margin: 0; background: #ffffff; font-family: Arial, sans-serif; color: #20242a; padding: 0.5in; }
+            .sheet { max-width: 100%; margin: 0 auto; }
+            .header { display: block; margin-bottom: 14px; }
+            .brand { display: flex; gap: 16px; align-items: center; }
+            .brand-mark { width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+            .brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+            .brand-copy { flex: 1; }
+            .brand-copy h1 { margin: 0 0 4px; font-size: 34px; line-height: 0.98; }
+            .brand-copy p { margin: 0 0 4px; color: #b48732; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+            .brand-copy address { margin: 0; font-style: italic; font-size: 11px; line-height: 1.3; max-width: 440px; }
+            .card { border: 1.5px solid #d9d9d9; border-radius: 16px; padding: 12px 14px; background: #fff; }
+            .card-label { display: block; margin-bottom: 6px; color: #6b6f74; font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; }
+            .card-value { display: block; font-size: 12px; font-weight: 700; line-height: 1.25; }
+            .header-meta-inline { display: grid; grid-template-columns: minmax(0, 230px); gap: 12px; justify-content: end; margin-top: 28px; margin-left: auto; }
+            .delivery-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+            .big-card { min-height: 96px; }
+            .big-card .card-value { font-size: 10.5px; font-weight: 400; line-height: 1.35; white-space: pre-wrap; }
+            .supplier-primary { display: block; font-size: 12px; font-weight: 700; line-height: 1.25; margin-bottom: 6px; }
+            .supplier-secondary { display: block; font-size: 10px; font-weight: 400; line-height: 1.35; white-space: pre-wrap; }
+            .section-spacer { height: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 14px; table-layout: auto; }
+            col.qty-col { width: 8%; }
+            col.unit-col { width: 10%; }
+            col.description-col { width: auto; }
+            col.price-col { width: 18%; }
+            col.total-col { width: 18%; }
+            th, td { border: 1.5px solid #d9d9d9; padding: 8px 10px; text-align: left; font-size: 10px; vertical-align: top; word-wrap: break-word; }
+            th { color: #20242a; background: #fafafa; font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+            .summary-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) 0.88fr; gap: 16px; align-items: start; }
+            .notes-card { min-height: 180px; }
+            .notes-card .card-value { font-size: 10.5px; font-style: italic; font-weight: 400; line-height: 1.45; }
+            .totals-stack { display: grid; gap: 10px; }
+            .totals-card .card-value { font-size: 11px; }
+            .totals-card.net { background: #ececec; }
+            .print-footer { margin-top: 18px; display: flex; justify-content: flex-start; }
+            .approval-block { width: 260px; }
+            .approval-label { display: block; margin-bottom: 28px; font-size: 10px; font-weight: 700; color: #20242a; }
+            .signature-line { border-bottom: 1.5px solid #20242a; height: 24px; }
+            @media print {
+              body { padding: 0.5in; }
+              .sheet { max-width: none; }
+            }
           </style>
         </head>
         <body>
           <section class="sheet">
-            <div class="topbar">
-              <div>
-                <p class="brand-kicker">${activeCompanyIdentity.companyName}</p>
-                <h1>Purchase Order</h1>
-                <p class="sub">Generated from the Procurement Management System.</p>
+            <div class="header">
+              <div class="brand">
+                <div class="brand-mark">${logoMarkup}</div>
+                <div class="brand-copy">
+                  <h1>Purchase Order</h1>
+                  <p>${printableCompanyIdentity.companyName}</p>
+                  <address>${printableCompanyIdentity.address}</address>
+                </div>
               </div>
-              <div class="po-number">
-                <span>PO Number</span>
-                <strong>${purchaseOrderForm.poNumber || "Pending"}</strong>
+              <div class="header-meta-inline">
+                <div class="card">
+                  <span class="card-label">PO Number</span>
+                  <strong class="card-value">${purchaseOrderForm.poNumber || "Pending"}</strong>
+                </div>
+                <div class="card">
+                  <span class="card-label">Date</span>
+                  <strong class="card-value">${printDate}</strong>
+                </div>
               </div>
             </div>
 
-            <div class="meta-grid">
-              <div class="meta-card"><span>Request No.</span><strong>${selectedItem.requestNumber}</strong></div>
-              <div class="meta-card"><span>Requester</span><strong>${selectedItem.requester}</strong></div>
-              <div class="meta-card"><span>Supplier</span><strong>${purchaseOrderForm.supplier || selectedItem.supplier || "Pending selection"}</strong></div>
-              <div class="meta-card"><span>Date Needed</span><strong>${formatExportDate(selectedItem.dateNeeded)}</strong></div>
-              <div class="meta-card"><span>Branch</span><strong>${selectedItem.branch || "Not set"}</strong></div>
-              <div class="meta-card"><span>Delivery Address</span><strong>${officeDeliveryAddress}</strong></div>
+            <div class="delivery-meta">
+              <div class="card big-card">
+                <span class="card-label">Supplier</span>
+                <strong class="supplier-primary">${supplierName}</strong>
+                <span class="supplier-secondary">${supplierAddress || "No supplier address provided."}</span>
+              </div>
+              <div class="card big-card">
+                <span class="card-label">Delivery Address</span>
+                <strong class="card-value">${officeDeliveryAddress}</strong>
+              </div>
             </div>
-
-            <div class="notes">
-              <h2>PO Notes</h2>
-              <p>${purchaseOrderForm.notes || "No purchase order notes provided."}</p>
-            </div>
+            <div class="section-spacer"></div>
 
             <table>
+              <colgroup>
+                <col class="qty-col" />
+                <col class="unit-col" />
+                <col class="description-col" />
+                <col class="price-col" />
+                <col class="total-col" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Qty</th>
@@ -1867,15 +1943,41 @@ export default function App() {
               <tbody>${rowsHtml}</tbody>
             </table>
 
-            <div class="totals">
-              <div class="totals-card"><span>Sub Total</span><strong>${formatCurrencyValue(subTotal, currency)}</strong></div>
-              <div class="totals-card"><span>Sales Tax</span><strong>${formatCurrencyValue(salesTax, currency)}</strong></div>
-              <div class="totals-card"><span>Shipping & Handling</span><strong>${formatCurrencyValue(shippingHandling, currency)}</strong></div>
-              <div class="totals-card"><span>Other</span><strong>${formatCurrencyValue(other, currency)}</strong></div>
-              <div class="totals-card net"><span>Net Total</span><strong>${formatCurrencyValue(netTotal, currency)}</strong></div>
-            </div>
+            <div class="summary-layout">
+              <div class="card notes-card">
+                <span class="card-label">PO Notes</span>
+                <strong class="card-value">${purchaseOrderForm.notes || "No purchase order notes provided."}</strong>
+              </div>
 
-            <p class="footer">Prepared on ${formatExportDate(new Date().toISOString())}. Use the browser print dialog to print or save as PDF.</p>
+              <div class="totals-stack">
+                <div class="card totals-card">
+                  <span class="card-label">Sub Total</span>
+                  <strong class="card-value">${formatCurrencyValue(subTotal, currency)}</strong>
+                </div>
+                <div class="card totals-card">
+                  <span class="card-label">Sales Tax</span>
+                  <strong class="card-value">${formatCurrencyValue(salesTax, currency)}</strong>
+                </div>
+                <div class="card totals-card">
+                  <span class="card-label">Shipping & Handling</span>
+                  <strong class="card-value">${formatCurrencyValue(shippingHandling, currency)}</strong>
+                </div>
+                <div class="card totals-card">
+                  <span class="card-label">Other</span>
+                  <strong class="card-value">${formatCurrencyValue(other, currency)}</strong>
+                </div>
+                <div class="card totals-card net">
+                  <span class="card-label">Net Total</span>
+                  <strong class="card-value">${formatCurrencyValue(netTotal, currency)}</strong>
+                </div>
+              </div>
+            </div>
+            <div class="print-footer">
+              <div class="approval-block">
+                <span class="approval-label">Approved By:</span>
+                <div class="signature-line"></div>
+              </div>
+            </div>
           </section>
         </body>
       </html>
@@ -3180,6 +3282,7 @@ export default function App() {
           onLineItemChange={handlePurchaseOrderLineItemChange}
           onAddLineItem={handleAddPurchaseOrderLineItem}
           onRemoveLineItem={handleRemovePurchaseOrderLineItem}
+          onOpenRequest={openRequestDetailsModal}
           onPrint={handlePrintPurchaseOrderPage}
           onSave={handleSavePurchaseOrderPage}
           onClose={closePurchaseOrderPage}
@@ -3778,7 +3881,7 @@ export default function App() {
           <RequestAdminPanel
             item={selectedItem}
             stages={stages}
-            branchOptions={branchOptions}
+            branchOptions={Array.from(new Set([...branchOptions, selectedItem.branch].filter(Boolean)))}
             form={requestAdminForm}
             onChange={handleRequestAdminFormChange}
             onSave={handleSaveRequest}

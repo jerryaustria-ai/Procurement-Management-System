@@ -37,6 +37,7 @@ export default function PurchaseOrderPage({
   onLineItemChange,
   onAddLineItem,
   onRemoveLineItem,
+  onOpenRequest,
   onPrint,
   onSave,
   onClose,
@@ -77,7 +78,11 @@ export default function PurchaseOrderPage({
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Reference</p>
-              <h2>{item.requestNumber}</h2>
+              <h2>
+                <button className="request-open-link" type="button" onClick={onOpenRequest}>
+                  {item.requestNumber}
+                </button>
+              </h2>
             </div>
           </div>
           <div className="summary-grid">
@@ -136,12 +141,7 @@ export default function PurchaseOrderPage({
 
             <label>
               Supplier
-              <input
-                name="supplier"
-                value={form.supplier}
-                onChange={onChange}
-                placeholder="Enter supplier name"
-              />
+              <input value={form.supplier || "Not set"} readOnly />
             </label>
 
             <label>
