@@ -24,6 +24,8 @@ const documentSchema = new mongoose.Schema(
     originalName: { type: String, required: true },
     fileName: { type: String, required: true },
     filePath: { type: String, required: true },
+    cloudinaryPublicId: { type: String, default: "" },
+    cloudinaryResourceType: { type: String, default: "" },
     mimeType: { type: String, required: true },
     size: { type: Number, required: true },
     uploadedBy: { type: String, required: true },

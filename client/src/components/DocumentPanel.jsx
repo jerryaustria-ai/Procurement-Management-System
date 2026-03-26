@@ -34,6 +34,10 @@ export default function DocumentPanel({
   onExpand,
   showExpand = true
 }) {
+  function getDocumentHref(filePath) {
+    return /^https?:\/\//i.test(filePath || "") ? filePath : `${apiOrigin}${filePath}`;
+  }
+
   return (
     <section className="panel action-panel panel-with-expand">
       {showExpand && onExpand ? (
@@ -99,7 +103,7 @@ export default function DocumentPanel({
             <div className="button-row">
               <a
                 className="inline-link"
-                href={`${apiOrigin}${document.filePath}`}
+                href={getDocumentHref(document.filePath)}
                 target="_blank"
                 rel="noreferrer"
               >

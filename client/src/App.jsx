@@ -125,6 +125,55 @@ async function optimizeLogoFile(file) {
   return canvas.toDataURL("image/webp", 0.82);
 }
 
+async function optimizeDocumentFile(file) {
+  if (!file) {
+    return null;
+  }
+
+  if (!String(file.type || "").startsWith("image/")) {
+    return file;
+  }
+
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImageElement(source);
+  const maxDimension = 1800;
+  const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
+  const width = Math.max(1, Math.round((image.width || 1) * scale));
+  const height = Math.max(1, Math.round((image.height || 1) * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to optimize the selected image file.");
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (nextBlob) => {
+        if (!nextBlob) {
+          reject(new Error("Unable to optimize the selected image file."));
+          return;
+        }
+
+        resolve(nextBlob);
+      },
+      "image/webp",
+      0.8
+    );
+  });
+
+  const optimizedBaseName = String(file.name || "document").replace(/\.[^.]+$/, "");
+  return new File([blob], `${optimizedBaseName}.webp`, {
+    type: "image/webp",
+    lastModified: Date.now()
+  });
+}
+
 function getStoredSession() {
   try {
     return JSON.parse(localStorage.getItem("procurement-session") || "null");
@@ -2123,13 +2172,14 @@ export default function App() {
       let createdRequest = data;
 
       if (requestQuotationFile) {
+        const optimizedQuotationFile = await optimizeDocumentFile(requestQuotationFile);
         const formData = new FormData();
         formData.append("type", "quotation");
         formData.append(
           "label",
           "Attach the approved quotation if it has already been approved"
         );
-        formData.append("document", requestQuotationFile);
+        formData.append("document", optimizedQuotationFile);
 
         const uploadResponse = await fetch(
           `${API_BASE_URL}/workflows/purchase-requests/${data.id}/documents`,
@@ -2311,10 +2361,11 @@ export default function App() {
     setIsSubmitting(true);
 
     try {
+      const optimizedUploadFile = await optimizeDocumentFile(uploadForm.file);
       const formData = new FormData();
       formData.append("type", uploadForm.type);
       formData.append("label", uploadForm.label);
-      formData.append("document", uploadForm.file);
+      formData.append("document", optimizedUploadFile);
 
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/documents`,
@@ -2340,7 +2391,7 @@ export default function App() {
       });
       pushToast({
         title: "Document uploaded",
-        message: `${uploadForm.file.name} has been attached.`,
+        message: `${uploadForm.file.name} has been attached via Cloudinary.`,
         variant: "success"
       });
     } catch (error) {

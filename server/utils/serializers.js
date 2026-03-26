@@ -78,6 +78,8 @@ export function serializePurchaseRequest(request) {
       originalName: document.originalName,
       fileName: document.fileName,
       filePath: document.filePath,
+      cloudinaryPublicId: document.cloudinaryPublicId,
+      cloudinaryResourceType: document.cloudinaryResourceType,
       mimeType: document.mimeType,
       size: document.size,
       uploadedBy: document.uploadedBy,

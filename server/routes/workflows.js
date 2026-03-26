@@ -11,6 +11,11 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { uploadSingleDocument } from "../middleware/upload.js";
 import { PurchaseRequest } from "../models/PurchaseRequest.js";
 import { User } from "../models/User.js";
+import {
+  deleteDocumentFromCloudinary,
+  isCloudinaryConfigured,
+  uploadDocumentToCloudinary
+} from "../utils/cloudinary.js";
 import { serializePurchaseRequest } from "../utils/serializers.js";
 
 const router = Router();
@@ -506,7 +511,6 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     const allowedTypes = ["quotation", "po", "invoice", "delivery", "inspection", "other"];
 
     if (!allowedTypes.includes(documentType)) {
-      fs.unlink(req.file.path, () => {});
       return res.status(400).json({ message: "Invalid document type." });
     }
 
@@ -514,8 +518,28 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
       documentType === "quotation" &&
       !["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(req.file.mimetype)
     ) {
-      fs.unlink(req.file.path, () => {});
       return res.status(400).json({ message: "Quotation upload only accepts PDF or image files." });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.status(500).json({
+        message:
+          "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."
+      });
+    }
+
+    let uploadedFile;
+
+    try {
+      uploadedFile = await uploadDocumentToCloudinary({
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname,
+        requestNumber: request.requestNumber,
+        type: documentType
+      });
+    } catch (uploadError) {
+      return res.status(400).json({ message: uploadError.message });
     }
 
     const label = req.body.label?.trim() || req.file.originalname;
@@ -524,10 +548,12 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
       type: documentType,
       label,
       originalName: req.file.originalname,
-      fileName: req.file.filename,
-      filePath: `/uploads/${req.file.filename}`,
+      fileName: uploadedFile.publicId,
+      filePath: uploadedFile.fileUrl,
+      cloudinaryPublicId: uploadedFile.publicId,
+      cloudinaryResourceType: uploadedFile.resourceType,
       mimeType: req.file.mimetype,
-      size: req.file.size,
+      size: uploadedFile.bytes,
       uploadedBy: req.user.name,
       uploadedByRole: req.user.role,
       uploadedAt: new Date()
@@ -564,10 +590,14 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
   }
 
   const filePath = document.filePath?.replace("/uploads/", "");
+  const cloudinaryPublicId = document.cloudinaryPublicId;
+  const cloudinaryResourceType = document.cloudinaryResourceType || "raw";
   document.deleteOne();
   await request.save();
 
-  if (filePath) {
+  if (cloudinaryPublicId) {
+    void deleteDocumentFromCloudinary(cloudinaryPublicId, cloudinaryResourceType);
+  } else if (filePath) {
     fs.unlink(`uploads/${filePath}`, () => {});
   }
 
