@@ -27,6 +27,19 @@ function sanitizePublicIdSegment(value) {
     .replace(/^-|-$/g, "");
 }
 
+function getDocumentTypeFolderName(type) {
+  const labels = {
+    quotation: "Quotation",
+    po: "PO",
+    invoice: "Invoice",
+    delivery: "Delivery",
+    inspection: "Inspection",
+    other: "Other"
+  };
+
+  return labels[type] || "Other";
+}
+
 function createSignature(params, apiSecret) {
   const signatureBase = Object.entries(params)
     .filter(([, value]) => value !== undefined && value !== null && value !== "")
@@ -56,11 +69,12 @@ export async function uploadDocumentToCloudinary({
   }
 
   const timestamp = Math.floor(Date.now() / 1000);
-  const publicId = `${config.folder}/${sanitizePublicIdSegment(requestNumber)}/${type}-${timestamp}-${sanitizePublicIdSegment(
+  const typeFolder = `${config.folder}/${getDocumentTypeFolderName(type)}`;
+  const publicId = `${typeFolder}/${sanitizePublicIdSegment(requestNumber)}/${type}-${timestamp}-${sanitizePublicIdSegment(
     originalName.replace(/\.[^.]+$/, "")
   )}`;
   const paramsToSign = {
-    folder: config.folder,
+    folder: typeFolder,
     public_id: publicId,
     timestamp
   };
@@ -70,7 +84,7 @@ export async function uploadDocumentToCloudinary({
   formData.append("file", new Blob([buffer], { type: mimeType }), originalName);
   formData.append("api_key", config.apiKey);
   formData.append("timestamp", String(timestamp));
-  formData.append("folder", config.folder);
+  formData.append("folder", typeFolder);
   formData.append("public_id", publicId);
   formData.append("signature", signature);
 

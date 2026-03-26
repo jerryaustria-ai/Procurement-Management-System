@@ -74,7 +74,7 @@ export default function RequestWorkspacePage({
       </div>
 
       <div className="request-workspace-stack">
-        <RequestSummary item={item} showExpand={false} />
+        <RequestSummary item={item} apiOrigin={apiOrigin} showExpand={false} />
 
         {user.role !== "requester" ? (
           <div ref={stageActionsRef} className="request-workspace-review">

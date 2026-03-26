@@ -611,7 +611,24 @@ router.delete("/purchase-requests/:id", requireRole("admin"), async (req, res) =
     return res.status(404).json({ message: "Purchase request not found." });
   }
 
+  const documents = [...(request.documents ?? [])];
   await request.deleteOne();
+
+  documents.forEach((document) => {
+    const cloudinaryPublicId = document.cloudinaryPublicId;
+    const cloudinaryResourceType = document.cloudinaryResourceType || "raw";
+    const filePath = document.filePath?.replace("/uploads/", "");
+
+    if (cloudinaryPublicId) {
+      void deleteDocumentFromCloudinary(cloudinaryPublicId, cloudinaryResourceType);
+      return;
+    }
+
+    if (filePath) {
+      fs.unlink(`uploads/${filePath}`, () => {});
+    }
+  });
+
   return res.status(204).send();
 });
 

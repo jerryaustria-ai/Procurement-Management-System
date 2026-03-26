@@ -25,10 +25,17 @@ function formatInspectionStatus(status) {
 
 export default function RequestSummary({
   item,
+  apiOrigin = "",
   onExpand,
   showExpand = true,
   showHeader = true
 }) {
+  const attachments = item.documents ?? [];
+
+  function getDocumentHref(filePath) {
+    return /^https?:\/\//i.test(filePath || "") ? filePath : `${apiOrigin}${filePath}`;
+  }
+
   return (
     <section className="panel summary-panel panel-with-expand">
       {showExpand && onExpand ? (
@@ -120,6 +127,25 @@ export default function RequestSummary({
         <span>Business justification / notes</span>
         <p>{item.notes || "No notes yet."}</p>
       </div>
+
+      {attachments.length ? (
+        <div className="notes-box">
+          <span>Attachments</span>
+          <div className="summary-attachment-links">
+            {attachments.map((document) => (
+              <a
+                key={document.id}
+                className="inline-link"
+                href={getDocumentHref(document.filePath)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {document.label || document.originalName}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

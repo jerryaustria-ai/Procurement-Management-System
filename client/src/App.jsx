@@ -3761,6 +3761,7 @@ export default function App() {
           {selectedItem ? (
             <RequestSummary
               item={selectedItem}
+              apiOrigin={API_ORIGIN}
               onExpand={() => openExpandedPanel("request-summary")}
             />
           ) : null}
@@ -3882,7 +3883,7 @@ export default function App() {
             />
           ) : null}
           {expandedPanel === "request-summary" && selectedItem ? (
-            <RequestSummary item={selectedItem} showExpand={false} />
+            <RequestSummary item={selectedItem} apiOrigin={API_ORIGIN} showExpand={false} />
           ) : null}
           {expandedPanel === "workflow" && selectedItem ? (
             <WorkflowTimeline

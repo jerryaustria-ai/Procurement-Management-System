@@ -566,6 +566,12 @@ label,
   line-height: 1.6;
 }
 
+.summary-attachment-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
 .action-panel {
   display: flex;
   flex-direction: column;
