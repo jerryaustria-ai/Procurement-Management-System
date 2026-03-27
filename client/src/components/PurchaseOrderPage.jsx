@@ -190,6 +190,7 @@ export default function PurchaseOrderPage({
                 value={lineItem.qty}
                 onChange={(event) => onLineItemChange(index, "qty", event.target.value)}
                 placeholder="1"
+                inputMode="decimal"
               />
               <input
                 value={lineItem.unit}
@@ -205,6 +206,7 @@ export default function PurchaseOrderPage({
                 value={lineItem.unitPrice}
                 onChange={(event) => onLineItemChange(index, "unitPrice", event.target.value)}
                 placeholder="0.00"
+                inputMode="decimal"
               />
               <input value={lineItem.total} readOnly placeholder="0.00" />
               <button
@@ -230,6 +232,7 @@ export default function PurchaseOrderPage({
               value={form.salesTax}
               onChange={onChange}
               placeholder="0.00"
+              inputMode="decimal"
             />
           </label>
           <label>
@@ -239,6 +242,7 @@ export default function PurchaseOrderPage({
               value={form.shippingHandling}
               onChange={onChange}
               placeholder="0.00"
+              inputMode="decimal"
             />
           </label>
           <label>
@@ -248,6 +252,7 @@ export default function PurchaseOrderPage({
               value={form.other}
               onChange={onChange}
               placeholder="0.00"
+              inputMode="decimal"
             />
           </label>
           <label className="po-net-total">

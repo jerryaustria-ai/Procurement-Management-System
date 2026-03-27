@@ -86,7 +86,7 @@ export default function CreateRequestForm({
           />
         </label>
 
-        <label>
+        <label className="full-width-field">
           Delivery address
           <input
             name="deliveryAddress"
@@ -121,7 +121,7 @@ export default function CreateRequestForm({
       </label>
 
       <label>
-        Attach the approved quotation if it has already been approved
+        Approved Quotation or Request
         <input
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp"

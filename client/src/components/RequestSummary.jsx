@@ -23,12 +23,18 @@ function formatInspectionStatus(status) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function getDisplayStageLabel(item) {
+  return item.status === "completed" || item.filingCompleted ? "Complete" : item.currentStage;
+}
+
 export default function RequestSummary({
   item,
   apiOrigin = "",
   onExpand,
   showExpand = true,
-  showHeader = true
+  showHeader = true,
+  isCollapsed = false,
+  onToggleVisibility
 }) {
   const attachments = item.documents ?? [];
 
@@ -48,10 +54,34 @@ export default function RequestSummary({
             <h1>{item.requestNumber}</h1>
             <p className="summary-title">{item.title}</p>
           </div>
-          <span className="status-pill">{item.currentStage}</span>
+          <div className="summary-header-actions">
+            <span className="status-pill">{getDisplayStageLabel(item)}</span>
+            {onToggleVisibility ? (
+              <button
+                className="summary-toggle-icon"
+                type="button"
+                onClick={onToggleVisibility}
+                aria-label={isCollapsed ? "Show request details" : "Hide request details"}
+                title={isCollapsed ? "Show details" : "Hide details"}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d={isCollapsed ? "m6 9 6 6 6-6" : "m6 15 6-6 6 6"}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
+      {isCollapsed ? null : (
+        <>
       <div className="summary-banner">
         <div>
           <span>Procurement status</span>
@@ -146,6 +176,8 @@ export default function RequestSummary({
           </div>
         </div>
       ) : null}
+        </>
+      )}
     </section>
   );
 }

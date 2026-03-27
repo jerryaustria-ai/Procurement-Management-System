@@ -76,6 +76,14 @@ const STAGE_DESCRIPTIONS = {
   Filing: "Archive the final procurement documents."
 };
 
+function getDisplayStageLabel(item, fallbackStage) {
+  if (item.status === "completed" || item.filingCompleted) {
+    return "Complete";
+  }
+
+  return fallbackStage;
+}
+
 export default function ActionPanel({
   item,
   stages,
@@ -109,7 +117,9 @@ export default function ActionPanel({
   const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
   const previousStage = stages[Math.max(currentIndex - 1, 0)];
   const showBackButton = !isFirstStage && previousStage !== "Purchase Request";
-  const displayStage = item.currentStage === "Purchase Request" && !isComplete ? nextStage : item.currentStage;
+  const baseDisplayStage =
+    item.currentStage === "Purchase Request" && !isComplete ? nextStage : item.currentStage;
+  const displayStage = getDisplayStageLabel(item, baseDisplayStage);
   const displayOwner =
     item.currentStage === "Purchase Request" && !isComplete
       ? STAGE_ROLE_LABELS[displayStage] ?? item.allowedRoleLabels.join(", ")

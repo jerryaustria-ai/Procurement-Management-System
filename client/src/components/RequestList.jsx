@@ -1,4 +1,4 @@
-import PanelExpandButton from "./PanelExpandButton.jsx";
+import { useEffect, useRef, useState } from "react";
 
 function getProcurementStatus(item) {
   return item.status === "completed"
@@ -9,6 +9,10 @@ function getProcurementStatus(item) {
 export default function RequestList({
   items,
   selectedId,
+  activeFilter = "all",
+  onFilterChange,
+  searchQuery = "",
+  onSearchChange,
   onSelect,
   onOpenDetails,
   onEdit,
@@ -18,11 +22,110 @@ export default function RequestList({
   onExpand,
   showExpand = true
 }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event) {
+      if (!menuRef.current?.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [items.length, activeFilter, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const paginatedItems = items.slice(startIndex, startIndex + pageSize);
+
   return (
     <section className="panel request-list-panel panel-with-expand">
-      {showExpand && onExpand ? (
-        <PanelExpandButton onClick={onExpand} label="Expand request registry" />
-      ) : null}
+      <div className="panel-top-actions" ref={menuRef}>
+        <input
+          className="request-list-search request-list-search-top"
+          type="search"
+          value={searchQuery}
+          onChange={(event) => onSearchChange?.(event.target.value)}
+          placeholder="Search all requests"
+        />
+        <div className="panel-kebab-wrap">
+          <button
+            className="panel-kebab-button"
+            type="button"
+            onClick={() => setIsMenuOpen((current) => !current)}
+            aria-haspopup="menu"
+            aria-expanded={isMenuOpen}
+            aria-label="More request actions"
+            title="More actions"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+            </svg>
+          </button>
+          {isMenuOpen ? (
+            <div className="panel-kebab-menu" role="menu" aria-label="Request registry actions">
+              {showExpand && onExpand ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onExpand();
+                  }}
+                >
+                  Expand view
+                </button>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onExportCsv?.();
+                }}
+              >
+                Export CSV
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onExportPdf?.();
+                }}
+              >
+                Export PDF
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
       <div className="panel-heading request-list-heading">
         <div>
           <p className="eyebrow">Requests</p>
@@ -30,19 +133,37 @@ export default function RequestList({
         </div>
         <div className="request-list-tools">
           <span className="panel-counter">{items.length} total</span>
-          <div className="request-list-actions">
-            <button className="ghost-button" type="button" onClick={onExportCsv}>
-              Export CSV
+          <div className="request-list-filter-group">
+            <button
+              className={activeFilter === "all" ? "" : "ghost-button"}
+              type="button"
+              onClick={() => onFilterChange?.("all")}
+            >
+              All
             </button>
-            <button className="ghost-button" type="button" onClick={onExportPdf}>
-              Export PDF
+            <button
+              className={activeFilter === "open" ? "" : "ghost-button"}
+              type="button"
+              onClick={() => onFilterChange?.("open")}
+            >
+              Open
+            </button>
+            <button
+              className={activeFilter === "completed" ? "" : "ghost-button"}
+              type="button"
+              onClick={() => onFilterChange?.("completed")}
+            >
+              Completed
             </button>
           </div>
+          {activeFilter !== "all" ? (
+            <span className="panel-counter">Filtered: {activeFilter}</span>
+          ) : null}
         </div>
       </div>
 
       <div className="request-list">
-        {items.map((item) => (
+        {paginatedItems.map((item) => (
           <article
             key={item.id}
             className={`request-list-item ${selectedId === item.id ? "selected" : ""} ${
@@ -57,6 +178,7 @@ export default function RequestList({
               <small>
                 {item.branch} · {item.department}
               </small>
+              <small>Requester: {item.requester}</small>
             </button>
             <div className="request-list-footer">
               <small>{getProcurementStatus(item)}</small>
@@ -77,6 +199,48 @@ export default function RequestList({
           <p className="empty-state">No requests available.</p>
         ) : null}
       </div>
+
+      {items.length ? (
+        <div className="request-list-pagination">
+          <div className="request-list-pagination-meta">
+            <label className="request-list-limit">
+              <span>Show</span>
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </label>
+            <span className="panel-counter">
+              Page {safeCurrentPage} of {totalPages}
+            </span>
+          </div>
+          <div className="request-list-pagination-actions">
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={safeCurrentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={safeCurrentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

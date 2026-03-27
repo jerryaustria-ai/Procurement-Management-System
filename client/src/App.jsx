@@ -1,415 +1,497 @@
-import { useEffect, useRef, useState } from "react";
-import ActionPanel from "./components/ActionPanel.jsx";
-import ConfirmDialog from "./components/ConfirmDialog.jsx";
-import CreateRequestForm from "./components/CreateRequestForm.jsx";
-import DocumentPanel from "./components/DocumentPanel.jsx";
-import LoginForm from "./components/LoginForm.jsx";
-import Modal from "./components/Modal.jsx";
-import PanelExpandButton from "./components/PanelExpandButton.jsx";
-import PurchaseOrderDirectoryPage from "./components/PurchaseOrderDirectoryPage.jsx";
-import PurchaseOrderPage from "./components/PurchaseOrderPage.jsx";
-import RequestForPaymentPage from "./components/RequestForPaymentPage.jsx";
-import RequestAdminPanel from "./components/RequestAdminPanel.jsx";
-import RequestList from "./components/RequestList.jsx";
-import RequestSummary from "./components/RequestSummary.jsx";
-import RequestWorkspacePage from "./components/RequestWorkspacePage.jsx";
-import SettingsPage from "./components/SettingsPage.jsx";
-import SupplierForm from "./components/SupplierForm.jsx";
-import SupplierManagementPage from "./components/SupplierManagementPage.jsx";
-import ToastStack from "./components/ToastStack.jsx";
-import UserEditorPanel from "./components/UserEditorPanel.jsx";
-import UserManagementPanel from "./components/UserManagementPanel.jsx";
-import WorkflowTimeline from "./components/WorkflowTimeline.jsx";
+import { useEffect, useRef, useState } from 'react'
+import ActionPanel from './components/ActionPanel.jsx'
+import AuditTrailPage from './components/AuditTrailPage.jsx'
+import ConfirmDialog from './components/ConfirmDialog.jsx'
+import CreateRequestForm from './components/CreateRequestForm.jsx'
+import DocumentPanel from './components/DocumentPanel.jsx'
+import LoginForm from './components/LoginForm.jsx'
+import Modal from './components/Modal.jsx'
+import PanelExpandButton from './components/PanelExpandButton.jsx'
+import PurchaseOrderDirectoryPage from './components/PurchaseOrderDirectoryPage.jsx'
+import PurchaseOrderPage from './components/PurchaseOrderPage.jsx'
+import RequestForPaymentPage from './components/RequestForPaymentPage.jsx'
+import RequestAdminPanel from './components/RequestAdminPanel.jsx'
+import RequestList from './components/RequestList.jsx'
+import RequestSummary from './components/RequestSummary.jsx'
+import RequestWorkspacePage from './components/RequestWorkspacePage.jsx'
+import SettingsPage from './components/SettingsPage.jsx'
+import SupplierForm from './components/SupplierForm.jsx'
+import SupplierManagementPage from './components/SupplierManagementPage.jsx'
+import ToastStack from './components/ToastStack.jsx'
+import UserEditorPanel from './components/UserEditorPanel.jsx'
+import UserManagementPanel from './components/UserManagementPanel.jsx'
+import WorkflowTimeline from './components/WorkflowTimeline.jsx'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
-const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
-const DASHBOARD_REFRESH_MS = 5000;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
+const DASHBOARD_REFRESH_MS = 5000
 const DEFAULT_COMPANY_SETTINGS = {
-  companyName: "Januarius Holdings Inc.",
-  logoUrl: "/JANUARIUS.ico",
-  address: "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines"
-};
-const OFFICE_ADDRESS_MAP = {
-  "Januarius Holdings": "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines",
-  Stats: "Stats Office, Mandaluyong City, Metro Manila, Philippines",
-  "Januarius Performance Center":
-    "Januarius Performance Center, Quezon City, Metro Manila, Philippines"
-};
+  companyName: 'Januarius Holdings Inc.',
+  logoUrl: '/JANUARIUS.ico',
+  address:
+    'Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines',
+}
 
 function getStoredTheme() {
   try {
-    return localStorage.getItem("procurement-theme") || "dark";
+    return localStorage.getItem('procurement-theme') || 'dark'
   } catch {
-    return "dark";
+    return 'dark'
   }
 }
 
-function getOfficeDeliveryAddress(branch, fallbackAddress = "") {
+function getOfficeDeliveryAddress(branch, fallbackAddress = '') {
   return (
     OFFICE_ADDRESS_MAP[branch] ||
     fallbackAddress ||
-    "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines"
-  );
+    'Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines'
+  )
 }
 
 function getInitialIdentityForm(defaults = DEFAULT_COMPANY_SETTINGS) {
   return {
-    branchName: "",
+    branchName: '',
     address: defaults.address,
-    logoUrl: defaults.logoUrl
-  };
+    logoUrl: defaults.logoUrl,
+  }
 }
 
 function getCompanyIdentityForBranch(branch, companySettings, identities = []) {
-  const normalizedBranch = String(branch || "").trim().toLowerCase();
+  const normalizedBranch = String(branch || '')
+    .trim()
+    .toLowerCase()
 
   if (!normalizedBranch) {
-    return companySettings;
+    return companySettings
   }
 
   const matchedIdentity = identities.find(
-    (identity) => String(identity.branchName || "").trim().toLowerCase() === normalizedBranch
-  );
+    (identity) =>
+      String(identity.branchName || '')
+        .trim()
+        .toLowerCase() === normalizedBranch,
+  )
 
-  return matchedIdentity || companySettings;
+  return matchedIdentity || companySettings
+}
+
+function getBranchDeliveryAddress(branch, companySettings, identities = []) {
+  const matchedIdentity = getCompanyIdentityForBranch(
+    branch,
+    companySettings,
+    identities,
+  )
+
+  return (
+    String(matchedIdentity?.address || '').trim() ||
+    getOfficeDeliveryAddress(
+      branch,
+      companySettings?.address || DEFAULT_COMPANY_SETTINGS.address,
+    )
+  )
 }
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Unable to read the selected image."));
-    reader.readAsDataURL(file);
-  });
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () =>
+      reject(new Error('Unable to read the selected image.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 function loadImageElement(source) {
   return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Unable to process the selected image."));
-    image.src = source;
-  });
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () =>
+      reject(new Error('Unable to process the selected image.'))
+    image.src = source
+  })
 }
 
 async function optimizeLogoFile(file) {
-  const fileName = String(file?.name || "").toLowerCase();
-  const isIco = file?.type === "image/x-icon" || fileName.endsWith(".ico");
+  const fileName = String(file?.name || '').toLowerCase()
+  const isIco = file?.type === 'image/x-icon' || fileName.endsWith('.ico')
 
   if (isIco) {
     if ((file?.size || 0) > 600 * 1024) {
-      throw new Error("ICO logo is too large. Please use a smaller icon file.");
+      throw new Error('ICO logo is too large. Please use a smaller icon file.')
     }
 
-    return readFileAsDataUrl(file);
+    return readFileAsDataUrl(file)
   }
 
-  const source = await readFileAsDataUrl(file);
-  const image = await loadImageElement(source);
-  const maxDimension = 320;
-  const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
-  const width = Math.max(1, Math.round((image.width || 1) * scale));
-  const height = Math.max(1, Math.round((image.height || 1) * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  const source = await readFileAsDataUrl(file)
+  const image = await loadImageElement(source)
+  const maxDimension = 320
+  const scale = Math.min(
+    1,
+    maxDimension / Math.max(image.width || 1, image.height || 1),
+  )
+  const width = Math.max(1, Math.round((image.width || 1) * scale))
+  const height = Math.max(1, Math.round((image.height || 1) * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
 
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext('2d')
   if (!context) {
-    throw new Error("Unable to prepare the selected image.");
+    throw new Error('Unable to prepare the selected image.')
   }
 
-  context.clearRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
+  context.clearRect(0, 0, width, height)
+  context.drawImage(image, 0, 0, width, height)
 
-  return canvas.toDataURL("image/webp", 0.82);
+  return canvas.toDataURL('image/webp', 0.82)
 }
 
 async function optimizeDocumentFile(file) {
   if (!file) {
-    return null;
+    return null
   }
 
-  if (!String(file.type || "").startsWith("image/")) {
-    return file;
+  if (!String(file.type || '').startsWith('image/')) {
+    return file
   }
 
-  const source = await readFileAsDataUrl(file);
-  const image = await loadImageElement(source);
-  const maxDimension = 1800;
-  const scale = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
-  const width = Math.max(1, Math.round((image.width || 1) * scale));
-  const height = Math.max(1, Math.round((image.height || 1) * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  const source = await readFileAsDataUrl(file)
+  const image = await loadImageElement(source)
+  const maxDimension = 1800
+  const scale = Math.min(
+    1,
+    maxDimension / Math.max(image.width || 1, image.height || 1),
+  )
+  const width = Math.max(1, Math.round((image.width || 1) * scale))
+  const height = Math.max(1, Math.round((image.height || 1) * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
 
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext('2d')
   if (!context) {
-    throw new Error("Unable to optimize the selected image file.");
+    throw new Error('Unable to optimize the selected image file.')
   }
 
-  context.clearRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
+  context.clearRect(0, 0, width, height)
+  context.drawImage(image, 0, 0, width, height)
 
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob(
       (nextBlob) => {
         if (!nextBlob) {
-          reject(new Error("Unable to optimize the selected image file."));
-          return;
+          reject(new Error('Unable to optimize the selected image file.'))
+          return
         }
 
-        resolve(nextBlob);
+        resolve(nextBlob)
       },
-      "image/webp",
-      0.8
-    );
-  });
+      'image/webp',
+      0.8,
+    )
+  })
 
-  const optimizedBaseName = String(file.name || "document").replace(/\.[^.]+$/, "");
+  const optimizedBaseName = String(file.name || 'document').replace(
+    /\.[^.]+$/,
+    '',
+  )
   return new File([blob], `${optimizedBaseName}.webp`, {
-    type: "image/webp",
-    lastModified: Date.now()
-  });
+    type: 'image/webp',
+    lastModified: Date.now(),
+  })
 }
 
 function getStoredSession() {
   try {
-    return JSON.parse(localStorage.getItem("procurement-session") || "null");
+    return JSON.parse(localStorage.getItem('procurement-session') || 'null')
   } catch {
-    return null;
+    return null
   }
 }
 
 function getInitialRequestForm(
-  department = "",
-  requesterName = "",
-  requesterEmail = "",
-  branch = DEFAULT_COMPANY_SETTINGS.companyName
+  department = '',
+  requesterName = '',
+  requesterEmail = '',
+  branch = DEFAULT_COMPANY_SETTINGS.companyName,
+  deliveryAddress = '',
 ) {
   return {
     requesterName,
     requesterEmail,
-    title: "",
-    description: "",
+    title: '',
+    description: '',
     branch,
     department,
-    amount: "",
-    currency: "PHP",
-    dateNeeded: "",
-    deliveryAddress: "",
-    notes: ""
-  };
+    amount: '',
+    currency: 'PHP',
+    dateNeeded: '',
+    deliveryAddress,
+    notes: '',
+  }
 }
 
 function getInitialUserForm() {
   return {
-    name: "",
-    email: "",
-    role: "requester",
-    department: "",
-    password: ""
-  };
+    name: '',
+    email: '',
+    role: 'requester',
+    department: '',
+    password: '',
+  }
 }
 
 function getInitialSupplierForm() {
   return {
-    name: "",
-    category: "Product",
-    supplierType: "Manufacturer",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    address: "",
-    notes: ""
-  };
+    name: '',
+    category: 'Product',
+    supplierType: 'Manufacturer',
+    contactPerson: '',
+    email: '',
+    phone: '',
+    address: '',
+    notes: '',
+  }
 }
 
 function getInitialPurchaseOrderLineItem() {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    qty: "1",
-    unit: "",
-    description: "",
-    unitPrice: "",
-    total: ""
-  };
+    qty: '1',
+    unit: '',
+    description: '',
+    unitPrice: '',
+    total: '',
+  }
 }
 
 function getInitialPurchaseOrderForm() {
   return {
-    supplier: "",
-    poNumber: "",
-    notes: "",
-    salesTax: "",
-    shippingHandling: "",
-    other: "",
-    lineItems: [getInitialPurchaseOrderLineItem()]
-  };
+    supplier: '',
+    poNumber: '',
+    notes: '',
+    salesTax: '',
+    shippingHandling: '',
+    other: '',
+    lineItems: [getInitialPurchaseOrderLineItem()],
+  }
 }
 
 function getPurchaseOrderDraft(item, items) {
   if (item?.poDraft) {
     return {
-      supplier: item.poDraft.supplier ?? "",
-      poNumber: item.poDraft.poNumber || getAssignedPurchaseOrderNumber(item, items),
-      notes: item.poDraft.notes ?? "",
-      salesTax: item.poDraft.salesTax ?? "",
-      shippingHandling: item.poDraft.shippingHandling ?? "",
-      other: item.poDraft.other ?? "",
+      supplier: item.poDraft.supplier ?? '',
+      poNumber:
+        item.poDraft.poNumber || getAssignedPurchaseOrderNumber(item, items),
+      notes: item.poDraft.notes ?? '',
+      salesTax: item.poDraft.salesTax ?? '',
+      shippingHandling: item.poDraft.shippingHandling ?? '',
+      other: item.poDraft.other ?? '',
       lineItems:
         item.poDraft.lineItems && item.poDraft.lineItems.length
           ? item.poDraft.lineItems
-          : [getInitialPurchaseOrderLineItem()]
-    };
+          : [getInitialPurchaseOrderLineItem()],
+    }
   }
 
   return {
-    supplier: item?.supplier === "Pending selection" ? "" : item?.supplier || "",
+    supplier:
+      item?.supplier === 'Pending selection' ? '' : item?.supplier || '',
     poNumber: getAssignedPurchaseOrderNumber(item, items),
-    notes: item?.notes || "",
-    salesTax: "",
-    shippingHandling: "",
-    other: "",
-    lineItems: [getInitialPurchaseOrderLineItem()]
-  };
+    notes: item?.notes || '',
+    salesTax: '',
+    shippingHandling: '',
+    other: '',
+    lineItems: [getInitialPurchaseOrderLineItem()],
+  }
 }
 
 function getInitialRequestForPaymentForm() {
   return {
-    payee: "",
-    invoiceNumber: "",
-    paymentReference: "",
-    amountRequested: "",
-    dueDate: "",
-    notes: ""
-  };
+    payee: '',
+    invoiceNumber: '',
+    paymentReference: '',
+    amountRequested: '',
+    dueDate: '',
+    notes: '',
+  }
 }
 
 function getNextPurchaseOrderNumber(items) {
-  const currentYear = new Date().getFullYear();
-  let highestYear = currentYear;
-  let highestSequence = 0;
+  const currentYear = new Date().getFullYear()
+  let highestYear = currentYear
+  let highestSequence = 0
 
   items.forEach((item) => {
-    const value = String(item.poNumber || "").trim();
-    const match = value.match(/^PO-(\d{4})-(\d+)$/i);
+    const value = String(item.poNumber || '').trim()
+    const match = value.match(/^PO-(\d{4})-(\d+)$/i)
 
     if (!match) {
-      return;
+      return
     }
 
-    const year = Number.parseInt(match[1], 10);
-    const sequence = Number.parseInt(match[2], 10);
+    const year = Number.parseInt(match[1], 10)
+    const sequence = Number.parseInt(match[2], 10)
 
-    if (year > highestYear || (year === highestYear && sequence > highestSequence)) {
-      highestYear = year;
-      highestSequence = sequence;
+    if (
+      year > highestYear ||
+      (year === highestYear && sequence > highestSequence)
+    ) {
+      highestYear = year
+      highestSequence = sequence
     }
-  });
+  })
 
-  const nextSequence = String(highestSequence + 1).padStart(3, "0");
-  return `PO-${highestYear}-${nextSequence}`;
+  const nextSequence = String(highestSequence + 1).padStart(3, '0')
+  return `PO-${highestYear}-${nextSequence}`
 }
 
 function getAssignedPurchaseOrderNumber(item, items) {
-  return item?.poNumber || getNextPurchaseOrderNumber(items);
+  return item?.poNumber || getNextPurchaseOrderNumber(items)
 }
 
-function getRequestAdminForm(item, defaultBranch = DEFAULT_COMPANY_SETTINGS.companyName) {
+function sanitizeNumericInput(value) {
+  return String(value ?? '').replace(/[^0-9.,]/g, '')
+}
+
+function getRequestAdminForm(
+  item,
+  defaultBranch = DEFAULT_COMPANY_SETTINGS.companyName,
+) {
   if (!item) {
     return {
-      title: "",
-      description: "",
+      title: '',
+      description: '',
       branch: defaultBranch,
-      department: "",
-      amount: "",
-      dateNeeded: "",
-      status: "open",
-      currentStage: "",
-      inspectionStatus: "pending",
-      supplier: "",
-      poNumber: "",
-      invoiceNumber: "",
-      paymentReference: "",
-      notes: ""
-    };
+      department: '',
+      amount: '',
+      dateNeeded: '',
+      status: 'open',
+      currentStage: '',
+      inspectionStatus: 'pending',
+      supplier: '',
+      poNumber: '',
+      invoiceNumber: '',
+      paymentReference: '',
+      notes: '',
+    }
   }
 
   return {
-    title: item.title ?? "",
-    description: item.description ?? "",
-    branch: item.branch ?? "Januarius Holdings",
-    department: item.department ?? "",
-    amount: String(item.amount ?? ""),
-    dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : "",
-    status: item.status ?? "open",
-    currentStage: item.currentStage ?? "",
-    inspectionStatus: item.inspectionStatus ?? "pending",
-    supplier: item.supplier === "Pending selection" ? "" : item.supplier ?? "",
-    poNumber: item.poNumber ?? "",
-    invoiceNumber: item.invoiceNumber ?? "",
-    paymentReference: item.paymentReference ?? "",
-    notes: item.notes ?? ""
-  };
+    title: item.title ?? '',
+    description: item.description ?? '',
+    branch: item.branch ?? 'Januarius Holdings',
+    department: item.department ?? '',
+    amount: String(item.amount ?? ''),
+    dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
+    status: item.status ?? 'open',
+    currentStage: item.currentStage ?? '',
+    inspectionStatus: item.inspectionStatus ?? 'pending',
+    supplier:
+      item.supplier === 'Pending selection' ? '' : (item.supplier ?? ''),
+    poNumber: item.poNumber ?? '',
+    invoiceNumber: item.invoiceNumber ?? '',
+    paymentReference: item.paymentReference ?? '',
+    notes: item.notes ?? '',
+  }
 }
 
 function getDashboardStats(items) {
-  const openCount = items.filter((item) => item.status === "open").length;
-  const completedCount = items.filter((item) => item.status === "completed").length;
-  const totalAmount = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const openCount = items.filter((item) => item.status === 'open').length
+  const completedCount = items.filter(
+    (item) => item.status === 'completed',
+  ).length
+  const totalAmount = items.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
+    0,
+  )
 
   return [
-    { label: "Open Requests", value: String(openCount).padStart(2, "0") },
-    { label: "Completed", value: String(completedCount).padStart(2, "0") },
-    { label: "Active Users", value: String(items.length).padStart(2, "0") },
+    { label: 'Open Requests', value: String(openCount).padStart(2, '0') },
+    { label: 'Completed', value: String(completedCount).padStart(2, '0') },
+    { label: 'Active Users', value: String(items.length).padStart(2, '0') },
     {
-      label: "Tracked Value",
-      value: new Intl.NumberFormat("en-PH", {
-        style: "currency",
-        currency: "PHP",
-        maximumFractionDigits: 0
-      }).format(totalAmount)
-    }
-  ];
+      label: 'Tracked Value',
+      value: new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        maximumFractionDigits: 0,
+      }).format(totalAmount),
+    },
+  ]
+}
+
+function filterRequests(items, filter) {
+  if (filter === 'open') {
+    return items.filter((item) => item.status === 'open')
+  }
+
+  if (filter === 'completed') {
+    return items.filter((item) => item.status === 'completed')
+  }
+
+  return items
+}
+
+function searchRequests(items, query) {
+  const normalizedQuery = String(query || '').trim().toLowerCase()
+
+  if (!normalizedQuery) {
+    return items
+  }
+
+  return items.filter((item) =>
+    [
+      item.requestNumber,
+      item.title,
+      item.branch,
+      item.department,
+      item.requester,
+      item.requesterEmail,
+      item.supplier,
+      item.poNumber,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(normalizedQuery)),
+  )
 }
 
 function formatExportDate(value) {
   if (!value) {
-    return "";
+    return ''
   }
 
-  return new Intl.DateTimeFormat("en-PH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(value))
 }
 
 function escapeCsvValue(value) {
-  const stringValue = String(value ?? "");
-  return `"${stringValue.replaceAll('"', '""')}"`;
+  const stringValue = String(value ?? '')
+  return `"${stringValue.replaceAll('"', '""')}"`
 }
 
 function parseAmountValue(value) {
-  if (value === null || typeof value === "undefined") {
-    return 0;
+  if (value === null || typeof value === 'undefined') {
+    return 0
   }
 
-  const normalized = String(value).replaceAll(",", "").trim();
+  const normalized = String(value).replaceAll(',', '').trim()
   if (!normalized) {
-    return 0;
+    return 0
   }
 
-  return Number(normalized);
+  return Number(normalized)
 }
 
-function formatCurrencyValue(value, currency = "PHP") {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency
-  }).format(value || 0);
+function formatCurrencyValue(value, currency = 'PHP') {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency,
+  }).format(value || 0)
 }
 
 function CompanyHeader({
@@ -419,107 +501,167 @@ function CompanyHeader({
   theme,
   onThemeChange,
   onOpenSuppliers,
+  onOpenAuditTrail,
   onOpenUsers,
   onOpenPurchaseOrder,
   onOpenSettings,
-  companySettings = DEFAULT_COMPANY_SETTINGS
+  companySettings = DEFAULT_COMPANY_SETTINGS,
 }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const menuRef = useRef(null)
 
   useEffect(() => {
     if (!isMenuOpen) {
-      return undefined;
+      return undefined
     }
 
     function handlePointerDown(event) {
       if (!menuRef.current?.contains(event.target)) {
-        setIsMenuOpen(false);
+        setIsMenuOpen(false)
       }
     }
 
     function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setIsMenuOpen(false);
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false)
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMenuOpen]);
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isMenuOpen])
 
   function handleMenuAction(action) {
-    setIsMenuOpen(false);
-    action?.();
+    setIsMenuOpen(false)
+    action?.()
   }
 
   return (
-    <header className="company-header">
-      <div className="brand-lockup">
-        <div className="brand-mark" aria-hidden="true">
-          <img src={companySettings.logoUrl} alt="" />
+    <header className='company-header'>
+      <div className='brand-lockup'>
+        <div className='brand-mark' aria-hidden='true'>
+          <img src={companySettings.logoUrl} alt='' />
         </div>
         <div>
-          <p className="brand-kicker">{companySettings.companyName}</p>
+          <p className='brand-kicker'>{companySettings.companyName}</p>
           <strong>Procurement Management System</strong>
         </div>
       </div>
 
-      <div className="header-meta">
-        <div className="theme-toggle" role="group" aria-label="Theme switcher">
+      <div className='header-meta'>
+        <div className='theme-toggle' role='group' aria-label='Theme switcher'>
           <button
-            className={theme === "light" ? "theme-toggle-button active" : "theme-toggle-button"}
-            type="button"
-            onClick={() => onThemeChange("light")}
+            className={
+              theme === 'light'
+                ? 'theme-toggle-button active'
+                : 'theme-toggle-button'
+            }
+            type='button'
+            onClick={() => onThemeChange('light')}
+            aria-label='Switch to light mode'
+            title='Light mode'
           >
-            Light
+            <svg viewBox='0 0 24 24' aria-hidden='true'>
+              <circle cx='12' cy='12' r='4.2' fill='currentColor' />
+              <path
+                d='M12 2.5v2.4M12 19.1v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7'
+                fill='none'
+                stroke='currentColor'
+                strokeLinecap='round'
+                strokeWidth='1.8'
+              />
+            </svg>
+            <span className='sr-only'>Light</span>
           </button>
           <button
-            className={theme === "dark" ? "theme-toggle-button active" : "theme-toggle-button"}
-            type="button"
-            onClick={() => onThemeChange("dark")}
+            className={
+              theme === 'dark'
+                ? 'theme-toggle-button active'
+                : 'theme-toggle-button'
+            }
+            type='button'
+            onClick={() => onThemeChange('dark')}
+            aria-label='Switch to dark mode'
+            title='Dark mode'
           >
-            Dark
+            <svg viewBox='0 0 24 24' aria-hidden='true'>
+              <path
+                d='M18.5 14.6A7.5 7.5 0 0 1 9.4 5.5a7.5 7.5 0 1 0 9.1 9.1Z'
+                fill='currentColor'
+              />
+            </svg>
+            <span className='sr-only'>Dark</span>
           </button>
         </div>
         {user ? (
-          <div className="header-menu-wrap" ref={menuRef}>
+          <div className='header-menu-wrap' ref={menuRef}>
             <button
-              className="header-menu-trigger"
-              type="button"
+              className='header-menu-trigger'
+              type='button'
               onClick={() => setIsMenuOpen((current) => !current)}
-              aria-haspopup="menu"
+              aria-haspopup='menu'
               aria-expanded={isMenuOpen}
             >
               <span>{user.name}</span>
-              <span className="header-menu-caret" aria-hidden="true">
+              <span className='header-menu-caret' aria-hidden='true'>
                 ▾
               </span>
             </button>
             {isMenuOpen ? (
-              <div className="header-menu-dropdown" role="menu" aria-label="Account menu">
-                <button type="button" role="menuitem" onClick={() => handleMenuAction(onOpenSuppliers)}>
-                  Suppliers
-                </button>
-                <button type="button" role="menuitem" onClick={() => handleMenuAction(onOpenUsers)}>
-                  Users
-                </button>
+              <div
+                className='header-menu-dropdown'
+                role='menu'
+                aria-label='Account menu'
+              >
+                {user.role !== 'requester' ? (
+                  <>
+                    <button
+                      type='button'
+                      role='menuitem'
+                      onClick={() => handleMenuAction(onOpenSuppliers)}
+                    >
+                      Suppliers
+                    </button>
+                    <button
+                      type='button'
+                      role='menuitem'
+                      onClick={() => handleMenuAction(onOpenUsers)}
+                    >
+                      Users
+                    </button>
+                    <button
+                      type='button'
+                      role='menuitem'
+                      onClick={() => handleMenuAction(onOpenPurchaseOrder)}
+                    >
+                      Purchase Order
+                    </button>
+                    <button
+                      type='button'
+                      role='menuitem'
+                      onClick={() => handleMenuAction(onOpenAuditTrail)}
+                    >
+                      Audit Trail
+                    </button>
+                  </>
+                ) : null}
                 <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => handleMenuAction(onOpenPurchaseOrder)}
+                  type='button'
+                  role='menuitem'
+                  onClick={() => handleMenuAction(onOpenSettings)}
                 >
-                  Purchase Order
-                </button>
-                <button type="button" role="menuitem" onClick={() => handleMenuAction(onOpenSettings)}>
                   Settings
                 </button>
-                <button type="button" role="menuitem" onClick={() => handleMenuAction(onLogout)}>
+                <button
+                  type='button'
+                  role='menuitem'
+                  onClick={() => handleMenuAction(onLogout)}
+                >
                   Logout
                 </button>
               </div>
@@ -528,107 +670,158 @@ function CompanyHeader({
         ) : null}
       </div>
     </header>
-  );
+  )
 }
 
 export default function App() {
-  const [theme, setTheme] = useState(() => getStoredTheme());
-  const [companySettings, setCompanySettings] = useState(DEFAULT_COMPANY_SETTINGS);
-  const [companyIdentities, setCompanyIdentities] = useState([]);
-  const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS);
-  const [identityForm, setIdentityForm] = useState(getInitialIdentityForm());
-  const [editingIdentityId, setEditingIdentityId] = useState("");
-  const [identitySaveMessage, setIdentitySaveMessage] = useState("");
-  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
-  const [isMainSettingsEditing, setIsMainSettingsEditing] = useState(false);
-  const [session, setSession] = useState(() => getStoredSession());
+  const [theme, setTheme] = useState(() => getStoredTheme())
+  const [companySettings, setCompanySettings] = useState(
+    DEFAULT_COMPANY_SETTINGS,
+  )
+  const [companyIdentities, setCompanyIdentities] = useState([])
+  const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS)
+  const [identityForm, setIdentityForm] = useState(getInitialIdentityForm())
+  const [editingIdentityId, setEditingIdentityId] = useState('')
+  const [identitySaveMessage, setIdentitySaveMessage] = useState('')
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false)
+  const [isMainSettingsEditing, setIsMainSettingsEditing] = useState(false)
+  const [session, setSession] = useState(() => getStoredSession())
   const [credentials, setCredentials] = useState({
-    email: "admin@januarius.app",
-    password: "password123"
-  });
-  const [items, setItems] = useState([]);
-  const [stages, setStages] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedSupplierId, setSelectedSupplierId] = useState("");
+    email: '',
+    password: '',
+  })
+  const [items, setItems] = useState([])
+  const [stages, setStages] = useState([])
+  const [users, setUsers] = useState([])
+  const [suppliers, setSuppliers] = useState([])
+  const [selectedId, setSelectedId] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [actionForm, setActionForm] = useState({
-    supplier: "",
-    notes: "",
-    poNumber: "",
-    invoiceNumber: "",
-    paymentReference: "",
-    deliveryDate: "",
-    inspectionStatus: "pending",
-    selectedItemId: "",
-    selectedItemStage: ""
-  });
+    supplier: '',
+    notes: '',
+    poNumber: '',
+    invoiceNumber: '',
+    paymentReference: '',
+    deliveryDate: '',
+    inspectionStatus: 'pending',
+    selectedItemId: '',
+    selectedItemStage: '',
+  })
   const [requestForm, setRequestForm] = useState(() =>
     getInitialRequestForm(
-      session?.user?.department || "",
-      session?.user?.role === "admin" ? "" : session?.user?.name || "",
-      session?.user?.role === "admin" ? "" : session?.user?.email || "",
-      companySettings.companyName
-    )
-  );
-  const [requestQuotationFile, setRequestQuotationFile] = useState(null);
+      session?.user?.department || '',
+      session?.user?.role === 'admin' ? '' : session?.user?.name || '',
+      session?.user?.role === 'admin' ? '' : session?.user?.email || '',
+      companySettings.companyName,
+      getBranchDeliveryAddress(
+        companySettings.companyName,
+        companySettings,
+        companyIdentities,
+      ),
+    ),
+  )
+  const [requestQuotationFile, setRequestQuotationFile] = useState(null)
   const [uploadForm, setUploadForm] = useState({
-    type: "po",
-    label: "",
-    file: null
-  });
-  const [requestAdminForm, setRequestAdminForm] = useState(() => getRequestAdminForm(null));
-  const [userForm, setUserForm] = useState(getInitialUserForm());
-  const [supplierForm, setSupplierForm] = useState(getInitialSupplierForm());
-  const [purchaseOrderForm, setPurchaseOrderForm] = useState(getInitialPurchaseOrderForm());
-  const [purchaseOrderDrafts, setPurchaseOrderDrafts] = useState({});
-  const [isPurchaseOrderPageOpen, setIsPurchaseOrderPageOpen] = useState(false);
-  const [isPurchaseOrderDirectoryOpen, setIsPurchaseOrderDirectoryOpen] = useState(false);
-  const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] = useState(false);
-  const [requestForPaymentForm, setRequestForPaymentForm] = useState(getInitialRequestForPaymentForm());
-  const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [actionError, setActionError] = useState("");
-  const [uploadError, setUploadError] = useState("");
-  const [userError, setUserError] = useState("");
-  const [supplierError, setSupplierError] = useState("");
-  const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] = useState(false);
-  const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
-  const [isSupplierDirectoryOpen, setIsSupplierDirectoryOpen] = useState(false);
-  const [isUserDirectoryOpen, setIsUserDirectoryOpen] = useState(false);
-  const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(false);
-  const [supplierModalMode, setSupplierModalMode] = useState("create");
-  const [expandedPanel, setExpandedPanel] = useState("");
-  const [confirmDialog, setConfirmDialog] = useState(null);
-  const [toasts, setToasts] = useState([]);
-  const dashboardRefreshInFlight = useRef(false);
+    type: 'po',
+    label: '',
+    file: null,
+  })
+  const [requestAdminForm, setRequestAdminForm] = useState(() =>
+    getRequestAdminForm(null),
+  )
+  const [userForm, setUserForm] = useState(getInitialUserForm())
+  const [supplierForm, setSupplierForm] = useState(getInitialSupplierForm())
+  const [purchaseOrderForm, setPurchaseOrderForm] = useState(
+    getInitialPurchaseOrderForm(),
+  )
+  const [purchaseOrderDrafts, setPurchaseOrderDrafts] = useState({})
+  const [isPurchaseOrderPageOpen, setIsPurchaseOrderPageOpen] = useState(false)
+  const [isPurchaseOrderDirectoryOpen, setIsPurchaseOrderDirectoryOpen] =
+    useState(false)
+  const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] =
+    useState(false)
+  const [requestForPaymentForm, setRequestForPaymentForm] = useState(
+    getInitialRequestForPaymentForm(),
+  )
+  const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] =
+    useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [uploadError, setUploadError] = useState('')
+  const [userError, setUserError] = useState('')
+  const [supplierError, setSupplierError] = useState('')
+  const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] =
+    useState(false)
+  const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false)
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false)
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
+  const [isSupplierDirectoryOpen, setIsSupplierDirectoryOpen] = useState(false)
+  const [isUserDirectoryOpen, setIsUserDirectoryOpen] = useState(false)
+  const [isAuditTrailPageOpen, setIsAuditTrailPageOpen] = useState(false)
+  const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(false)
+  const [supplierModalMode, setSupplierModalMode] = useState('create')
+  const [expandedPanel, setExpandedPanel] = useState('')
+  const [requestRegistryFilter, setRequestRegistryFilter] = useState('all')
+  const [requestSearchQuery, setRequestSearchQuery] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState(null)
+  const [toasts, setToasts] = useState([])
+  const dashboardRefreshInFlight = useRef(false)
 
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = session?.user?.role === 'admin'
   const branchOptions = Array.from(
-    new Set([companySettings.companyName, ...companyIdentities.map((identity) => identity.branchName).filter(Boolean)])
-  );
-  const canCreateRequest = ["requester", "admin"].includes(session?.user?.role);
-  const requesterOptions = users;
+    new Set([
+      companySettings.companyName,
+      ...companyIdentities
+        .map((identity) => identity.branchName)
+        .filter(Boolean),
+    ]),
+  )
+  const canCreateRequest = ['requester', 'admin'].includes(session?.user?.role)
+  const requesterOptions = users
   const supplierOptions = Array.from(
     new Set(
-      [...suppliers.map((supplier) => supplier.name), ...items.map((item) => item.supplier)]
-        .filter((supplier) => supplier && supplier !== "Pending selection")
-    )
-  ).sort((left, right) => left.localeCompare(right));
-  const filteredItems = items;
+      [
+        ...suppliers.map((supplier) => supplier.name),
+        ...items.map((item) => item.supplier),
+      ].filter((supplier) => supplier && supplier !== 'Pending selection'),
+    ),
+  ).sort((left, right) => left.localeCompare(right))
+  const filteredItems = searchRequests(
+    filterRequests(items, requestRegistryFilter),
+    requestSearchQuery,
+  )
   const selectedItem =
-    filteredItems.find((item) => item.id === selectedId) ?? filteredItems[0] ?? null;
-  const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
-  const selectedSupplier = suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null;
-  const dashboardStats = getDashboardStats(items);
-  const purchaseOrderRecords = items.filter(
-    (item) => String(item.poNumber || item.poDraft?.poNumber || "").trim()
-  );
+    filteredItems.find((item) => item.id === selectedId) ??
+    filteredItems[0] ??
+    null
+  const selectedUser = users.find((user) => user.id === selectedUserId) ?? null
+  const selectedSupplier =
+    suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null
+  const dashboardStats = getDashboardStats(items).map((stat) => {
+    if (stat.label === 'Open Requests') {
+      return {
+        ...stat,
+        filterKey: 'open',
+        isActive: requestRegistryFilter === 'open',
+      }
+    }
+
+    if (stat.label === 'Completed') {
+      return {
+        ...stat,
+        filterKey: 'completed',
+        isActive: requestRegistryFilter === 'completed',
+      }
+    }
+
+    return stat
+  })
+  const purchaseOrderRecords = items.filter((item) =>
+    String(item.poNumber || item.poDraft?.poNumber || '').trim(),
+  )
   const shouldPauseDashboardRefresh =
     isCreateRequestModalOpen ||
     isEditRequestModalOpen ||
@@ -637,390 +830,441 @@ export default function App() {
     isRequestWorkspacePageOpen ||
     isRequestForPaymentPageOpen ||
     isPurchaseOrderPageOpen ||
-    isSettingsPageOpen;
+    isAuditTrailPageOpen ||
+    isSettingsPageOpen
   const canManageDocuments = Boolean(
     selectedItem &&
-      session?.user &&
-      (session.user.role === "admin" ||
-        session.user.email === selectedItem.requesterEmail ||
-        selectedItem.allowedRoles.includes(session.user.role))
-  );
+    session?.user &&
+    (session.user.role === 'admin' ||
+      session.user.email === selectedItem.requesterEmail ||
+      selectedItem.allowedRoles.includes(session.user.role)),
+  )
   const canEditSelectedRequest = Boolean(
     selectedItem &&
-      session?.user &&
-      (session.user.role === "admin" || session.user.email === selectedItem.requesterEmail)
-  );
+    session?.user &&
+    (session.user.role === 'admin' ||
+      session.user.email === selectedItem.requesterEmail),
+  )
 
   async function syncCompanySettings() {
-    const response = await fetch(`${API_BASE_URL}/settings`);
+    const response = await fetch(`${API_BASE_URL}/settings`)
     if (!response.ok) {
-      throw new Error("Unable to load company settings.");
+      throw new Error('Unable to load company settings.')
     }
 
-    const data = await response.json();
+    const data = await response.json()
     const nextSettings = {
       companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
       address: data.address || DEFAULT_COMPANY_SETTINGS.address,
-      logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
-    };
+      logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+    }
 
-    setCompanySettings(nextSettings);
-    setSettingsForm(nextSettings);
-    setCompanyIdentities(Array.isArray(data.identities) ? data.identities : []);
-    return nextSettings;
+    setCompanySettings(nextSettings)
+    setSettingsForm(nextSettings)
+    setCompanyIdentities(Array.isArray(data.identities) ? data.identities : [])
+    return nextSettings
   }
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("procurement-theme", theme);
-  }, [theme]);
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('procurement-theme', theme)
+  }, [theme])
 
   useEffect(() => {
-    const favicon = document.querySelector("link[rel='icon']");
+    const favicon = document.querySelector("link[rel='icon']")
     if (favicon) {
-      favicon.setAttribute("href", companySettings.logoUrl);
+      favicon.setAttribute('href', companySettings.logoUrl)
     }
-  }, [companySettings]);
+  }, [companySettings])
 
   useEffect(() => {
-    let ignore = false;
+    let ignore = false
 
     async function loadSettings() {
       try {
         if (ignore) {
-          return;
+          return
         }
 
-        const nextSettings = await syncCompanySettings();
+        const nextSettings = await syncCompanySettings()
         if (ignore) {
-          return;
+          return
         }
 
-        setIdentityForm(getInitialIdentityForm(nextSettings));
+        setIdentityForm(getInitialIdentityForm(nextSettings))
       } catch (_error) {
         if (ignore) {
-          return;
+          return
         }
 
-        setCompanySettings(DEFAULT_COMPANY_SETTINGS);
-        setSettingsForm(DEFAULT_COMPANY_SETTINGS);
-        setCompanyIdentities([]);
-        setIdentityForm(getInitialIdentityForm());
+        setCompanySettings(DEFAULT_COMPANY_SETTINGS)
+        setSettingsForm(DEFAULT_COMPANY_SETTINGS)
+        setCompanyIdentities([])
+        setIdentityForm(getInitialIdentityForm())
       }
     }
 
-    void loadSettings();
+    void loadSettings()
 
     return () => {
-      ignore = true;
-    };
-  }, []);
+      ignore = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!toasts.length) {
-      return;
+      return
     }
 
     const timers = toasts.map((toast) =>
       window.setTimeout(() => {
-        setToasts((current) => current.filter((item) => item.id !== toast.id));
-      }, toast.duration ?? 3200)
-    );
+        setToasts((current) => current.filter((item) => item.id !== toast.id))
+      }, toast.duration ?? 3200),
+    )
 
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [toasts]);
+    return () => timers.forEach((timer) => window.clearTimeout(timer))
+  }, [toasts])
 
   useEffect(() => {
     if (!filteredItems.length) {
-      setSelectedId("");
-      return;
+      setSelectedId('')
+      return
     }
 
     if (!filteredItems.some((item) => item.id === selectedId)) {
-      setSelectedId(filteredItems[0].id);
+      setSelectedId(filteredItems[0].id)
     }
-  }, [filteredItems, selectedId]);
+  }, [filteredItems, selectedId])
 
   useEffect(() => {
     if (!selectedItem) {
-      setRequestAdminForm(getRequestAdminForm(null, companySettings.companyName));
-      return;
+      setRequestAdminForm(
+        getRequestAdminForm(null, companySettings.companyName),
+      )
+      return
     }
 
     setActionForm((current) => {
       const nextSupplier =
-        selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier;
-      const savedDraft = purchaseOrderDrafts[selectedItem.id] ?? getPurchaseOrderDraft(selectedItem, items);
-      const selectedIdChanged = current.selectedItemId !== selectedItem.id;
-      const selectedStageChanged = current.selectedItemStage !== selectedItem.currentStage;
+        selectedItem.supplier === 'Pending selection'
+          ? ''
+          : selectedItem.supplier
+      const savedDraft =
+        purchaseOrderDrafts[selectedItem.id] ??
+        getPurchaseOrderDraft(selectedItem, items)
+      const selectedIdChanged = current.selectedItemId !== selectedItem.id
+      const selectedStageChanged =
+        current.selectedItemStage !== selectedItem.currentStage
 
       if (!selectedIdChanged && !selectedStageChanged) {
         return {
           ...current,
           selectedItemId: selectedItem.id,
-          selectedItemStage: selectedItem.currentStage
-        };
+          selectedItemStage: selectedItem.currentStage,
+        }
       }
 
       return {
         supplier: savedDraft.supplier || nextSupplier,
-        notes: savedDraft.notes || "",
-        poNumber: savedDraft.poNumber || getAssignedPurchaseOrderNumber(selectedItem, items),
-        invoiceNumber: selectedItem.invoiceNumber ?? "",
-        paymentReference: selectedItem.paymentReference ?? "",
-        deliveryDate: selectedItem.deliveryDate ? selectedItem.deliveryDate.slice(0, 10) : "",
-        inspectionStatus: selectedItem.inspectionStatus ?? "pending",
+        notes: savedDraft.notes || '',
+        poNumber:
+          savedDraft.poNumber ||
+          getAssignedPurchaseOrderNumber(selectedItem, items),
+        invoiceNumber: selectedItem.invoiceNumber ?? '',
+        paymentReference: selectedItem.paymentReference ?? '',
+        deliveryDate: selectedItem.deliveryDate
+          ? selectedItem.deliveryDate.slice(0, 10)
+          : '',
+        inspectionStatus: selectedItem.inspectionStatus ?? 'pending',
         selectedItemId: selectedItem.id,
-        selectedItemStage: selectedItem.currentStage
-      };
-    });
-    setRequestAdminForm(getRequestAdminForm(selectedItem, companySettings.companyName));
+        selectedItemStage: selectedItem.currentStage,
+      }
+    })
+    setRequestAdminForm(
+      getRequestAdminForm(selectedItem, companySettings.companyName),
+    )
     setPurchaseOrderForm(
-      purchaseOrderDrafts[selectedItem.id] ?? getPurchaseOrderDraft(selectedItem, items)
-    );
+      purchaseOrderDrafts[selectedItem.id] ??
+        getPurchaseOrderDraft(selectedItem, items),
+    )
     setUploadForm((current) => ({
       ...current,
-      label: "",
-      file: null
-    }));
-    setSelectedId(selectedItem.id);
-  }, [selectedItem, purchaseOrderDrafts, items, companySettings.companyName]);
+      label: '',
+      file: null,
+    }))
+    setSelectedId(selectedItem.id)
+  }, [selectedItem, purchaseOrderDrafts, items, companySettings.companyName])
 
   useEffect(() => {
     if (isUserModalOpen) {
-      return;
+      return
     }
 
     if (!selectedUser) {
-      setUserForm(getInitialUserForm());
-      return;
+      setUserForm(getInitialUserForm())
+      return
     }
 
     setUserForm({
       name: selectedUser.name,
       email: selectedUser.email,
       role: selectedUser.role,
-      department: selectedUser.department ?? "",
-      password: ""
-    });
-  }, [selectedUser, isUserModalOpen]);
+      department: selectedUser.department ?? '',
+      password: '',
+    })
+  }, [selectedUser, isUserModalOpen])
 
   useEffect(() => {
     if (!session?.token) {
-      return;
+      return
     }
 
-    localStorage.setItem("procurement-session", JSON.stringify(session));
+    localStorage.setItem('procurement-session', JSON.stringify(session))
     setRequestForm(
       getInitialRequestForm(
-        session.user.department || "",
-        session.user.role === "admin" ? "" : session.user.name || "",
-        session.user.role === "admin" ? "" : session.user.email || "",
-        companySettings.companyName
-      )
-    );
-    void loadDashboard(session.token, session.user.role);
-  }, [session, companySettings.companyName]);
+        session.user.department || '',
+        session.user.role === 'admin' ? '' : session.user.name || '',
+        session.user.role === 'admin' ? '' : session.user.email || '',
+        companySettings.companyName,
+        getBranchDeliveryAddress(
+          companySettings.companyName,
+          companySettings,
+          companyIdentities,
+        ),
+      ),
+    )
+    void loadDashboard(session.token, session.user.role)
+  }, [session, companySettings.companyName])
 
   useEffect(() => {
     if (!isAdmin) {
-      return;
+      return
     }
 
     if (!users.length) {
-      return;
+      return
     }
 
     setRequestForm((current) => {
-      if (current.requesterEmail && users.some((user) => user.email === current.requesterEmail)) {
-        return current;
+      if (
+        current.requesterEmail &&
+        users.some((user) => user.email === current.requesterEmail)
+      ) {
+        return current
       }
 
-      const defaultUser = users[0];
+      const defaultUser = users[0]
       return {
         ...current,
         requesterName: defaultUser.name,
-        requesterEmail: defaultUser.email
-      };
-    });
-  }, [isAdmin, users]);
+        requesterEmail: defaultUser.email,
+      }
+    })
+  }, [isAdmin, users])
 
   useEffect(() => {
     if (!branchOptions.length) {
-      return;
+      return
     }
 
     setRequestForm((current) => {
       if (branchOptions.includes(current.branch)) {
-        return current;
+        return current
       }
 
       return {
         ...current,
-        branch: branchOptions[0]
-      };
-    });
-  }, [branchOptions]);
+        branch: branchOptions[0],
+        deliveryAddress: getBranchDeliveryAddress(
+          branchOptions[0],
+          companySettings,
+          companyIdentities,
+        ),
+      }
+    })
+  }, [branchOptions, companySettings, companyIdentities])
 
   function clearSession() {
-    localStorage.removeItem("procurement-session");
-    setSession(null);
-    setItems([]);
-    setStages([]);
-    setUsers([]);
-    setSuppliers([]);
-    setSelectedId("");
-    setSelectedUserId("");
-    setRequestForm(getInitialRequestForm("", "", "", DEFAULT_COMPANY_SETTINGS.companyName));
-    setRequestQuotationFile(null);
-    setRequestAdminForm(getRequestAdminForm(null, DEFAULT_COMPANY_SETTINGS.companyName));
-    setUserForm(getInitialUserForm());
-    setSupplierForm(getInitialSupplierForm());
-    setIsCreateRequestModalOpen(false);
-    setIsEditRequestModalOpen(false);
-    setIsUserModalOpen(false);
-    setIsSupplierModalOpen(false);
-    setIsRequestWorkspacePageOpen(false);
-    setExpandedPanel("");
-    setConfirmDialog(null);
+    localStorage.removeItem('procurement-session')
+    setSession(null)
+    setItems([])
+    setStages([])
+    setUsers([])
+    setSuppliers([])
+    setSelectedId('')
+    setSelectedUserId('')
+    setRequestForm(
+      getInitialRequestForm(
+        '',
+        '',
+        '',
+        DEFAULT_COMPANY_SETTINGS.companyName,
+        getBranchDeliveryAddress(
+          DEFAULT_COMPANY_SETTINGS.companyName,
+          DEFAULT_COMPANY_SETTINGS,
+          [],
+        ),
+      ),
+    )
+    setRequestQuotationFile(null)
+    setRequestAdminForm(
+      getRequestAdminForm(null, DEFAULT_COMPANY_SETTINGS.companyName),
+    )
+    setUserForm(getInitialUserForm())
+    setSupplierForm(getInitialSupplierForm())
+    setIsCreateRequestModalOpen(false)
+    setIsEditRequestModalOpen(false)
+    setIsUserModalOpen(false)
+    setIsSupplierModalOpen(false)
+    setIsRequestWorkspacePageOpen(false)
+    setExpandedPanel('')
+    setConfirmDialog(null)
   }
 
   function handleSessionExpired() {
-    clearSession();
-    setAuthError("Your session expired. Please sign in again.");
+    clearSession()
+    setAuthError('Your session expired. Please sign in again.')
     pushToast({
-      title: "Session expired",
-      message: "Please sign in again to continue.",
-      variant: "error",
-      duration: 4200
-    });
+      title: 'Session expired',
+      message: 'Please sign in again to continue.',
+      variant: 'error',
+      duration: 4200,
+    })
   }
 
   async function loadDashboard(token, role, options = {}) {
-    const { background = false } = options;
+    const { background = false } = options
 
     if (dashboardRefreshInFlight.current) {
-      return;
+      return
     }
 
-    dashboardRefreshInFlight.current = true;
+    dashboardRefreshInFlight.current = true
 
     if (!background) {
-      setIsLoading(true);
-      setActionError("");
-      setUserError("");
+      setIsLoading(true)
+      setActionError('')
+      setUserError('')
     }
 
     try {
-      const workflowPromise = fetch(`${API_BASE_URL}/workflows/purchase-requests`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const workflowPromise = fetch(
+        `${API_BASE_URL}/workflows/purchase-requests`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      )
       const supplierPromise = fetch(`${API_BASE_URL}/suppliers`, {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+          Authorization: `Bearer ${token}`,
+        },
+      })
       const userPromise =
-        role === "admin"
+        role === 'admin'
           ? fetch(`${API_BASE_URL}/users`, {
               headers: {
-                Authorization: `Bearer ${token}`
-              }
+                Authorization: `Bearer ${token}`,
+              },
             })
-          : Promise.resolve(null);
+          : Promise.resolve(null)
 
-      const [workflowResponse, supplierResponse, userResponse] = await Promise.all([
-        workflowPromise,
-        supplierPromise,
-        userPromise
-      ]);
+      const [workflowResponse, supplierResponse, userResponse] =
+        await Promise.all([workflowPromise, supplierPromise, userPromise])
 
       if (
         workflowResponse.status === 401 ||
         supplierResponse.status === 401 ||
         userResponse?.status === 401
       ) {
-        handleSessionExpired();
-        return;
+        handleSessionExpired()
+        return
       }
 
       if (!workflowResponse.ok) {
-        throw new Error("Unable to load workflow data.");
+        throw new Error('Unable to load workflow data.')
       }
 
       if (!supplierResponse.ok) {
-        throw new Error("Unable to load suppliers.");
+        throw new Error('Unable to load suppliers.')
       }
 
-      const workflowData = await workflowResponse.json();
-      const supplierData = await supplierResponse.json();
-      setStages(workflowData.stages);
-      setItems(workflowData.items);
-      setSuppliers(supplierData.items);
-      setSelectedId((current) => current || workflowData.items[0]?.id || "");
+      const workflowData = await workflowResponse.json()
+      const supplierData = await supplierResponse.json()
+      setStages(workflowData.stages)
+      setItems(workflowData.items)
+      setSuppliers(supplierData.items)
+      setSelectedId((current) => current || workflowData.items[0]?.id || '')
 
       if (userResponse) {
         if (!userResponse.ok) {
-          throw new Error("Unable to load users.");
+          throw new Error('Unable to load users.')
         }
 
-        const userData = await userResponse.json();
-        setUsers(userData.items);
-        setSelectedUserId((current) => current || userData.items[0]?.id || "");
+        const userData = await userResponse.json()
+        setUsers(userData.items)
+        setSelectedUserId((current) => current || userData.items[0]?.id || '')
       } else {
-        setUsers([]);
-        setSelectedUserId("");
+        setUsers([])
+        setSelectedUserId('')
       }
     } catch (error) {
       if (!background) {
-        setActionError(error.message || "Unable to load dashboard.");
+        setActionError(error.message || 'Unable to load dashboard.')
       }
     } finally {
-      dashboardRefreshInFlight.current = false;
+      dashboardRefreshInFlight.current = false
       if (!background) {
-        setIsLoading(false);
+        setIsLoading(false)
       }
     }
   }
 
   useEffect(() => {
     if (!session?.token) {
-      return;
+      return
     }
 
     if (shouldPauseDashboardRefresh) {
-      return;
+      return
     }
 
     const refreshDashboard = () => {
       if (document.hidden) {
-        return;
+        return
       }
 
-      void loadDashboard(session.token, session.user.role, { background: true });
-    };
+      void loadDashboard(session.token, session.user.role, { background: true })
+    }
 
-    const intervalId = window.setInterval(refreshDashboard, DASHBOARD_REFRESH_MS);
-    window.addEventListener("focus", refreshDashboard);
-    document.addEventListener("visibilitychange", refreshDashboard);
+    const intervalId = window.setInterval(
+      refreshDashboard,
+      DASHBOARD_REFRESH_MS,
+    )
+    window.addEventListener('focus', refreshDashboard)
+    document.addEventListener('visibilitychange', refreshDashboard)
 
     return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshDashboard);
-      document.removeEventListener("visibilitychange", refreshDashboard);
-    };
-  }, [session, shouldPauseDashboardRefresh]);
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshDashboard)
+      document.removeEventListener('visibilitychange', refreshDashboard)
+    }
+  }, [session, shouldPauseDashboardRefresh])
 
   function handleCredentialChange(event) {
     setCredentials((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
-  function pushToast({ title, message = "", variant = "success", duration = 3200 }) {
+  function pushToast({
+    title,
+    message = '',
+    variant = 'success',
+    duration = 3200,
+  }) {
     setToasts((current) => [
       ...current,
       {
@@ -1028,273 +1272,306 @@ export default function App() {
         title,
         message,
         variant,
-        duration
-      }
-    ]);
+        duration,
+      },
+    ])
   }
 
   function dismissToast(id) {
-    setToasts((current) => current.filter((toast) => toast.id !== id));
+    setToasts((current) => current.filter((toast) => toast.id !== id))
   }
 
   async function handleLogin() {
-    setAuthError("");
-    setIsSubmitting(true);
+    setAuthError('')
+    setIsSubmitting(true)
 
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json"
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials)
-      });
+        body: JSON.stringify(credentials),
+      })
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Login failed.");
+        throw new Error(data.message || 'Login failed.')
       }
 
-      setSession(data);
+      setSession(data)
       pushToast({
-        title: "Signed in",
+        title: 'Signed in',
         message: `Welcome back, ${data.user.name}.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(error.message)
       pushToast({
-        title: "Sign-in failed",
+        title: 'Sign-in failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   function handleRequestFormChange(event) {
-    setRequestForm((current) => ({
-      ...current,
-      [event.target.name]: event.target.value
-    }));
+    const { name, value } = event.target
+
+    setRequestForm((current) => {
+      if (name === 'branch') {
+        return {
+          ...current,
+          branch: value,
+          deliveryAddress: getBranchDeliveryAddress(
+            value,
+            companySettings,
+            companyIdentities,
+          ),
+        }
+      }
+
+      return {
+        ...current,
+        [name]: value,
+      }
+    })
   }
 
   function handleRequestQuotationFileChange(event) {
-    setRequestQuotationFile(event.target.files?.[0] ?? null);
+    setRequestQuotationFile(event.target.files?.[0] ?? null)
   }
 
   function handleActionFormChange(event) {
     setActionForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handleUploadFormChange(event) {
     setUploadForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handleUploadFileChange(event) {
-    const file = event.target.files?.[0] ?? null;
+    const file = event.target.files?.[0] ?? null
     setUploadForm((current) => ({
       ...current,
-      file
-    }));
+      file,
+    }))
   }
 
   function handleReviewApprovalFileChange(event) {
-    const file = event.target.files?.[0] ?? null;
+    const file = event.target.files?.[0] ?? null
     setUploadForm({
-      type: "other",
-      label: "Boss approval attachment",
-      file
-    });
+      type: 'other',
+      label: 'Boss approval attachment',
+      file,
+    })
   }
 
   function handleRequestAdminFormChange(event) {
     setRequestAdminForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handleUserFormChange(event) {
     setUserForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handleSupplierFormChange(event) {
     setSupplierForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handlePurchaseOrderFormChange(event) {
-    const { name, value } = event.target;
+    const { name } = event.target
+    const value = ['salesTax', 'shippingHandling', 'other'].includes(
+      event.target.name,
+    )
+      ? sanitizeNumericInput(event.target.value)
+      : event.target.value
 
-    if (name === "poNumber") {
-      return;
+    if (name === 'poNumber') {
+      return
     }
 
     setPurchaseOrderForm((current) => {
       const nextForm = {
         ...current,
-        [name]: value
-      };
+        [name]: value,
+      }
 
       if (selectedItem?.id) {
         setPurchaseOrderDrafts((drafts) => ({
           ...drafts,
-          [selectedItem.id]: nextForm
-        }));
+          [selectedItem.id]: nextForm,
+        }))
       }
 
-      return nextForm;
-    });
+      return nextForm
+    })
 
-    if (["supplier", "notes"].includes(name)) {
+    if (['supplier', 'notes'].includes(name)) {
       setActionForm((current) => ({
         ...current,
-        [name]: value
-      }));
+        [name]: value,
+      }))
     }
   }
 
   function handleSettingsFormChange(event) {
     setSettingsForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handleIdentityFormChange(event) {
-    setIdentitySaveMessage("");
+    setIdentitySaveMessage('')
     setIdentityForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function loadImageIntoForm(file, setter, options = {}) {
     if (!file) {
-      return;
+      return
     }
 
-    const { onStart, onDone, onError } = options;
+    const { onStart, onDone, onError } = options
 
     void (async () => {
       try {
-        onStart?.();
-        const optimizedLogoUrl = await optimizeLogoFile(file);
+        onStart?.()
+        const optimizedLogoUrl = await optimizeLogoFile(file)
         setter((current) => ({
           ...current,
-          logoUrl: optimizedLogoUrl || current.logoUrl
-        }));
-        onDone?.();
+          logoUrl: optimizedLogoUrl || current.logoUrl,
+        }))
+        onDone?.()
       } catch (error) {
-        onError?.(error);
+        onError?.(error)
       }
-    })();
+    })()
   }
 
   function handleSettingsLogoChange(event) {
-    const file = event.target.files?.[0];
+    const file = event.target.files?.[0]
     loadImageIntoForm(file, setSettingsForm, {
       onError: (error) =>
         pushToast({
-          title: "Logo update failed",
+          title: 'Logo update failed',
           message: error.message,
-          variant: "error",
-          duration: 4200
-        })
-    });
+          variant: 'error',
+          duration: 4200,
+        }),
+    })
   }
 
   function handleIdentityLogoChange(event) {
-    const file = event.target.files?.[0];
+    const file = event.target.files?.[0]
     loadImageIntoForm(file, setIdentityForm, {
-      onStart: () => setIdentitySaveMessage(""),
+      onStart: () => setIdentitySaveMessage(''),
       onError: (error) =>
         pushToast({
-          title: "Logo update failed",
+          title: 'Logo update failed',
           message: error.message,
-          variant: "error",
-          duration: 4200
-        })
-    });
+          variant: 'error',
+          duration: 4200,
+        }),
+    })
   }
 
   function handleRequestForPaymentFormChange(event) {
     setRequestForPaymentForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value
-    }));
+      [event.target.name]: event.target.value,
+    }))
   }
 
   function handlePurchaseOrderLineItemChange(index, field, value) {
     setPurchaseOrderForm((current) => {
       const lineItems = current.lineItems.map((item, itemIndex) => {
         if (itemIndex !== index) {
-          return item;
+          return item
         }
+
+        const nextValue = ['qty', 'unitPrice'].includes(field)
+          ? sanitizeNumericInput(value)
+          : value
 
         const nextItem = {
           ...item,
-          [field]: value
-        };
+          [field]: nextValue,
+        }
 
-        const qty = Number.parseFloat(String(field === "qty" ? value : nextItem.qty).replaceAll(",", "")) || 0;
+        const qty =
+          Number.parseFloat(
+            String(field === 'qty' ? nextValue : nextItem.qty).replaceAll(
+              ',',
+              '',
+            ),
+          ) || 0
         const unitPrice =
           Number.parseFloat(
-            String(field === "unitPrice" ? value : nextItem.unitPrice).replaceAll(",", "")
-          ) || 0;
+            String(
+              field === 'unitPrice' ? nextValue : nextItem.unitPrice,
+            ).replaceAll(',', ''),
+          ) || 0
 
         return {
           ...nextItem,
-          total: qty > 0 && unitPrice > 0 ? String(qty * unitPrice) : ""
-        };
-      });
+          total: qty > 0 && unitPrice > 0 ? String(qty * unitPrice) : '',
+        }
+      })
 
       const nextForm = {
         ...current,
-        lineItems
-      };
+        lineItems,
+      }
 
       if (selectedItem?.id) {
         setPurchaseOrderDrafts((drafts) => ({
           ...drafts,
-          [selectedItem.id]: nextForm
-        }));
+          [selectedItem.id]: nextForm,
+        }))
       }
 
-      return nextForm;
-    });
+      return nextForm
+    })
   }
 
   function handleAddPurchaseOrderLineItem() {
     setPurchaseOrderForm((current) => {
       const nextForm = {
         ...current,
-        lineItems: [...current.lineItems, getInitialPurchaseOrderLineItem()]
-      };
+        lineItems: [...current.lineItems, getInitialPurchaseOrderLineItem()],
+      }
 
       if (selectedItem?.id) {
         setPurchaseOrderDrafts((drafts) => ({
           ...drafts,
-          [selectedItem.id]: nextForm
-        }));
+          [selectedItem.id]: nextForm,
+        }))
       }
 
-      return nextForm;
-    });
+      return nextForm
+    })
   }
 
   function handleRemovePurchaseOrderLineItem(index) {
@@ -1304,35 +1581,35 @@ export default function App() {
         lineItems:
           current.lineItems.length === 1
             ? [getInitialPurchaseOrderLineItem()]
-            : current.lineItems.filter((_, itemIndex) => itemIndex !== index)
-      };
+            : current.lineItems.filter((_, itemIndex) => itemIndex !== index),
+      }
 
       if (selectedItem?.id) {
         setPurchaseOrderDrafts((drafts) => ({
           ...drafts,
-          [selectedItem.id]: nextForm
-        }));
+          [selectedItem.id]: nextForm,
+        }))
       }
 
-      return nextForm;
-    });
+      return nextForm
+    })
   }
 
   function handleExportCsv() {
     const headers = [
-      "Request Number",
-      "Title",
-      "Department",
-      "Category",
-      "Requester",
-      "Amount",
-      "Priority",
-      "Status",
-      "Current Stage",
-      "Requested At",
-      "Date Needed",
-      "Supplier"
-    ];
+      'Request Number',
+      'Title',
+      'Department',
+      'Category',
+      'Requester',
+      'Amount',
+      'Priority',
+      'Status',
+      'Current Stage',
+      'Requested At',
+      'Date Needed',
+      'Supplier',
+    ]
 
     const rows = filteredItems.map((item) => [
       item.requestNumber,
@@ -1345,41 +1622,44 @@ export default function App() {
       item.currentStage,
       formatExportDate(item.requestedAt),
       formatExportDate(item.dateNeeded),
-      item.supplier
-    ]);
+      item.supplier,
+    ])
 
     const csvContent = [headers, ...rows]
-      .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
-      .join("\n");
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
+      .join('\n')
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "procurement-request-list.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'procurement-request-list.csv'
+    link.click()
+    URL.revokeObjectURL(url)
 
     pushToast({
-      title: "CSV exported",
-      message: `${filteredItems.length} request${filteredItems.length === 1 ? "" : "s"} downloaded.`,
-      variant: "success"
-    });
+      title: 'CSV exported',
+      message: `${filteredItems.length} request${filteredItems.length === 1 ? '' : 's'} downloaded.`,
+      variant: 'success',
+    })
   }
 
   function handleExportPdf() {
-    const printWindow = window.open("", "_blank", "width=1200,height=900");
+    const printWindow = window.open('', '_blank', 'width=1200,height=900')
     if (!printWindow) {
       pushToast({
-        title: "Popup blocked",
-        message: "Allow popups to export the PDF view.",
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        title: 'Popup blocked',
+        message: 'Allow popups to export the PDF view.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    const exportTotalValue = filteredItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const exportTotalValue = filteredItems.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0,
+    )
 
     const rowsHtml = filteredItems
       .map(
@@ -1387,7 +1667,7 @@ export default function App() {
           <tr>
             <td>${item.requestNumber}</td>
             <td>${item.title}</td>
-            <td>${item.branch ?? ""}</td>
+            <td>${item.branch ?? ''}</td>
             <td>${item.department}</td>
             <td>${item.requester}</td>
             <td>${item.currentStage}</td>
@@ -1396,9 +1676,9 @@ export default function App() {
             <td>${formatExportDate(item.dateNeeded)}</td>
             <td>${item.supplier}</td>
           </tr>
-        `
+        `,
       )
-      .join("");
+      .join('')
 
     printWindow.document.write(`
       <html>
@@ -1510,14 +1790,14 @@ export default function App() {
                 </div>
                 <div class="summary-card">
                   <span>Open Requests</span>
-                  <strong>${filteredItems.filter((item) => item.status === "open").length}</strong>
+                  <strong>${filteredItems.filter((item) => item.status === 'open').length}</strong>
                 </div>
                 <div class="summary-card">
                   <span>Tracked Value</span>
-                  <strong>${new Intl.NumberFormat("en-PH", {
-                    style: "currency",
-                    currency: "PHP",
-                    maximumFractionDigits: 0
+                  <strong>${new Intl.NumberFormat('en-PH', {
+                    style: 'currency',
+                    currency: 'PHP',
+                    maximumFractionDigits: 0,
                   }).format(exportTotalValue)}</strong>
                 </div>
               </div>
@@ -1528,7 +1808,7 @@ export default function App() {
             <div class="meta">
               <div class="meta-card">
                 <span>Generated by</span>
-                <strong>${session?.user?.name ?? "System User"}</strong>
+                <strong>${session?.user?.name ?? 'System User'}</strong>
               </div>
               <div class="meta-card">
                 <span>Generated on</span>
@@ -1556,202 +1836,226 @@ export default function App() {
           <p class="footer">Generated from the live filtered request registry.</p>
         </body>
       </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
 
     pushToast({
-      title: "PDF view opened",
-      message: "Use the print dialog to save the filtered list as PDF.",
-      variant: "success"
-    });
+      title: 'PDF view opened',
+      message: 'Use the print dialog to save the filtered list as PDF.',
+      variant: 'success',
+    })
   }
 
   function openCreateRequestModal() {
     setRequestForm(
       getInitialRequestForm(
-        session?.user?.department || "",
-        session?.user?.role === "admin" ? "" : session?.user?.name || "",
-        session?.user?.role === "admin" ? "" : session?.user?.email || "",
-        companySettings.companyName
-      )
-    );
-    setRequestQuotationFile(null);
-    setIsCreateRequestModalOpen(true);
+        session?.user?.department || '',
+        session?.user?.role === 'admin' ? '' : session?.user?.name || '',
+        session?.user?.role === 'admin' ? '' : session?.user?.email || '',
+        companySettings.companyName,
+        getBranchDeliveryAddress(
+          companySettings.companyName,
+          companySettings,
+          companyIdentities,
+        ),
+      ),
+    )
+    setRequestQuotationFile(null)
+    setIsCreateRequestModalOpen(true)
   }
 
   function openEditRequestModal() {
     if (!selectedItem || !canEditSelectedRequest) {
-      return;
+      return
     }
 
-    setRequestAdminForm(getRequestAdminForm(selectedItem));
-    setIsEditRequestModalOpen(true);
+    setRequestAdminForm(getRequestAdminForm(selectedItem))
+    setIsEditRequestModalOpen(true)
   }
 
   function openEditRequestModalForItem(requestId) {
-    const targetItem = items.find((item) => item.id === requestId);
+    const targetItem = items.find((item) => item.id === requestId)
 
     if (
       !targetItem ||
       !session?.user ||
-      (session.user.role !== "admin" && session.user.email !== targetItem.requesterEmail)
+      (session.user.role !== 'admin' &&
+        session.user.email !== targetItem.requesterEmail)
     ) {
-      return;
+      return
     }
 
-    setSelectedId(targetItem.id);
-    setRequestAdminForm(getRequestAdminForm(targetItem));
-    setIsEditRequestModalOpen(true);
+    setSelectedId(targetItem.id)
+    setRequestAdminForm(getRequestAdminForm(targetItem))
+    setIsEditRequestModalOpen(true)
   }
 
   function openRequestDetailsModal() {
     if (!selectedItem) {
-      return;
+      return
     }
 
-    setIsPurchaseOrderPageOpen(false);
-    setIsRequestWorkspacePageOpen(true);
+    setIsPurchaseOrderPageOpen(false)
+    setIsRequestWorkspacePageOpen(true)
   }
 
   function openCreateUserModal() {
-    setSelectedUserId("");
-    setUserForm(getInitialUserForm());
-    setUserError("");
-    setIsUserModalOpen(true);
+    setSelectedUserId('')
+    setUserForm(getInitialUserForm())
+    setUserError('')
+    setIsUserModalOpen(true)
   }
 
   function openCreateSupplierModal() {
     if (!isAdmin) {
-      return;
+      return
     }
 
-    setSupplierModalMode("create");
-    setSelectedSupplierId("");
-    setSupplierError("");
-    setSupplierForm(getInitialSupplierForm());
-    setIsSupplierModalOpen(true);
+    setSupplierModalMode('create')
+    setSelectedSupplierId('')
+    setSupplierError('')
+    setSupplierForm(getInitialSupplierForm())
+    setIsSupplierModalOpen(true)
   }
 
   function openEditSupplierModal(supplierId = selectedSupplierId) {
-    const targetSupplier = suppliers.find((supplier) => supplier.id === supplierId);
+    const targetSupplier = suppliers.find(
+      (supplier) => supplier.id === supplierId,
+    )
 
     if (!isAdmin || !targetSupplier) {
-      return;
+      return
     }
 
-    setSupplierModalMode("edit");
-    setSelectedSupplierId(targetSupplier.id);
-    setSupplierError("");
+    setSupplierModalMode('edit')
+    setSelectedSupplierId(targetSupplier.id)
+    setSupplierError('')
     setSupplierForm({
       name: targetSupplier.name,
       category: targetSupplier.category,
       supplierType: targetSupplier.supplierType,
-      contactPerson: targetSupplier.contactPerson ?? "",
-      email: targetSupplier.email ?? "",
-      phone: targetSupplier.phone ?? "",
-      address: targetSupplier.address ?? "",
-      notes: targetSupplier.notes ?? ""
-    });
-    setIsSupplierModalOpen(true);
+      contactPerson: targetSupplier.contactPerson ?? '',
+      email: targetSupplier.email ?? '',
+      phone: targetSupplier.phone ?? '',
+      address: targetSupplier.address ?? '',
+      notes: targetSupplier.notes ?? '',
+    })
+    setIsSupplierModalOpen(true)
   }
 
   function openConfirmDialog(config) {
-    setConfirmDialog(config);
+    setConfirmDialog(config)
   }
 
   function openEditUserModal(userId = selectedUserId) {
-    const targetUser = users.find((user) => user.id === userId);
+    const targetUser = users.find((user) => user.id === userId)
 
     if (!targetUser) {
-      return;
+      return
     }
 
-    setSelectedUserId(targetUser.id);
+    setSelectedUserId(targetUser.id)
     setUserForm({
       name: targetUser.name,
       email: targetUser.email,
       role: targetUser.role,
-      department: targetUser.department ?? "",
-      password: ""
-    });
-    setIsUserModalOpen(true);
+      department: targetUser.department ?? '',
+      password: '',
+    })
+    setIsUserModalOpen(true)
   }
 
   function openExpandedPanel(panelKey) {
-    setExpandedPanel(panelKey);
+    setExpandedPanel(panelKey)
   }
 
   function closeExpandedPanel() {
-    setExpandedPanel("");
+    setExpandedPanel('')
   }
 
   function openRequestForPaymentPage() {
     if (!selectedItem) {
-      return;
+      return
     }
 
     setRequestForPaymentForm((current) => ({
       ...current,
       payee:
         current.payee ||
-        (selectedItem.supplier === "Pending selection" ? "" : selectedItem.supplier || ""),
-      invoiceNumber: current.invoiceNumber || actionForm.invoiceNumber || selectedItem.invoiceNumber || "",
+        (selectedItem.supplier === 'Pending selection'
+          ? ''
+          : selectedItem.supplier || ''),
+      invoiceNumber:
+        current.invoiceNumber ||
+        actionForm.invoiceNumber ||
+        selectedItem.invoiceNumber ||
+        '',
       paymentReference:
         current.paymentReference ||
         actionForm.paymentReference ||
         selectedItem.paymentReference ||
-        "",
-      amountRequested: current.amountRequested || String(selectedItem.amount || ""),
-      dueDate: current.dueDate || (selectedItem.dateNeeded ? selectedItem.dateNeeded.slice(0, 10) : ""),
-      notes: current.notes || actionForm.notes || ""
-    }));
-    setIsRequestForPaymentPageOpen(true);
+        '',
+      amountRequested:
+        current.amountRequested || String(selectedItem.amount || ''),
+      dueDate:
+        current.dueDate ||
+        (selectedItem.dateNeeded ? selectedItem.dateNeeded.slice(0, 10) : ''),
+      notes: current.notes || actionForm.notes || '',
+    }))
+    setIsRequestForPaymentPageOpen(true)
   }
 
   function openPurchaseOrderPage(requestId = selectedId) {
-    const targetItem = items.find((item) => item.id === requestId) ?? selectedItem;
+    const targetItem =
+      items.find((item) => item.id === requestId) ?? selectedItem
 
     if (!targetItem) {
       pushToast({
-        title: "No request selected",
-        message: "Select a request first before opening the purchase order page.",
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        title: 'No request selected',
+        message:
+          'Select a request first before opening the purchase order page.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    const baseDraft = purchaseOrderDrafts[targetItem.id] ?? getPurchaseOrderDraft(targetItem, items);
-    setSelectedId(targetItem.id);
+    const baseDraft =
+      purchaseOrderDrafts[targetItem.id] ??
+      getPurchaseOrderDraft(targetItem, items)
+    setSelectedId(targetItem.id)
     setPurchaseOrderForm({
       ...baseDraft,
       supplier:
         baseDraft.supplier ||
         actionForm.supplier ||
-        (targetItem.supplier === "Pending selection" ? "" : targetItem.supplier || ""),
-      notes: baseDraft.notes || actionForm.notes || targetItem.notes || "",
-      poNumber: baseDraft.poNumber || getAssignedPurchaseOrderNumber(targetItem, items)
-    });
-    setIsPurchaseOrderDirectoryOpen(false);
-    setIsPurchaseOrderPageOpen(true);
+        (targetItem.supplier === 'Pending selection'
+          ? ''
+          : targetItem.supplier || ''),
+      notes: baseDraft.notes || actionForm.notes || targetItem.notes || '',
+      poNumber:
+        baseDraft.poNumber || getAssignedPurchaseOrderNumber(targetItem, items),
+    })
+    setIsPurchaseOrderDirectoryOpen(false)
+    setIsPurchaseOrderPageOpen(true)
   }
 
   function closeRequestForPaymentPage() {
-    setIsRequestForPaymentPageOpen(false);
+    setIsRequestForPaymentPageOpen(false)
   }
 
   function closePurchaseOrderPage() {
-    setIsPurchaseOrderPageOpen(false);
+    setIsPurchaseOrderPageOpen(false)
   }
 
   function closePurchaseOrderDirectory() {
-    setIsPurchaseOrderDirectoryOpen(false);
+    setIsPurchaseOrderDirectoryOpen(false)
   }
 
   function closeRequestWorkspacePage() {
-    setIsRequestWorkspacePageOpen(false);
+    setIsRequestWorkspacePageOpen(false)
   }
 
   function handleSaveRequestForPaymentPage() {
@@ -1759,131 +2063,141 @@ export default function App() {
       ...current,
       invoiceNumber: requestForPaymentForm.invoiceNumber,
       paymentReference: requestForPaymentForm.paymentReference,
-      notes: requestForPaymentForm.notes
-    }));
-    setIsRequestForPaymentPageOpen(false);
+      notes: requestForPaymentForm.notes,
+    }))
+    setIsRequestForPaymentPageOpen(false)
     pushToast({
-      title: "Request for payment draft saved",
-      message: "The payment request details were copied back into the workflow form.",
-      variant: "success"
-    });
+      title: 'Request for payment draft saved',
+      message:
+        'The payment request details were copied back into the workflow form.',
+      variant: 'success',
+    })
   }
 
   function handleSavePurchaseOrderPage() {
     void (async () => {
       if (!selectedItem || !session?.token) {
-        return;
+        return
       }
 
-      setIsSubmitting(true);
+      setIsSubmitting(true)
 
       try {
         const response = await fetch(
           `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/po-draft`,
           {
-            method: "PATCH",
+            method: 'PATCH',
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.token}`
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.token}`,
             },
-            body: JSON.stringify(purchaseOrderForm)
-          }
-        );
+            body: JSON.stringify(purchaseOrderForm),
+          },
+        )
 
-        const data = await response.json();
+        const data = await response.json()
         if (!response.ok) {
-          throw new Error(data.message || "Failed to save purchase order draft.");
+          throw new Error(
+            data.message || 'Failed to save purchase order draft.',
+          )
         }
 
-        setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+        setItems((current) =>
+          current.map((item) => (item.id === data.id ? data : item)),
+        )
         setPurchaseOrderDrafts((drafts) => ({
           ...drafts,
-          [data.id]: data.poDraft ?? purchaseOrderForm
-        }));
+          [data.id]: data.poDraft ?? purchaseOrderForm,
+        }))
         setActionForm((current) => ({
           ...current,
           supplier: data.supplier || purchaseOrderForm.supplier,
           poNumber: data.poNumber || purchaseOrderForm.poNumber,
-          notes: purchaseOrderForm.notes
-        }));
-        setIsPurchaseOrderPageOpen(false);
+          notes: purchaseOrderForm.notes,
+        }))
+        setIsPurchaseOrderPageOpen(false)
         pushToast({
-          title: "Purchase order draft saved",
-          message: "The PO details and breakdown were saved.",
-          variant: "success"
-        });
+          title: 'Purchase order draft saved',
+          message: 'The PO details and breakdown were saved.',
+          variant: 'success',
+        })
       } catch (error) {
         pushToast({
-          title: "Save purchase order failed",
+          title: 'Save purchase order failed',
           message: error.message,
-          variant: "error",
-          duration: 4200
-        });
+          variant: 'error',
+          duration: 4200,
+        })
       } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false)
       }
-    })();
+    })()
   }
 
   function handlePrintPurchaseOrderPage() {
     if (!selectedItem) {
-      return;
+      return
     }
 
-    const printWindow = window.open("", "_blank", "width=1200,height=900");
+    const printWindow = window.open('', '_blank', 'width=1200,height=900')
     if (!printWindow) {
       pushToast({
-        title: "Popup blocked",
-        message: "Allow popups to print the purchase order.",
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        title: 'Popup blocked',
+        message: 'Allow popups to print the purchase order.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    const currency = selectedItem.currency || "PHP";
+    const currency = selectedItem.currency || 'PHP'
     const subTotal = purchaseOrderForm.lineItems.reduce(
       (sum, lineItem) => sum + parseAmountValue(lineItem.total),
-      0
-    );
-    const salesTax = parseAmountValue(purchaseOrderForm.salesTax);
-    const shippingHandling = parseAmountValue(purchaseOrderForm.shippingHandling);
-    const other = parseAmountValue(purchaseOrderForm.other);
-    const netTotal = subTotal + salesTax + shippingHandling + other;
+      0,
+    )
+    const salesTax = parseAmountValue(purchaseOrderForm.salesTax)
+    const shippingHandling = parseAmountValue(
+      purchaseOrderForm.shippingHandling,
+    )
+    const other = parseAmountValue(purchaseOrderForm.other)
+    const netTotal = subTotal + salesTax + shippingHandling + other
     const activeCompanyIdentity = getCompanyIdentityForBranch(
       selectedItem.branch,
       companySettings,
-      companyIdentities
-    );
-    const printDate = formatExportDate(new Date().toISOString());
-    const officeDeliveryAddress = getOfficeDeliveryAddress(
-      selectedItem.branch,
-      activeCompanyIdentity.address || selectedItem.deliveryAddress
-    );
-    const printableCompanyIdentity = companySettings;
+      companyIdentities,
+    )
+    const printDate = formatExportDate(new Date().toISOString())
+    const officeDeliveryAddress =
+      String(selectedItem.deliveryAddress || '').trim() ||
+      activeCompanyIdentity.address ||
+      getOfficeDeliveryAddress(selectedItem.branch)
+    const printableCompanyIdentity = companySettings
     const supplierName =
-      purchaseOrderForm.supplier || selectedItem.supplier || "Pending selection";
+      purchaseOrderForm.supplier || selectedItem.supplier || 'Pending selection'
     const matchedSupplier = suppliers.find(
-      (supplier) => String(supplier.name || "").trim().toLowerCase() === supplierName.trim().toLowerCase()
-    );
-    const supplierAddress = matchedSupplier?.address || "";
+      (supplier) =>
+        String(supplier.name || '')
+          .trim()
+          .toLowerCase() === supplierName.trim().toLowerCase(),
+    )
+    const supplierAddress = matchedSupplier?.address || ''
     const logoMarkup = printableCompanyIdentity.logoUrl
       ? `<img src="${printableCompanyIdentity.logoUrl}" alt="${printableCompanyIdentity.companyName}" />`
-      : "";
+      : ''
 
     const rowsHtml = purchaseOrderForm.lineItems
       .map(
         (lineItem) => `
           <tr>
-            <td>${lineItem.qty || ""}</td>
-            <td>${lineItem.unit || ""}</td>
-            <td>${lineItem.description || ""}</td>
-            <td>${lineItem.unitPrice ? formatCurrencyValue(parseAmountValue(lineItem.unitPrice), currency) : ""}</td>
-            <td>${lineItem.total ? formatCurrencyValue(parseAmountValue(lineItem.total), currency) : ""}</td>
+            <td>${lineItem.qty || ''}</td>
+            <td>${lineItem.unit || ''}</td>
+            <td>${lineItem.description || ''}</td>
+            <td>${lineItem.unitPrice ? formatCurrencyValue(parseAmountValue(lineItem.unitPrice), currency) : ''}</td>
+            <td>${lineItem.total ? formatCurrencyValue(parseAmountValue(lineItem.total), currency) : ''}</td>
           </tr>
-        `
+        `,
       )
-      .join("");
+      .join('')
 
     printWindow.document.write(`
       <html>
@@ -1950,7 +2264,7 @@ export default function App() {
               <div class="header-meta-inline">
                 <div class="card">
                   <span class="card-label">PO Number</span>
-                  <strong class="card-value">${purchaseOrderForm.poNumber || "Pending"}</strong>
+                  <strong class="card-value">${purchaseOrderForm.poNumber || 'Pending'}</strong>
                 </div>
                 <div class="card">
                   <span class="card-label">Date</span>
@@ -1963,7 +2277,7 @@ export default function App() {
               <div class="card big-card">
                 <span class="card-label">Supplier</span>
                 <strong class="supplier-primary">${supplierName}</strong>
-                <span class="supplier-secondary">${supplierAddress || "No supplier address provided."}</span>
+                <span class="supplier-secondary">${supplierAddress || 'No supplier address provided.'}</span>
               </div>
               <div class="card big-card">
                 <span class="card-label">Delivery Address</span>
@@ -1995,7 +2309,7 @@ export default function App() {
             <div class="summary-layout">
               <div class="card notes-card">
                 <span class="card-label">PO Notes</span>
-                <strong class="card-value">${purchaseOrderForm.notes || "No purchase order notes provided."}</strong>
+                <strong class="card-value">${purchaseOrderForm.notes || 'No purchase order notes provided.'}</strong>
               </div>
 
               <div class="totals-stack">
@@ -2030,225 +2344,247 @@ export default function App() {
           </section>
         </body>
       </html>
-    `);
+    `)
 
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
 
     pushToast({
-      title: "PO print view opened",
-      message: "Use the print dialog to print or save the purchase order as PDF.",
-      variant: "success"
-    });
+      title: 'PO print view opened',
+      message:
+        'Use the print dialog to print or save the purchase order as PDF.',
+      variant: 'success',
+    })
   }
 
   function renderRequestLaunch(showExpand = true) {
     if (!selectedItem) {
-      return null;
+      return null
     }
 
     return (
-      <section className="panel launch-card panel-with-expand">
+      <section className='panel launch-card panel-with-expand'>
         {showExpand ? (
           <PanelExpandButton
-            onClick={() => openExpandedPanel("request-launch")}
-            label="Expand purchase request panel"
+            onClick={() => openExpandedPanel('request-launch')}
+            label='Expand purchase request panel'
           />
         ) : null}
         <div>
-          <p className="eyebrow">Purchase Request</p>
+          <p className='eyebrow'>Purchase Request</p>
           <h2>{selectedItem.requestNumber}</h2>
-          <p className="panel-support">
+          <p className='panel-support'>
             Open the selected request in a dedicated modal for full details.
           </p>
         </div>
-        <button type="button" onClick={openRequestDetailsModal}>
+        <button type='button' onClick={openRequestDetailsModal}>
           Open request details
         </button>
       </section>
-    );
+    )
   }
 
   function renderAdminRequestLaunch(showExpand = true) {
     return (
-      <section className="panel launch-card panel-with-expand">
+      <section className='panel launch-card panel-with-expand'>
         {showExpand ? (
           <PanelExpandButton
-            onClick={() => openExpandedPanel("admin-request")}
-            label="Expand admin request panel"
+            onClick={() => openExpandedPanel('admin-request')}
+            label='Expand admin request panel'
           />
         ) : null}
         <div>
-          <p className="eyebrow">Admin Request</p>
+          <p className='eyebrow'>Admin Request</p>
           <h2>Manage selected request</h2>
-          <p className="panel-support">
-            Update request metadata or remove an entry from the registry using a focused editor.
+          <p className='panel-support'>
+            Update request metadata or remove an entry from the registry using a
+            focused editor.
           </p>
         </div>
-        <button type="button" onClick={openEditRequestModal} disabled={!selectedItem}>
+        <button
+          type='button'
+          onClick={openEditRequestModal}
+          disabled={!selectedItem}
+        >
           Open request editor
         </button>
       </section>
-    );
+    )
   }
 
   async function handleCreateRequest() {
     if (!session?.token) {
-      return;
+      return
     }
 
     if (!canCreateRequest) {
-      setActionError("Your role cannot create a new purchase request.");
+      setActionError('Your role cannot create a new purchase request.')
       pushToast({
-        title: "Create request unavailable",
-        message: "Only requesters and system admins can create new requests.",
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        title: 'Create request unavailable',
+        message: 'Only requesters and system admins can create new requests.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
     if (!requestForm.title.trim()) {
-      const message = "Request title is required.";
-      setActionError(message);
+      const message = 'Request title is required.'
+      setActionError(message)
       pushToast({
-        title: "Missing required fields",
+        title: 'Missing required fields',
         message,
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
     if (isAdmin && !requestForm.requesterEmail) {
-      const message = "Requester must be selected from system users.";
-      setActionError(message);
+      const message = 'Requester must be selected from system users.'
+      setActionError(message)
       pushToast({
-        title: "Missing requester",
+        title: 'Missing requester',
         message,
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    const parsedRequestAmount = parseAmountValue(requestForm.amount);
+    const parsedRequestAmount = parseAmountValue(requestForm.amount)
 
-    if (requestForm.amount && (Number.isNaN(parsedRequestAmount) || parsedRequestAmount <= 0)) {
-      const message = "Amount must be a valid number greater than zero if provided.";
-      setActionError(message);
+    if (
+      requestForm.amount &&
+      (Number.isNaN(parsedRequestAmount) || parsedRequestAmount <= 0)
+    ) {
+      const message =
+        'Amount must be a valid number greater than zero if provided.'
+      setActionError(message)
       pushToast({
-        title: "Invalid amount",
+        title: 'Invalid amount',
         message,
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    setActionError("");
-    setIsSubmitting(true);
+    setActionError('')
+    setIsSubmitting(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/workflows/purchase-requests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.token}`
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            ...requestForm,
+            requesterEmail: isAdmin
+              ? requestForm.requesterEmail
+              : session.user.email,
+            amount: parsedRequestAmount,
+          }),
         },
-        body: JSON.stringify({
-          ...requestForm,
-          requesterEmail: isAdmin ? requestForm.requesterEmail : session.user.email,
-          amount: parsedRequestAmount
-        })
-      });
+      )
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to create request.");
+        throw new Error(data.message || 'Failed to create request.')
       }
 
-      let createdRequest = data;
+      let createdRequest = data
 
       if (requestQuotationFile) {
-        const optimizedQuotationFile = await optimizeDocumentFile(requestQuotationFile);
-        const formData = new FormData();
-        formData.append("type", "quotation");
-        formData.append(
-          "label",
-          "Attach the approved quotation if it has already been approved"
-        );
-        formData.append("document", optimizedQuotationFile);
+        const optimizedQuotationFile =
+          await optimizeDocumentFile(requestQuotationFile)
+        const formData = new FormData()
+        formData.append('type', 'quotation')
+        formData.append('label', 'Approved Quotation or Request')
+        formData.append('document', optimizedQuotationFile)
 
         const uploadResponse = await fetch(
           `${API_BASE_URL}/workflows/purchase-requests/${data.id}/documents`,
           {
-            method: "POST",
+            method: 'POST',
             headers: {
-              Authorization: `Bearer ${session.token}`
+              Authorization: `Bearer ${session.token}`,
             },
-            body: formData
-          }
-        );
+            body: formData,
+          },
+        )
 
-        const uploadData = await uploadResponse.json();
+        const uploadData = await uploadResponse.json()
         if (!uploadResponse.ok) {
-          throw new Error(uploadData.message || "Request created, but quotation upload failed.");
+          throw new Error(
+            uploadData.message ||
+              'Request created, but quotation upload failed.',
+          )
         }
 
-        createdRequest = uploadData;
+        createdRequest = uploadData
       }
 
-      setItems((current) => [createdRequest, ...current]);
-      setSelectedId(createdRequest.id);
+      setItems((current) => [createdRequest, ...current])
+      setSelectedId(createdRequest.id)
       setRequestForm(
         getInitialRequestForm(
-          session.user.department || "",
-          session.user.role === "admin" ? "" : session.user.name || "",
-          session.user.role === "admin" ? "" : session.user.email || ""
-        )
-      );
-      setRequestQuotationFile(null);
-      setIsCreateRequestModalOpen(false);
+          session.user.department || '',
+          session.user.role === 'admin' ? '' : session.user.name || '',
+          session.user.role === 'admin' ? '' : session.user.email || '',
+          companySettings.companyName,
+          getBranchDeliveryAddress(
+            companySettings.companyName,
+            companySettings,
+            companyIdentities,
+          ),
+        ),
+      )
+      setRequestQuotationFile(null)
+      setIsCreateRequestModalOpen(false)
       pushToast({
-        title: "Request created",
+        title: 'Request created',
         message: `${createdRequest.requestNumber} is now in the workflow.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setActionError(error.message);
+      setActionError(error.message)
       pushToast({
-        title: "Create request failed",
+        title: 'Create request failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleAdvance() {
     if (!selectedItem || !session?.token) {
-      return;
+      return
     }
 
-    setActionError("");
-    setIsSubmitting(true);
+    setActionError('')
+    setIsSubmitting(true)
 
     try {
       const stageComment =
         actionForm.notes.trim() ||
-        `${session.user.name} advanced ${selectedItem.requestNumber} to the next stage.`;
+        `${session.user.name} advanced ${selectedItem.requestNumber} to the next stage.`
 
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/advance`,
         {
-          method: "PATCH",
+          method: 'PATCH',
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.token}`
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
           },
           body: JSON.stringify({
             supplier: actionForm.supplier || undefined,
@@ -2258,394 +2594,411 @@ export default function App() {
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
             poDraft: purchaseOrderForm,
-            comment: stageComment
-          })
-        }
-      );
+            comment: stageComment,
+          }),
+        },
+      )
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to advance request.");
+        throw new Error(data.message || 'Failed to advance request.')
       }
 
-      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
       setPurchaseOrderDrafts((current) => ({
         ...current,
-        [data.id]: data.poDraft ?? purchaseOrderForm
-      }));
+        [data.id]: data.poDraft ?? purchaseOrderForm,
+      }))
       setActionForm((current) => ({
         ...current,
         supplier: data.supplier || current.supplier,
         poNumber: data.poNumber || current.poNumber,
-        notes: ""
-      }));
+        notes: '',
+      }))
       pushToast({
-        title: "Stage advanced",
+        title: 'Stage advanced',
         message: `${data.requestNumber} moved to ${data.currentStage}.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setActionError(error.message);
+      setActionError(error.message)
       pushToast({
-        title: "Advance failed",
+        title: 'Advance failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleRevert() {
     if (!selectedItem || !session?.token) {
-      return;
+      return
     }
 
-    setActionError("");
-    setIsSubmitting(true);
+    setActionError('')
+    setIsSubmitting(true)
 
     try {
       const stageComment =
         actionForm.notes.trim() ||
-        `${session.user.name} moved ${selectedItem.requestNumber} back to the previous stage.`;
+        `${session.user.name} moved ${selectedItem.requestNumber} back to the previous stage.`
 
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/revert`,
         {
-          method: "PATCH",
+          method: 'PATCH',
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.token}`
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
           },
           body: JSON.stringify({
-            comment: stageComment
-          })
-        }
-      );
+            comment: stageComment,
+          }),
+        },
+      )
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to move request back.");
+        throw new Error(data.message || 'Failed to move request back.')
       }
 
-      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
       setActionForm((current) => ({
         ...current,
-        notes: ""
-      }));
+        notes: '',
+      }))
       pushToast({
-        title: "Stage moved back",
+        title: 'Stage moved back',
         message: `${data.requestNumber} returned to ${data.currentStage}.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setActionError(error.message);
+      setActionError(error.message)
       pushToast({
-        title: "Move back failed",
+        title: 'Move back failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleUploadDocument() {
     if (!selectedItem || !session?.token || !uploadForm.file) {
-      return;
+      return
     }
 
-    setUploadError("");
-    setIsSubmitting(true);
+    setUploadError('')
+    setIsSubmitting(true)
 
     try {
-      const optimizedUploadFile = await optimizeDocumentFile(uploadForm.file);
-      const formData = new FormData();
-      formData.append("type", uploadForm.type);
-      formData.append("label", uploadForm.label);
-      formData.append("document", optimizedUploadFile);
+      const optimizedUploadFile = await optimizeDocumentFile(uploadForm.file)
+      const formData = new FormData()
+      formData.append('type', uploadForm.type)
+      formData.append('label', uploadForm.label)
+      formData.append('document', optimizedUploadFile)
 
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/documents`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            Authorization: `Bearer ${session.token}`
+            Authorization: `Bearer ${session.token}`,
           },
-          body: formData
-        }
-      );
+          body: formData,
+        },
+      )
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to upload document.");
+        throw new Error(data.message || 'Failed to upload document.')
       }
 
-      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
       setUploadForm({
-        type: "po",
-        label: "",
-        file: null
-      });
+        type: 'po',
+        label: '',
+        file: null,
+      })
       pushToast({
-        title: "Document uploaded",
+        title: 'Document uploaded',
         message: `${uploadForm.file.name} has been attached via Cloudinary.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setUploadError(error.message);
+      setUploadError(error.message)
       pushToast({
-        title: "Upload failed",
+        title: 'Upload failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleDeleteDocument(documentId) {
     if (!selectedItem || !session?.token) {
-      return;
+      return
     }
 
     openConfirmDialog({
-      title: "Delete document",
-      message: "This file will be removed from the request packet and can no longer be opened.",
-      confirmLabel: "Delete document",
+      title: 'Delete document',
+      message:
+        'This file will be removed from the request packet and can no longer be opened.',
+      confirmLabel: 'Delete document',
       onConfirm: async () => {
-        setUploadError("");
-        setIsSubmitting(true);
+        setUploadError('')
+        setIsSubmitting(true)
 
         try {
           const response = await fetch(
             `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/documents/${documentId}`,
             {
-              method: "DELETE",
+              method: 'DELETE',
               headers: {
-                Authorization: `Bearer ${session.token}`
-              }
-            }
-          );
+                Authorization: `Bearer ${session.token}`,
+              },
+            },
+          )
 
           if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.message || "Failed to delete document.");
+            const data = await response.json()
+            throw new Error(data.message || 'Failed to delete document.')
           }
 
-          await loadDashboard(session.token, session.user.role);
-          setConfirmDialog(null);
+          await loadDashboard(session.token, session.user.role)
+          setConfirmDialog(null)
           pushToast({
-            title: "Document deleted",
-            message: "The attachment was removed from the request.",
-            variant: "success"
-          });
+            title: 'Document deleted',
+            message: 'The attachment was removed from the request.',
+            variant: 'success',
+          })
         } catch (error) {
-          setUploadError(error.message);
+          setUploadError(error.message)
           pushToast({
-            title: "Delete failed",
+            title: 'Delete failed',
             message: error.message,
-            variant: "error",
-            duration: 4200
-          });
+            variant: 'error',
+            duration: 4200,
+          })
         } finally {
-          setIsSubmitting(false);
+          setIsSubmitting(false)
         }
-      }
-    });
+      },
+    })
   }
 
   async function handleSaveRequest() {
     if (
       !selectedItem ||
       !session?.token ||
-      (session.user.role !== "admin" && session.user.email !== selectedItem.requesterEmail)
+      (session.user.role !== 'admin' &&
+        session.user.email !== selectedItem.requesterEmail)
     ) {
-      return;
+      return
     }
 
-    const parsedRequestAmount = parseAmountValue(requestAdminForm.amount);
+    const parsedRequestAmount = parseAmountValue(requestAdminForm.amount)
 
     if (
       requestAdminForm.amount &&
       (Number.isNaN(parsedRequestAmount) || parsedRequestAmount < 0)
     ) {
-      const message = "Amount must be a valid number if provided.";
-      setActionError(message);
+      const message = 'Amount must be a valid number if provided.'
+      setActionError(message)
       pushToast({
-        title: "Invalid amount",
+        title: 'Invalid amount',
         message,
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    setActionError("");
-    setIsSubmitting(true);
+    setActionError('')
+    setIsSubmitting(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.token}`
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            ...requestAdminForm,
+            amount: parsedRequestAmount,
+          }),
         },
-        body: JSON.stringify({
-          ...requestAdminForm,
-          amount: parsedRequestAmount
-        })
-      });
+      )
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update request.");
+        throw new Error(data.message || 'Failed to update request.')
       }
 
-      setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
-      setIsEditRequestModalOpen(false);
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
+      setIsEditRequestModalOpen(false)
       pushToast({
-        title: "Request updated",
+        title: 'Request updated',
         message: `${data.requestNumber} changes were saved.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setActionError(error.message);
+      setActionError(error.message)
       pushToast({
-        title: "Update failed",
+        title: 'Update failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleDeleteRequest() {
     if (!selectedItem || !session?.token || !isAdmin) {
-      return;
+      return
     }
 
     openConfirmDialog({
-      title: "Delete purchase request",
+      title: 'Delete purchase request',
       message: `This will permanently remove ${selectedItem.requestNumber} from the registry.`,
-      confirmLabel: "Delete request",
+      confirmLabel: 'Delete request',
       onConfirm: async () => {
-        setActionError("");
-        setIsSubmitting(true);
+        setActionError('')
+        setIsSubmitting(true)
 
         try {
           const response = await fetch(
             `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}`,
             {
-              method: "DELETE",
+              method: 'DELETE',
               headers: {
-                Authorization: `Bearer ${session.token}`
-              }
-            }
-          );
+                Authorization: `Bearer ${session.token}`,
+              },
+            },
+          )
 
           if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.message || "Failed to delete request.");
+            const data = await response.json()
+            throw new Error(data.message || 'Failed to delete request.')
           }
 
-          setItems((current) => current.filter((item) => item.id !== selectedItem.id));
-          setSelectedId("");
-          setIsEditRequestModalOpen(false);
-          setConfirmDialog(null);
+          setItems((current) =>
+            current.filter((item) => item.id !== selectedItem.id),
+          )
+          setSelectedId('')
+          setIsEditRequestModalOpen(false)
+          setConfirmDialog(null)
           pushToast({
-            title: "Request deleted",
+            title: 'Request deleted',
             message: `${selectedItem.requestNumber} was removed from the registry.`,
-            variant: "success"
-          });
+            variant: 'success',
+          })
         } catch (error) {
-          setActionError(error.message);
+          setActionError(error.message)
           pushToast({
-            title: "Delete failed",
+            title: 'Delete failed',
             message: error.message,
-            variant: "error",
-            duration: 4200
-          });
+            variant: 'error',
+            duration: 4200,
+          })
         } finally {
-          setIsSubmitting(false);
+          setIsSubmitting(false)
         }
-      }
-    });
+      },
+    })
   }
 
   async function handleCreateUser() {
     if (!session?.token || !isAdmin) {
-      return;
+      return
     }
 
-    setUserError("");
-    setIsSubmitting(true);
+    setUserError('')
+    setIsSubmitting(true)
 
     try {
       const response = await fetch(`${API_BASE_URL}/users`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.token}`
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`,
         },
-        body: JSON.stringify(userForm)
-      });
+        body: JSON.stringify(userForm),
+      })
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to create user.");
+        throw new Error(data.message || 'Failed to create user.')
       }
 
-      setUsers((current) => [data, ...current]);
-      setSelectedUserId(data.id);
-      setIsUserModalOpen(false);
+      setUsers((current) => [data, ...current])
+      setSelectedUserId(data.id)
+      setIsUserModalOpen(false)
       pushToast({
-        title: "User created",
+        title: 'User created',
         message: `${data.name} now has access to the system.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setUserError(error.message);
+      setUserError(error.message)
       pushToast({
-        title: "Create user failed",
+        title: 'Create user failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleUpdateUser() {
     if (!session?.token || !isAdmin || !selectedUserId) {
-      return;
+      return
     }
 
-    setUserError("");
-    setIsSubmitting(true);
+    setUserError('')
+    setIsSubmitting(true)
 
     try {
       const response = await fetch(`${API_BASE_URL}/users/${selectedUserId}`, {
-        method: "PATCH",
+        method: 'PATCH',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.token}`
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`,
         },
-        body: JSON.stringify(userForm)
-      });
+        body: JSON.stringify(userForm),
+      })
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update user.");
+        throw new Error(data.message || 'Failed to update user.')
       }
 
-      setUsers((current) => current.map((user) => (user.id === data.id ? data : user)));
+      setUsers((current) =>
+        current.map((user) => (user.id === data.id ? data : user)),
+      )
 
       if (session.user.id === data.id) {
         setSession((current) => ({
@@ -2656,635 +3009,687 @@ export default function App() {
             email: data.email,
             role: data.role,
             roleLabel: data.roleLabel,
-            department: data.department
-          }
-        }));
+            department: data.department,
+          },
+        }))
       }
 
-      setIsUserModalOpen(false);
+      setIsUserModalOpen(false)
       pushToast({
-        title: "User updated",
+        title: 'User updated',
         message: `${data.name}'s account details were saved.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setUserError(error.message);
+      setUserError(error.message)
       pushToast({
-        title: "Update user failed",
+        title: 'Update user failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleDeleteUser(userId = selectedUserId) {
-    const targetUser = users.find((user) => user.id === userId);
+    const targetUser = users.find((user) => user.id === userId)
 
     if (!session?.token || !isAdmin || !targetUser) {
-      return;
+      return
     }
 
     openConfirmDialog({
-      title: "Delete user account",
+      title: 'Delete user account',
       message: `Are you sure you want to delete ${targetUser.name}? This account will lose access to the procurement workflow immediately.`,
-      confirmLabel: "Yes, delete user",
+      confirmLabel: 'Yes, delete user',
       onConfirm: async () => {
-        setUserError("");
-        setIsSubmitting(true);
+        setUserError('')
+        setIsSubmitting(true)
 
         try {
-          const response = await fetch(`${API_BASE_URL}/users/${targetUser.id}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${session.token}`
-            }
-          });
+          const response = await fetch(
+            `${API_BASE_URL}/users/${targetUser.id}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${session.token}`,
+              },
+            },
+          )
 
           if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.message || "Failed to delete user.");
+            const data = await response.json()
+            throw new Error(data.message || 'Failed to delete user.')
           }
 
-          setUsers((current) => current.filter((user) => user.id !== targetUser.id));
-          setSelectedUserId((current) => (current === targetUser.id ? "" : current));
-          setUserForm(getInitialUserForm());
-          setIsUserModalOpen(false);
-          setConfirmDialog(null);
+          setUsers((current) =>
+            current.filter((user) => user.id !== targetUser.id),
+          )
+          setSelectedUserId((current) =>
+            current === targetUser.id ? '' : current,
+          )
+          setUserForm(getInitialUserForm())
+          setIsUserModalOpen(false)
+          setConfirmDialog(null)
           pushToast({
-            title: "User deleted",
-            message: "The account has been removed.",
-            variant: "success"
-          });
+            title: 'User deleted',
+            message: 'The account has been removed.',
+            variant: 'success',
+          })
         } catch (error) {
-          setUserError(error.message);
+          setUserError(error.message)
           pushToast({
-            title: "Delete user failed",
+            title: 'Delete user failed',
             message: error.message,
-            variant: "error",
-            duration: 4200
-          });
+            variant: 'error',
+            duration: 4200,
+          })
         } finally {
-          setIsSubmitting(false);
+          setIsSubmitting(false)
         }
-      }
-    });
+      },
+    })
   }
 
   async function handleCreateSupplier() {
     if (!session?.token || !isAdmin) {
-      return;
+      return
     }
 
     if (!supplierForm.name.trim()) {
-      const message = "Supplier name is required.";
-      setSupplierError(message);
+      const message = 'Supplier name is required.'
+      setSupplierError(message)
       pushToast({
-        title: "Missing supplier name",
+        title: 'Missing supplier name',
         message,
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    setSupplierError("");
-    setIsSubmitting(true);
+    setSupplierError('')
+    setIsSubmitting(true)
 
     try {
       const response = await fetch(`${API_BASE_URL}/suppliers`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.token}`
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`,
         },
-        body: JSON.stringify(supplierForm)
-      });
+        body: JSON.stringify(supplierForm),
+      })
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to create supplier.");
+        throw new Error(data.message || 'Failed to create supplier.')
       }
 
       setSuppliers((current) =>
-        [...current, data].sort((left, right) => left.name.localeCompare(right.name))
-      );
+        [...current, data].sort((left, right) =>
+          left.name.localeCompare(right.name),
+        ),
+      )
       setActionForm((current) => ({
         ...current,
-        supplier: data.name
-      }));
-      setIsSupplierModalOpen(false);
-      setSupplierForm(getInitialSupplierForm());
+        supplier: data.name,
+      }))
+      setIsSupplierModalOpen(false)
+      setSupplierForm(getInitialSupplierForm())
       pushToast({
-        title: "Supplier created",
+        title: 'Supplier created',
         message: `${data.name} is now available in supplier suggestions.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setSupplierError(error.message);
+      setSupplierError(error.message)
       pushToast({
-        title: "Create supplier failed",
+        title: 'Create supplier failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleUpdateSupplier() {
     if (!session?.token || !isAdmin || !selectedSupplier) {
-      return;
+      return
     }
 
     if (!supplierForm.name.trim()) {
-      const message = "Supplier name is required.";
-      setSupplierError(message);
+      const message = 'Supplier name is required.'
+      setSupplierError(message)
       pushToast({
-        title: "Missing supplier name",
+        title: 'Missing supplier name',
         message,
-        variant: "error",
-        duration: 4200
-      });
-      return;
+        variant: 'error',
+        duration: 4200,
+      })
+      return
     }
 
-    setSupplierError("");
-    setIsSubmitting(true);
+    setSupplierError('')
+    setIsSubmitting(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/suppliers/${selectedSupplier.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.token}`
+      const response = await fetch(
+        `${API_BASE_URL}/suppliers/${selectedSupplier.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify(supplierForm),
         },
-        body: JSON.stringify(supplierForm)
-      });
+      )
 
-      const data = await response.json();
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update supplier.");
+        throw new Error(data.message || 'Failed to update supplier.')
       }
 
       setSuppliers((current) =>
         current
           .map((supplier) => (supplier.id === data.id ? data : supplier))
-          .sort((left, right) => left.name.localeCompare(right.name))
-      );
-      setSelectedSupplierId(data.id);
-      setIsSupplierModalOpen(false);
-      setSupplierForm(getInitialSupplierForm());
+          .sort((left, right) => left.name.localeCompare(right.name)),
+      )
+      setSelectedSupplierId(data.id)
+      setIsSupplierModalOpen(false)
+      setSupplierForm(getInitialSupplierForm())
       pushToast({
-        title: "Supplier updated",
+        title: 'Supplier updated',
         message: `${data.name} changes were saved.`,
-        variant: "success"
-      });
+        variant: 'success',
+      })
     } catch (error) {
-      setSupplierError(error.message);
+      setSupplierError(error.message)
       pushToast({
-        title: "Update supplier failed",
+        title: 'Update supplier failed',
         message: error.message,
-        variant: "error",
-        duration: 4200
-      });
+        variant: 'error',
+        duration: 4200,
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleDeleteSupplier(supplierId = selectedSupplierId) {
-    const targetSupplier = suppliers.find((supplier) => supplier.id === supplierId);
+    const targetSupplier = suppliers.find(
+      (supplier) => supplier.id === supplierId,
+    )
 
     if (!session?.token || !isAdmin || !targetSupplier) {
-      return;
+      return
     }
 
     openConfirmDialog({
-      title: "Delete supplier",
+      title: 'Delete supplier',
       message: `Are you sure you want to delete ${targetSupplier.name}? This action cannot be undone and the supplier will be removed from the directory.`,
-      confirmLabel: "Yes, delete supplier",
+      confirmLabel: 'Yes, delete supplier',
       onConfirm: async () => {
-        setSupplierError("");
-        setIsSubmitting(true);
+        setSupplierError('')
+        setIsSubmitting(true)
 
         try {
-          const response = await fetch(`${API_BASE_URL}/suppliers/${targetSupplier.id}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${session.token}`
-            }
-          });
+          const response = await fetch(
+            `${API_BASE_URL}/suppliers/${targetSupplier.id}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${session.token}`,
+              },
+            },
+          )
 
           if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.message || "Failed to delete supplier.");
+            const data = await response.json()
+            throw new Error(data.message || 'Failed to delete supplier.')
           }
 
           setSuppliers((current) =>
-            current.filter((supplier) => supplier.id !== targetSupplier.id)
-          );
-          setSelectedSupplierId((current) => (current === targetSupplier.id ? "" : current));
-          setConfirmDialog(null);
+            current.filter((supplier) => supplier.id !== targetSupplier.id),
+          )
+          setSelectedSupplierId((current) =>
+            current === targetSupplier.id ? '' : current,
+          )
+          setConfirmDialog(null)
           pushToast({
-            title: "Supplier deleted",
+            title: 'Supplier deleted',
             message: `${targetSupplier.name} was removed from the directory.`,
-            variant: "success"
-          });
+            variant: 'success',
+          })
         } catch (error) {
-          setSupplierError(error.message);
+          setSupplierError(error.message)
           pushToast({
-            title: "Delete supplier failed",
+            title: 'Delete supplier failed',
             message: error.message,
-            variant: "error",
-            duration: 4200
-          });
+            variant: 'error',
+            duration: 4200,
+          })
         } finally {
-          setIsSubmitting(false);
+          setIsSubmitting(false)
         }
-      }
-    });
+      },
+    })
   }
 
   function handleSelect(id) {
-    setSelectedId(id);
+    setSelectedId(id)
   }
 
   function handleSelectSupplier(id) {
-    setSelectedSupplierId(id);
+    setSelectedSupplierId(id)
   }
 
   async function handleOpenRequestDetails(id) {
-    const targetItem = items.find((item) => item.id === id);
+    const targetItem = items.find((item) => item.id === id)
 
     if (!targetItem) {
-      return;
+      return
     }
 
-    setSelectedId(id);
+    setSelectedId(id)
 
-    if (session?.user?.role === "requester") {
-      setIsRequestWorkspacePageOpen(true);
-      return;
+    if (session?.user?.role === 'requester') {
+      setIsRequestWorkspacePageOpen(true)
+      return
     }
 
-    if (targetItem.currentStage === "Purchase Request" && session?.token) {
-      setActionError("");
-      setIsSubmitting(true);
+    if (targetItem.currentStage === 'Purchase Request' && session?.token) {
+      setActionError('')
+      setIsSubmitting(true)
 
       try {
         const response = await fetch(
           `${API_BASE_URL}/workflows/purchase-requests/${targetItem.id}/advance`,
           {
-            method: "PATCH",
+            method: 'PATCH',
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.token}`
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.token}`,
             },
             body: JSON.stringify({
-              comment: `${session.user.name} opened ${targetItem.requestNumber} and moved it to Review.`
-            })
-          }
-        );
+              comment: `${session.user.name} opened ${targetItem.requestNumber} and moved it to Review.`,
+            }),
+          },
+        )
 
-        const data = await response.json();
+        const data = await response.json()
         if (!response.ok) {
-          throw new Error(data.message || "Failed to move request to Review.");
+          throw new Error(data.message || 'Failed to move request to Review.')
         }
 
-        setItems((current) => current.map((item) => (item.id === data.id ? data : item)));
-        setSelectedId(data.id);
+        setItems((current) =>
+          current.map((item) => (item.id === data.id ? data : item)),
+        )
+        setSelectedId(data.id)
         pushToast({
-          title: "Moved to Review",
+          title: 'Moved to Review',
           message: `${data.requestNumber} is now in Review.`,
-          variant: "success"
-        });
+          variant: 'success',
+        })
       } catch (error) {
-        setActionError(error.message);
+        setActionError(error.message)
         pushToast({
-          title: "Open request failed",
+          title: 'Open request failed',
           message: error.message,
-          variant: "error",
-          duration: 4200
-        });
-        setIsSubmitting(false);
-        return;
+          variant: 'error',
+          duration: 4200,
+        })
+        setIsSubmitting(false)
+        return
       } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false)
       }
     }
 
-    setIsRequestWorkspacePageOpen(true);
+    setIsRequestWorkspacePageOpen(true)
   }
 
   function handleSelectUser(id) {
-    setSelectedUserId(id);
+    setSelectedUserId(id)
   }
 
   function handleLogout() {
-    clearSession();
+    clearSession()
   }
 
   function closeHeaderMenuPages() {
-    setIsSupplierDirectoryOpen(false);
-    setIsUserDirectoryOpen(false);
-    setIsPurchaseOrderDirectoryOpen(false);
-    setIsPurchaseOrderPageOpen(false);
-    setIsSettingsPageOpen(false);
+    setIsSupplierDirectoryOpen(false)
+    setIsUserDirectoryOpen(false)
+    setIsPurchaseOrderDirectoryOpen(false)
+    setIsPurchaseOrderPageOpen(false)
+    setIsAuditTrailPageOpen(false)
+    setIsSettingsPageOpen(false)
   }
 
   function handleOpenUsersDirectory() {
-    if (session?.user?.role !== "admin") {
-      return;
+    if (session?.user?.role !== 'admin') {
+      return
     }
 
-    closeHeaderMenuPages();
-    setIsUserDirectoryOpen(true);
+    closeHeaderMenuPages()
+    setIsUserDirectoryOpen(true)
   }
 
   function handleOpenSuppliersMenu() {
-    closeHeaderMenuPages();
-    setIsSupplierDirectoryOpen(true);
+    closeHeaderMenuPages()
+    setIsSupplierDirectoryOpen(true)
   }
 
   function handleOpenPurchaseOrderMenu() {
-    closeHeaderMenuPages();
-    setIsPurchaseOrderDirectoryOpen(true);
+    closeHeaderMenuPages()
+    setIsPurchaseOrderDirectoryOpen(true)
+  }
+
+  function handleOpenAuditTrailPage() {
+    if (session?.user?.role === 'requester') {
+      return
+    }
+
+    closeHeaderMenuPages()
+    setIsAuditTrailPageOpen(true)
   }
 
   function handleOpenSettingsPage() {
-    closeHeaderMenuPages();
-    setSettingsForm(companySettings);
-    setIdentityForm(getInitialIdentityForm(companySettings));
-    setEditingIdentityId("");
-    setIsMainSettingsEditing(false);
-    setIsSettingsPageOpen(true);
+    closeHeaderMenuPages()
+    setSettingsForm(companySettings)
+    setIdentityForm(getInitialIdentityForm(companySettings))
+    setEditingIdentityId('')
+    setIsMainSettingsEditing(false)
+    setIsSettingsPageOpen(true)
   }
 
   function closeSupplierDirectory() {
-    setIsSupplierDirectoryOpen(false);
+    setIsSupplierDirectoryOpen(false)
   }
 
   function closeUserDirectory() {
-    setIsUserDirectoryOpen(false);
+    setIsUserDirectoryOpen(false)
+  }
+
+  function closeAuditTrailPage() {
+    setIsAuditTrailPageOpen(false)
   }
 
   function closeSettingsPage() {
-    setIsMainSettingsEditing(false);
-    setIsIdentityModalOpen(false);
-    setIsSettingsPageOpen(false);
+    setIsMainSettingsEditing(false)
+    setIsIdentityModalOpen(false)
+    setIsSettingsPageOpen(false)
   }
 
   function handleStartMainSettingsEdit() {
-    setIsMainSettingsEditing(true);
+    setIsMainSettingsEditing(true)
   }
 
   function handleCancelMainSettingsEdit() {
-    setSettingsForm(companySettings);
-    setIsMainSettingsEditing(false);
+    setSettingsForm(companySettings)
+    setIsMainSettingsEditing(false)
   }
 
   function handleSaveSettings() {
     void (async () => {
       if (!session?.token || !isAdmin) {
-        return;
+        return
       }
 
-      setIsSubmitting(true);
+      setIsSubmitting(true)
 
       try {
         const response = await fetch(`${API_BASE_URL}/settings`, {
-          method: "PATCH",
+          method: 'PATCH',
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.token}`
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
           },
           body: JSON.stringify({
-            companyName: settingsForm.companyName.trim() || DEFAULT_COMPANY_SETTINGS.companyName,
-            address: settingsForm.address.trim() || DEFAULT_COMPANY_SETTINGS.address,
-            logoUrl: settingsForm.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
-          })
-        });
+            companyName:
+              settingsForm.companyName.trim() ||
+              DEFAULT_COMPANY_SETTINGS.companyName,
+            address:
+              settingsForm.address.trim() || DEFAULT_COMPANY_SETTINGS.address,
+            logoUrl: settingsForm.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+          }),
+        })
 
-        const data = await response.json();
+        const data = await response.json()
         if (!response.ok) {
-          throw new Error(data.message || "Failed to save settings.");
+          throw new Error(data.message || 'Failed to save settings.')
         }
 
         const nextSettings = {
           companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
           address: data.address || DEFAULT_COMPANY_SETTINGS.address,
-          logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
-        };
+          logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+        }
 
-        setCompanySettings(nextSettings);
-        setSettingsForm(nextSettings);
-        setCompanyIdentities(Array.isArray(data.identities) ? data.identities : []);
-        setIdentityForm(getInitialIdentityForm(nextSettings));
-        setEditingIdentityId("");
-        setIsMainSettingsEditing(false);
+        setCompanySettings(nextSettings)
+        setSettingsForm(nextSettings)
+        setCompanyIdentities(
+          Array.isArray(data.identities) ? data.identities : [],
+        )
+        setIdentityForm(getInitialIdentityForm(nextSettings))
+        setEditingIdentityId('')
+        setIsMainSettingsEditing(false)
         pushToast({
-          title: "Settings saved",
-          message: "Company branding was updated.",
-          variant: "success"
-        });
+          title: 'Settings saved',
+          message: 'Company branding was updated.',
+          variant: 'success',
+        })
       } catch (error) {
         pushToast({
-          title: "Save settings failed",
+          title: 'Save settings failed',
           message: error.message,
-          variant: "error",
-          duration: 4200
-        });
+          variant: 'error',
+          duration: 4200,
+        })
       } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false)
       }
-    })();
+    })()
   }
 
   function handleEditIdentity(identityId) {
-    const targetIdentity = companyIdentities.find((identity) => identity.id === identityId);
+    const targetIdentity = companyIdentities.find(
+      (identity) => identity.id === identityId,
+    )
 
     if (!targetIdentity) {
-      return;
+      return
     }
 
-    setEditingIdentityId(targetIdentity.id);
-    setIdentitySaveMessage("");
+    setEditingIdentityId(targetIdentity.id)
+    setIdentitySaveMessage('')
     setIdentityForm({
-      branchName: targetIdentity.branchName || "",
+      branchName: targetIdentity.branchName || '',
       address: targetIdentity.address || DEFAULT_COMPANY_SETTINGS.address,
-      logoUrl: targetIdentity.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl
-    });
-    setIsIdentityModalOpen(true);
+      logoUrl: targetIdentity.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+    })
+    setIsIdentityModalOpen(true)
   }
 
   function handleResetIdentity() {
-    setEditingIdentityId("");
-    setIdentitySaveMessage("");
-    setIdentityForm(getInitialIdentityForm(companySettings));
-    setIsIdentityModalOpen(false);
+    setEditingIdentityId('')
+    setIdentitySaveMessage('')
+    setIdentityForm(getInitialIdentityForm(companySettings))
+    setIsIdentityModalOpen(false)
   }
 
   function handleOpenCreateIdentityModal() {
-    setEditingIdentityId("");
-    setIdentitySaveMessage("");
-    setIdentityForm(getInitialIdentityForm(companySettings));
-    setIsIdentityModalOpen(true);
+    setEditingIdentityId('')
+    setIdentitySaveMessage('')
+    setIdentityForm(getInitialIdentityForm(companySettings))
+    setIsIdentityModalOpen(true)
   }
 
   function handleSaveIdentity() {
     void (async () => {
       if (!session?.token || !isAdmin) {
-        return;
+        return
       }
 
-      setIsSubmitting(true);
+      setIsSubmitting(true)
 
       try {
         const endpoint = editingIdentityId
           ? `${API_BASE_URL}/settings/identities/${editingIdentityId}`
-          : `${API_BASE_URL}/settings/identities`;
-        const method = editingIdentityId ? "PATCH" : "POST";
+          : `${API_BASE_URL}/settings/identities`
+        const method = editingIdentityId ? 'PATCH' : 'POST'
         const response = await fetch(endpoint, {
           method,
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.token}`
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
           },
           body: JSON.stringify({
             branchName: identityForm.branchName.trim(),
             address: identityForm.address.trim() || companySettings.address,
-            logoUrl: identityForm.logoUrl || companySettings.logoUrl
-          })
-        });
+            logoUrl: identityForm.logoUrl || companySettings.logoUrl,
+          }),
+        })
 
-        const raw = await response.text();
-        let data = {};
+        const raw = await response.text()
+        let data = {}
 
         try {
-          data = raw ? JSON.parse(raw) : {};
+          data = raw ? JSON.parse(raw) : {}
         } catch {
-          data = {};
+          data = {}
         }
 
         if (!response.ok) {
           if (response.status === 413) {
-            throw new Error("Logo upload is too large. Please use a smaller image.");
+            throw new Error(
+              'Logo upload is too large. Please use a smaller image.',
+            )
           }
 
-          throw new Error(data.message || "Failed to save company identity.");
+          throw new Error(data.message || 'Failed to save company identity.')
         }
 
-        const nextSettings = await syncCompanySettings();
-        setEditingIdentityId("");
-        setIdentityForm(getInitialIdentityForm(nextSettings));
-        setIdentitySaveMessage("Saved to database");
-        setIsIdentityModalOpen(false);
+        const nextSettings = await syncCompanySettings()
+        setEditingIdentityId('')
+        setIdentityForm(getInitialIdentityForm(nextSettings))
+        setIdentitySaveMessage('Saved to database')
+        setIsIdentityModalOpen(false)
         pushToast({
-          title: editingIdentityId ? "Identity updated" : "Identity created",
-          message: "The subsidiary or branch identity was saved.",
-          variant: "success"
-        });
+          title: editingIdentityId ? 'Identity updated' : 'Identity created',
+          message: 'The subsidiary or branch identity was saved.',
+          variant: 'success',
+        })
       } catch (error) {
         pushToast({
-          title: "Save identity failed",
+          title: 'Save identity failed',
           message: error.message,
-          variant: "error",
-          duration: 4200
-        });
+          variant: 'error',
+          duration: 4200,
+        })
       } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false)
       }
-    })();
+    })()
   }
 
   function handleDeleteIdentity(identityId) {
-    const targetIdentity = companyIdentities.find((identity) => identity.id === identityId);
+    const targetIdentity = companyIdentities.find(
+      (identity) => identity.id === identityId,
+    )
 
     if (!targetIdentity || !session?.token || !isAdmin) {
-      return;
+      return
     }
 
     openConfirmDialog({
-      title: "Delete company identity?",
+      title: 'Delete company identity?',
       message: `Are you sure you want to delete ${targetIdentity.branchName}? This action cannot be undone.`,
-      confirmLabel: "Yes, delete identity",
+      confirmLabel: 'Yes, delete identity',
       onConfirm: async () => {
-        setIsSubmitting(true);
+        setIsSubmitting(true)
 
         try {
-          const response = await fetch(`${API_BASE_URL}/settings/identities/${identityId}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${session.token}`
-            }
-          });
+          const response = await fetch(
+            `${API_BASE_URL}/settings/identities/${identityId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${session.token}`,
+              },
+            },
+          )
 
           if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.message || "Failed to delete company identity.");
+            const data = await response.json().catch(() => ({}))
+            throw new Error(
+              data.message || 'Failed to delete company identity.',
+            )
           }
 
-          setCompanyIdentities((current) => current.filter((identity) => identity.id !== identityId));
+          setCompanyIdentities((current) =>
+            current.filter((identity) => identity.id !== identityId),
+          )
           if (editingIdentityId === identityId) {
-            setEditingIdentityId("");
-            setIdentityForm(getInitialIdentityForm(companySettings));
+            setEditingIdentityId('')
+            setIdentityForm(getInitialIdentityForm(companySettings))
           }
-          setConfirmDialog(null);
+          setConfirmDialog(null)
           pushToast({
-            title: "Identity deleted",
-            message: "The branch or subsidiary identity was removed.",
-            variant: "success"
-          });
+            title: 'Identity deleted',
+            message: 'The branch or subsidiary identity was removed.',
+            variant: 'success',
+          })
         } catch (error) {
-          setConfirmDialog(null);
+          setConfirmDialog(null)
           pushToast({
-            title: "Delete identity failed",
+            title: 'Delete identity failed',
             message: error.message,
-            variant: "error",
-            duration: 4200
-          });
+            variant: 'error',
+            duration: 4200,
+          })
         } finally {
-          setIsSubmitting(false);
+          setIsSubmitting(false)
         }
-      }
-    });
+      },
+    })
   }
 
   if (!session?.token) {
     return (
-      <main className="app-shell">
-        <CompanyHeader
-          isAuthenticated={false}
-          theme={theme}
-          onThemeChange={setTheme}
-          companySettings={companySettings}
-        />
-        <section className="hero">
-          <p className="eyebrow">Januarius Procurement Hub</p>
-          <h1>From purchase request to filing, in one workflow.</h1>
-          <p className="hero-copy">
-            React frontend for Vercel, Express API for Render, and MongoDB persistence for each
-            approval step.
-          </p>
+      <main className='app-shell auth-shell'>
+        <section className='auth-landing'>
+          <div className='auth-copy'>
+            <img
+              className='auth-logo'
+              src='/JANUARIUS2020_JULY_LOGO_final1-02-1.png'
+              alt='Januarius Holdings Inc.'
+            />
+            <h1>Januarius Procurement Hub</h1>
+            <p className='hero-copy'>
+              From purchase request to filing, in one workflow.
+            </p>
+          </div>
+          <LoginForm
+            credentials={credentials}
+            onChange={handleCredentialChange}
+            onSubmit={handleLogin}
+            isSubmitting={isSubmitting}
+            error={authError}
+          />
         </section>
-        <LoginForm
-          credentials={credentials}
-          onChange={handleCredentialChange}
-          onSubmit={handleLogin}
-          isSubmitting={isSubmitting}
-          error={authError}
-        />
       </main>
-    );
+    )
   }
 
   if (isRequestForPaymentPageOpen && selectedItem) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3292,7 +3697,10 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
@@ -3307,12 +3715,12 @@ export default function App() {
           isSubmitting={isSubmitting}
         />
       </main>
-    );
+    )
   }
 
   if (isPurchaseOrderPageOpen && selectedItem) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3320,7 +3728,10 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
@@ -3340,12 +3751,12 @@ export default function App() {
           isSubmitting={isSubmitting}
         />
       </main>
-    );
+    )
   }
 
   if (isPurchaseOrderDirectoryOpen) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3353,7 +3764,10 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
@@ -3365,12 +3779,12 @@ export default function App() {
           onClose={closePurchaseOrderDirectory}
         />
       </main>
-    );
+    )
   }
 
   if (isSupplierDirectoryOpen) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3378,7 +3792,10 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
@@ -3406,27 +3823,41 @@ export default function App() {
         ) : null}
         {isSupplierModalOpen ? (
           <Modal
-            eyebrow={supplierModalMode === "edit" ? "Edit Supplier" : "New Supplier"}
-            title={supplierModalMode === "edit" ? "Update supplier" : "Create supplier"}
+            eyebrow={
+              supplierModalMode === 'edit' ? 'Edit Supplier' : 'New Supplier'
+            }
+            title={
+              supplierModalMode === 'edit'
+                ? 'Update supplier'
+                : 'Create supplier'
+            }
             onClose={() => setIsSupplierModalOpen(false)}
           >
             <SupplierForm
               form={supplierForm}
               onChange={handleSupplierFormChange}
-              onSubmit={supplierModalMode === "edit" ? handleUpdateSupplier : handleCreateSupplier}
+              onSubmit={
+                supplierModalMode === 'edit'
+                  ? handleUpdateSupplier
+                  : handleCreateSupplier
+              }
               isSubmitting={isSubmitting}
               error={supplierError}
-              submitLabel={supplierModalMode === "edit" ? "Save changes" : "Create supplier"}
+              submitLabel={
+                supplierModalMode === 'edit'
+                  ? 'Save changes'
+                  : 'Create supplier'
+              }
             />
           </Modal>
         ) : null}
       </main>
-    );
+    )
   }
 
   if (isUserDirectoryOpen) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3434,23 +3865,30 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
           companySettings={companySettings}
         />
-        <section className="po-page">
-          <div className="po-page-header">
+        <section className='po-page'>
+          <div className='po-page-header'>
             <div>
-              <p className="eyebrow">Admin Users</p>
+              <p className='eyebrow'>Admin Users</p>
               <h1>Users</h1>
-              <p className="hero-copy">
+              <p className='hero-copy'>
                 View all user accounts and manage access from one page.
               </p>
             </div>
-            <div className="po-page-actions">
-              <button className="ghost-button" type="button" onClick={closeUserDirectory}>
+            <div className='po-page-actions'>
+              <button
+                className='ghost-button'
+                type='button'
+                onClick={closeUserDirectory}
+              >
                 Back to dashboard
               </button>
             </div>
@@ -3468,8 +3906,8 @@ export default function App() {
         </section>
         {isUserModalOpen ? (
           <Modal
-            eyebrow="Admin Users"
-            title={selectedUserId ? "Edit user account" : "Create user account"}
+            eyebrow='Admin Users'
+            title={selectedUserId ? 'Edit user account' : 'Create user account'}
             onClose={() => setIsUserModalOpen(false)}
           >
             <UserEditorPanel
@@ -3495,12 +3933,12 @@ export default function App() {
           />
         ) : null}
       </main>
-    );
+    )
   }
 
   if (isSettingsPageOpen) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3508,7 +3946,10 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
@@ -3531,45 +3972,47 @@ export default function App() {
         />
         {isIdentityModalOpen ? (
           <Modal
-            eyebrow="Subsidiaries"
-            title={editingIdentityId ? "Edit identity" : "New identity"}
+            eyebrow='Subsidiaries'
+            title={editingIdentityId ? 'Edit identity' : 'New identity'}
             onClose={handleResetIdentity}
           >
-            <div className="modal-form">
+            <div className='modal-form'>
               <label>
                 Branch or subsidiary
                 <input
-                  name="branchName"
+                  name='branchName'
                   value={identityForm.branchName}
                   onChange={handleIdentityFormChange}
-                  placeholder="Example: Stats or Januarius Holdings Cebu"
+                  placeholder='Example: Stats or Januarius Holdings Cebu'
                 />
               </label>
 
               <label>
                 Address
                 <textarea
-                  name="address"
+                  name='address'
                   value={identityForm.address}
                   onChange={handleIdentityFormChange}
-                  rows="4"
-                  placeholder="Enter the complete branch or subsidiary address"
+                  rows='4'
+                  placeholder='Enter the complete branch or subsidiary address'
                 />
               </label>
 
-              <label className="settings-file-field">
+              <label className='settings-file-field'>
                 Replace logo
                 <input
-                  type="file"
-                  accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
+                  type='file'
+                  accept='.ico,.png,.jpg,.jpeg,.svg,.webp'
                   onChange={handleIdentityLogoChange}
                 />
               </label>
 
-              <button type="button" onClick={handleSaveIdentity}>
-                {editingIdentityId ? "Save identity" : "Add identity"}
+              <button type='button' onClick={handleSaveIdentity}>
+                {editingIdentityId ? 'Save identity' : 'Add identity'}
               </button>
-              {identitySaveMessage ? <p className="settings-inline-status">{identitySaveMessage}</p> : null}
+              {identitySaveMessage ? (
+                <p className='settings-inline-status'>{identitySaveMessage}</p>
+              ) : null}
             </div>
           </Modal>
         ) : null}
@@ -3584,12 +4027,12 @@ export default function App() {
           />
         ) : null}
       </main>
-    );
+    )
   }
 
-  if (isRequestWorkspacePageOpen && selectedItem) {
+  if (isAuditTrailPageOpen) {
     return (
-      <main className="app-shell">
+      <main className='app-shell'>
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -3598,6 +4041,29 @@ export default function App() {
           theme={theme}
           onThemeChange={setTheme}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          companySettings={companySettings}
+        />
+        <AuditTrailPage items={items} onClose={closeAuditTrailPage} />
+      </main>
+    )
+  }
+
+  if (isRequestWorkspacePageOpen && selectedItem) {
+    return (
+      <main className='app-shell'>
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
@@ -3631,11 +4097,15 @@ export default function App() {
           uploadError={uploadError}
           apiOrigin={API_ORIGIN}
           onClose={closeRequestWorkspacePage}
-            onEditRequest={openEditRequestModal}
-            canEditRequest={canEditSelectedRequest}
+          onEditRequest={openEditRequestModal}
+          canEditRequest={canEditSelectedRequest}
         />
         {isSupplierModalOpen ? (
-          <Modal eyebrow="New Supplier" title="Create supplier" onClose={() => setIsSupplierModalOpen(false)}>
+          <Modal
+            eyebrow='New Supplier'
+            title='Create supplier'
+            onClose={() => setIsSupplierModalOpen(false)}
+          >
             <SupplierForm
               form={supplierForm}
               onChange={handleSupplierFormChange}
@@ -3646,11 +4116,11 @@ export default function App() {
           </Modal>
         ) : null}
       </main>
-    );
+    )
   }
 
   return (
-    <main className="app-shell">
+    <main className='app-shell'>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <CompanyHeader
         isAuthenticated
@@ -3658,77 +4128,112 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onThemeChange={setTheme}
+        requestSearchQuery={requestSearchQuery}
+        onRequestSearchChange={setRequestSearchQuery}
         onOpenSuppliers={handleOpenSuppliersMenu}
+        onOpenAuditTrail={handleOpenAuditTrailPage}
         onOpenUsers={handleOpenUsersDirectory}
         onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
         onOpenSettings={handleOpenSettingsPage}
         companySettings={companySettings}
       />
-      <section className="hero">
-        <div className="hero-grid">
+      <section className='hero'>
+        <div className='hero-grid'>
           <div>
-            <p className="eyebrow">Januarius Procurement Hub</p>
-            <h1>
-              Purchase Request
-              <br />
-              to Payment Tracking
-            </h1>
-            <p className="hero-copy">
-              Role-based processing for review, approval, supplier selection, PO, delivery, invoice,
-              matching, payment, and filing.
+            <p className='eyebrow'>Januarius Procurement Hub</p>
+            <h1>Purchase Request to Payment Tracking</h1>
+            <p className='hero-copy'>
+              Role-based processing for review, approval, supplier selection,
+              PO, delivery, invoice, matching, payment, and filing.
             </p>
           </div>
-          <div className="toolbar-actions left hero-actions hero-actions-side">
-            <div className="hero-action-stack">
+          <div className='toolbar-actions left hero-actions hero-actions-side'>
+            <div className='hero-action-card'>
+              <p className='eyebrow'>Quick Actions</p>
+              <div className='hero-action-stack'>
               {canCreateRequest ? (
-                <button type="button" onClick={openCreateRequestModal}>
-                  New purchase request
-                </button>
+                  <button
+                    className='hero-primary-action'
+                    type='button'
+                    onClick={openCreateRequestModal}
+                  >
+                    New purchase request
+                  </button>
               ) : null}
-              <button
-                className="hero-inline-link"
-                type="button"
-                onClick={openRequestForPaymentPage}
-                disabled={!selectedItem}
-              >
-                Request for Payment
-              </button>
+                <button
+                  className='hero-secondary-action'
+                  type='button'
+                  onClick={openRequestForPaymentPage}
+                  disabled={!selectedItem}
+                >
+                  Request for Payment
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {session.user.role !== "requester" ? (
-        <section className="stats-grid">
+      {session.user.role !== 'requester' ? (
+        <section className='stats-grid'>
           {dashboardStats.map((stat) => (
-            <article className="panel stat-card" key={stat.label}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
+            <article
+              className={`panel stat-card ${stat.isActive ? 'active' : ''} ${
+                stat.filterKey ? 'filterable' : ''
+              }`}
+              key={stat.label}
+            >
+              {stat.filterKey ? (
+                <button
+                  className='stat-card-button'
+                  type='button'
+                  onClick={() =>
+                    setRequestRegistryFilter((current) =>
+                      current === stat.filterKey ? 'all' : stat.filterKey,
+                    )
+                  }
+                >
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
+                </button>
+              ) : (
+                <>
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
+                </>
+              )}
             </article>
           ))}
         </section>
       ) : null}
 
-      {actionError ? <p className="error-text">{actionError}</p> : null}
-      {isLoading ? <p className="error-text">Loading workflow data...</p> : null}
+      {actionError ? <p className='error-text'>{actionError}</p> : null}
+      {isLoading ? (
+        <p className='error-text'>Loading workflow data...</p>
+      ) : null}
 
-      {session.user.role === "requester" ? (
-        <div className="layout-grid requester-workspace">
+      {session.user.role === 'requester' ? (
+        <div className='layout-grid requester-workspace'>
           <RequestList
             items={filteredItems}
             selectedId={selectedId}
+            activeFilter={requestRegistryFilter}
+            onFilterChange={setRequestRegistryFilter}
+            searchQuery={requestSearchQuery}
+            onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
             canEditItem={(item) =>
               Boolean(
                 session?.user &&
-                  (session.user.role === "admin" || session.user.email === item.requesterEmail)
+                (session.user.role === 'admin' ||
+                  session.user.email === item.requesterEmail),
               )
             }
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
-            onExpand={() => openExpandedPanel("request-list")}
+            onExpand={() => openExpandedPanel('request-list')}
           />
           {selectedItem ? (
             <WorkflowTimeline
@@ -3736,84 +4241,40 @@ export default function App() {
               currentStage={selectedItem.currentStage}
               history={selectedItem.history}
               onOpenRequestForPaymentPage={openRequestForPaymentPage}
-              onExpand={() => openExpandedPanel("workflow")}
+              onExpand={() => openExpandedPanel('workflow')}
             />
           ) : null}
         </div>
       ) : (
-        <div className="layout-grid">
+        <div>
           <RequestList
             items={filteredItems}
             selectedId={selectedId}
+            activeFilter={requestRegistryFilter}
+            onFilterChange={setRequestRegistryFilter}
+            searchQuery={requestSearchQuery}
+            onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
             canEditItem={(item) =>
               Boolean(
                 session?.user &&
-                  (session.user.role === "admin" || session.user.email === item.requesterEmail)
+                (session.user.role === 'admin' ||
+                  session.user.email === item.requesterEmail),
               )
             }
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
-            onExpand={() => openExpandedPanel("request-list")}
+            onExpand={() => openExpandedPanel('request-list')}
           />
-          {selectedItem ? (
-            <RequestSummary
-              item={selectedItem}
-              apiOrigin={API_ORIGIN}
-              onExpand={() => openExpandedPanel("request-summary")}
-            />
-          ) : null}
         </div>
       )}
 
-      {session.user.role !== "requester" && selectedItem ? (
-        <div className="layout-grid modal-launch-grid">
-          <WorkflowTimeline
-            stages={stages}
-            currentStage={selectedItem.currentStage}
-            history={selectedItem.history}
-            onOpenRequestForPaymentPage={openRequestForPaymentPage}
-            onExpand={() => openExpandedPanel("workflow")}
-          />
-        </div>
-      ) : null}
-
-      {selectedItem ? (
-        <DocumentPanel
-          item={selectedItem}
-          uploadForm={uploadForm}
-          onUploadFormChange={handleUploadFormChange}
-          onFileChange={handleUploadFileChange}
-          onUpload={handleUploadDocument}
-          onDelete={handleDeleteDocument}
-          canManage={canManageDocuments}
-          isSubmitting={isSubmitting}
-          error={uploadError}
-          apiOrigin={API_ORIGIN}
-          onExpand={() => openExpandedPanel("documents")}
-        />
-      ) : null}
-
-      {isAdmin ? (
-        <div className="admin-stack">
-          {renderAdminRequestLaunch()}
-          <UserManagementPanel
-            users={users}
-            selectedUserId={selectedUserId}
-            onSelect={handleSelectUser}
-            onCreateNew={openCreateUserModal}
-            onEditSelected={openEditUserModal}
-            onExpand={() => openExpandedPanel("user-directory")}
-          />
-        </div>
-      ) : null}
-
       {isCreateRequestModalOpen ? (
         <Modal
-          eyebrow="New Request"
-          title="Create purchase request"
+          eyebrow='New Request'
+          title='Create purchase request'
           onClose={() => setIsCreateRequestModalOpen(false)}
         >
           <CreateRequestForm
@@ -3823,7 +4284,7 @@ export default function App() {
             requesterOptions={requesterOptions}
             onChange={handleRequestFormChange}
             onQuotationFileChange={handleRequestQuotationFileChange}
-            quotationFileName={requestQuotationFile?.name ?? ""}
+            quotationFileName={requestQuotationFile?.name ?? ''}
             onSubmit={handleCreateRequest}
             isSubmitting={isSubmitting}
             canCreate={canCreateRequest}
@@ -3833,7 +4294,11 @@ export default function App() {
       ) : null}
 
       {isSupplierModalOpen ? (
-        <Modal eyebrow="New Supplier" title="Create supplier" onClose={() => setIsSupplierModalOpen(false)}>
+        <Modal
+          eyebrow='New Supplier'
+          title='Create supplier'
+          onClose={() => setIsSupplierModalOpen(false)}
+        >
           <SupplierForm
             form={supplierForm}
             onChange={handleSupplierFormChange}
@@ -3845,11 +4310,19 @@ export default function App() {
       ) : null}
 
       {expandedPanel ? (
-        <Modal eyebrow="Expanded Panel" title="Expanded view" onClose={closeExpandedPanel}>
-          {expandedPanel === "request-list" ? (
+        <Modal
+          eyebrow='Expanded Panel'
+          title='Expanded view'
+          onClose={closeExpandedPanel}
+        >
+          {expandedPanel === 'request-list' ? (
             <RequestList
               items={filteredItems}
               selectedId={selectedId}
+              activeFilter={requestRegistryFilter}
+              onFilterChange={setRequestRegistryFilter}
+              searchQuery={requestSearchQuery}
+              onSearchChange={setRequestSearchQuery}
               onSelect={handleSelect}
               onOpenDetails={handleOpenRequestDetails}
               onExportCsv={handleExportCsv}
@@ -3857,7 +4330,7 @@ export default function App() {
               showExpand={false}
             />
           ) : null}
-          {expandedPanel === "stage-actions" && selectedItem ? (
+          {expandedPanel === 'stage-actions' && selectedItem ? (
             <ActionPanel
               item={selectedItem}
               stages={stages}
@@ -3882,10 +4355,14 @@ export default function App() {
               showExpand={false}
             />
           ) : null}
-          {expandedPanel === "request-summary" && selectedItem ? (
-            <RequestSummary item={selectedItem} apiOrigin={API_ORIGIN} showExpand={false} />
+          {expandedPanel === 'request-summary' && selectedItem ? (
+            <RequestSummary
+              item={selectedItem}
+              apiOrigin={API_ORIGIN}
+              showExpand={false}
+            />
           ) : null}
-          {expandedPanel === "workflow" && selectedItem ? (
+          {expandedPanel === 'workflow' && selectedItem ? (
             <WorkflowTimeline
               stages={stages}
               currentStage={selectedItem.currentStage}
@@ -3894,7 +4371,7 @@ export default function App() {
               showExpand={false}
             />
           ) : null}
-          {expandedPanel === "documents" && selectedItem ? (
+          {expandedPanel === 'documents' && selectedItem ? (
             <DocumentPanel
               item={selectedItem}
               uploadForm={uploadForm}
@@ -3909,8 +4386,10 @@ export default function App() {
               showExpand={false}
             />
           ) : null}
-          {expandedPanel === "admin-request" ? renderAdminRequestLaunch(false) : null}
-          {expandedPanel === "user-directory" ? (
+          {expandedPanel === 'admin-request'
+            ? renderAdminRequestLaunch(false)
+            : null}
+          {expandedPanel === 'user-directory' ? (
             <UserManagementPanel
               users={users}
               selectedUserId={selectedUserId}
@@ -3926,14 +4405,16 @@ export default function App() {
 
       {isEditRequestModalOpen && selectedItem ? (
         <Modal
-          eyebrow={isAdmin ? "Admin Request" : "Edit Request"}
+          eyebrow={isAdmin ? 'Admin Request' : 'Edit Request'}
           title={`Edit ${selectedItem.requestNumber}`}
           onClose={() => setIsEditRequestModalOpen(false)}
         >
           <RequestAdminPanel
             item={selectedItem}
             stages={stages}
-            branchOptions={Array.from(new Set([...branchOptions, selectedItem.branch].filter(Boolean)))}
+            branchOptions={Array.from(
+              new Set([...branchOptions, selectedItem.branch].filter(Boolean)),
+            )}
             form={requestAdminForm}
             onChange={handleRequestAdminFormChange}
             onSave={handleSaveRequest}
@@ -3948,8 +4429,8 @@ export default function App() {
 
       {isUserModalOpen ? (
         <Modal
-          eyebrow="Admin Users"
-          title={selectedUserId ? "Edit user account" : "Create user account"}
+          eyebrow='Admin Users'
+          title={selectedUserId ? 'Edit user account' : 'Create user account'}
           onClose={() => setIsUserModalOpen(false)}
         >
           <UserEditorPanel
@@ -3976,5 +4457,5 @@ export default function App() {
         />
       ) : null}
     </main>
-  );
+  )
 }

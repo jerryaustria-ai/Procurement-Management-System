@@ -51,6 +51,23 @@ function canManageRequestDrafts(req, request) {
   );
 }
 
+async function getNextRequestNumber() {
+  const currentYear = new Date().getFullYear();
+  const prefix = `PR-${currentYear}-`;
+  const latestRequest = await PurchaseRequest.findOne({
+    requestNumber: { $regex: `^${prefix}` }
+  })
+    .sort({ requestNumber: -1 })
+    .select("requestNumber");
+
+  const latestSequence = latestRequest?.requestNumber
+    ? Number(latestRequest.requestNumber.slice(prefix.length))
+    : 0;
+  const nextSequence = Number.isFinite(latestSequence) ? latestSequence + 1 : 1;
+
+  return `${prefix}${String(nextSequence).padStart(3, "0")}`;
+}
+
 router.get("/purchase-requests", async (req, res) => {
   const query = req.user.role === "requester" ? { requesterEmail: req.user.email } : {};
   const items = await PurchaseRequest.find(query).sort({ createdAt: -1 });
@@ -62,77 +79,88 @@ router.get("/purchase-requests", async (req, res) => {
 });
 
 router.post("/purchase-requests", async (req, res) => {
-  const {
-    requesterEmail,
-    title,
-    description,
-    category,
-    branch,
-    department,
-    amount,
-    currency,
-    priority,
-    dateNeeded,
-    deliveryAddress,
-    paymentTerms,
-    notes
-  } = req.body;
+  try {
+    const {
+      requesterEmail,
+      title,
+      description,
+      category,
+      branch,
+      department,
+      amount,
+      currency,
+      priority,
+      dateNeeded,
+      deliveryAddress,
+      paymentTerms,
+      notes
+    } = req.body;
 
-  if (!title) {
-    return res.status(400).json({ message: "Title is required." });
-  }
-
-  let requester = req.user;
-
-  if (req.user.role === "admin") {
-    if (!requesterEmail?.trim()) {
-      return res.status(400).json({ message: "Requester must be selected from system users." });
+    if (!title) {
+      return res.status(400).json({ message: "Title is required." });
     }
 
-    requester = await User.findOne({ email: requesterEmail.trim().toLowerCase() });
-    if (!requester) {
-      return res.status(400).json({ message: "Selected requester was not found." });
-    }
-  }
+    let requester = req.user;
 
-  const count = await PurchaseRequest.countDocuments();
-  const requestNumber = `PR-${new Date().getFullYear()}-${String(count + 1).padStart(3, "0")}`;
-  const parsedAmount = parseAmountValue(amount);
-
-  if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
-    return res.status(400).json({ message: "Amount must be a valid number." });
-  }
-
-  const created = await PurchaseRequest.create({
-    requestNumber,
-    title,
-    description: description || "",
-    category: category || "General Procurement",
-    branch: branch || "Januarius Holdings",
-    department: department || "",
-    requesterName: requester.name,
-    requesterEmail: requester.email,
-    amount: parsedAmount,
-    currency: currency || "PHP",
-    priority: priority || "medium",
-    dateNeeded: dateNeeded || null,
-    deliveryAddress: deliveryAddress || "",
-    paymentTerms: paymentTerms || "Net 30",
-    notes: notes || "",
-    currentStage: workflowStages[0],
-    history: [
-      {
-        stage: workflowStages[0],
-        status: "current",
-        updatedAt: new Date(),
-        actor: req.user.name,
-        actorRole: req.user.role,
-        comment: notes || "Purchase request created."
+    if (req.user.role === "admin") {
+      if (!requesterEmail?.trim()) {
+        return res.status(400).json({ message: "Requester must be selected from system users." });
       }
-    ]
-  });
 
-  return res.status(201).json(serializePurchaseRequest(created));
+      requester = await User.findOne({ email: requesterEmail.trim().toLowerCase() });
+      if (!requester) {
+        return res.status(400).json({ message: "Selected requester was not found." });
+      }
+    }
+
+    const requestNumber = await getNextRequestNumber();
+    const parsedAmount = parseAmountValue(amount);
+
+    if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
+      return res.status(400).json({ message: "Amount must be a valid number." });
+    }
+
+    const created = await PurchaseRequest.create({
+      requestNumber,
+      title,
+      description: description || "",
+      category: category || "General Procurement",
+      branch: branch || "Januarius Holdings",
+      department: department || "",
+      requesterName: requester.name,
+      requesterEmail: requester.email,
+      amount: parsedAmount,
+      currency: currency || "PHP",
+      priority: priority || "medium",
+      dateNeeded: dateNeeded || null,
+      deliveryAddress: deliveryAddress || "",
+      paymentTerms: paymentTerms || "Net 30",
+      notes: notes || "",
+      currentStage: workflowStages[0],
+      history: [
+        {
+          stage: workflowStages[0],
+          status: "current",
+          updatedAt: new Date(),
+          actor: req.user.name,
+          actorRole: req.user.role,
+          comment: notes || "Purchase request created."
+        }
+      ]
+    });
+
+    return res.status(201).json(serializePurchaseRequest(created));
+  } catch (error) {
+    console.error("Failed to create purchase request.", error);
+
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        message: "A purchase request with the same request number already exists. Please try again."
+      });
+    }
+
+    return res.status(500).json({ message: "Failed to create purchase request." });
+  }
 });
 
 router.patch("/purchase-requests/:id", async (req, res) => {

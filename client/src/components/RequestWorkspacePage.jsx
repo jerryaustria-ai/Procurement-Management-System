@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import ActionPanel from "./ActionPanel.jsx";
-import DocumentPanel from "./DocumentPanel.jsx";
 import RequestSummary from "./RequestSummary.jsx";
 
 export default function RequestWorkspacePage({
@@ -35,6 +34,7 @@ export default function RequestWorkspacePage({
   canEditRequest
 }) {
   const stageActionsRef = useRef(null);
+  const [isSummaryHidden, setIsSummaryHidden] = useState(true);
 
   useEffect(() => {
     if (user.role === "requester") {
@@ -74,7 +74,13 @@ export default function RequestWorkspacePage({
       </div>
 
       <div className="request-workspace-stack">
-        <RequestSummary item={item} apiOrigin={apiOrigin} showExpand={false} />
+        <RequestSummary
+          item={item}
+          apiOrigin={apiOrigin}
+          showExpand={false}
+          isCollapsed={isSummaryHidden}
+          onToggleVisibility={() => setIsSummaryHidden((current) => !current)}
+        />
 
         {user.role !== "requester" ? (
           <div ref={stageActionsRef} className="request-workspace-review">
@@ -103,22 +109,6 @@ export default function RequestWorkspacePage({
             />
           </div>
         ) : null}
-
-        <div className="po-page-grid">
-          <DocumentPanel
-            item={item}
-            uploadForm={uploadForm}
-            onUploadFormChange={onUploadFormChange}
-            onFileChange={onUploadFileChange}
-            onUpload={onUpload}
-            onDelete={onDeleteDocument}
-            canManage={canManageDocuments}
-            isSubmitting={isSubmitting}
-            error={uploadError}
-            apiOrigin={apiOrigin}
-            showExpand={false}
-          />
-        </div>
       </div>
     </section>
   );
