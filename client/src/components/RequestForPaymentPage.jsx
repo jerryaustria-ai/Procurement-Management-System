@@ -24,8 +24,10 @@ export default function RequestForPaymentPage({
   item,
   form,
   suppliers = [],
+  isEditing = true,
   onChange,
   onSelectSupplier,
+  onEdit,
   onSave,
   onClose,
   isSubmitting
@@ -189,10 +191,12 @@ export default function RequestForPaymentPage({
                   value={form.payee}
                   onChange={onChange}
                   placeholder="Enter payee name"
+                  disabled={!isEditing}
                 />
                 <button
                   className="ghost-button supplier-select-button"
                   type="button"
+                  disabled={!isEditing}
                   onClick={() => {
                     setSupplierSearch("");
                     setIsSupplierModalOpen(true);
@@ -210,6 +214,7 @@ export default function RequestForPaymentPage({
                 value={form.tinNumber || ""}
                 onChange={onChange}
                 placeholder="Enter TIN number"
+                disabled={!isEditing}
               />
             </label>
 
@@ -220,6 +225,7 @@ export default function RequestForPaymentPage({
                 value={form.invoiceNumber}
                 onChange={onChange}
                 placeholder="INV-2026-014"
+                disabled={!isEditing}
               />
             </label>
 
@@ -230,6 +236,7 @@ export default function RequestForPaymentPage({
                 value={form.amountRequested}
                 onChange={onChange}
                 placeholder={String(item.amount || "0.00")}
+                disabled={!isEditing}
               />
             </label>
 
@@ -240,6 +247,7 @@ export default function RequestForPaymentPage({
                 type="date"
                 value={form.dueDate}
                 onChange={onChange}
+                disabled={!isEditing}
               />
             </label>
 
@@ -251,13 +259,20 @@ export default function RequestForPaymentPage({
                 onChange={onChange}
                 rows="6"
                 placeholder="Use the requested item description"
+                disabled={!isEditing}
               />
             </label>
           </div>
           <div className="panel-form-actions panel-form-actions-right">
-            <button type="button" onClick={onSave} disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : "Save"}
-            </button>
+            {isEditing ? (
+              <button type="button" onClick={onSave} disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save"}
+              </button>
+            ) : (
+              <button type="button" onClick={onEdit}>
+                Edit
+              </button>
+            )}
           </div>
         </section>
       </div>

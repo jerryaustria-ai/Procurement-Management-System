@@ -530,13 +530,17 @@ function CompanyHeader({
   theme,
   onThemeChange,
   onOpenSuppliers,
+  onOpenRfpDirectory,
+  onOpenRfpRecord,
   onOpenAuditTrail,
   onOpenUsers,
   onOpenPurchaseOrder,
   onOpenSettings,
+  rfpItems = [],
   companySettings = DEFAULT_COMPANY_SETTINGS,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isRfpModalOpen, setIsRfpModalOpen] = useState(false)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -570,135 +574,217 @@ function CompanyHeader({
     action?.()
   }
 
-  return (
-    <header className='company-header'>
-      <div className='brand-lockup'>
-        <div className='brand-mark' aria-hidden='true'>
-          <img src={companySettings.logoUrl} alt='' />
-        </div>
-        <div>
-          <p className='brand-kicker'>{companySettings.companyName}</p>
-          <strong>Procurement Management System</strong>
-        </div>
-      </div>
+  function handleOpenRfpModal() {
+    setIsMenuOpen(false)
+    onOpenRfpDirectory?.()
+    setIsRfpModalOpen(true)
+  }
 
-      <div className='header-meta'>
-        <div className='theme-toggle' role='group' aria-label='Theme switcher'>
-          <button
-            className={
-              theme === 'light'
-                ? 'theme-toggle-button active'
-                : 'theme-toggle-button'
-            }
-            type='button'
-            onClick={() => onThemeChange('light')}
-            aria-label='Switch to light mode'
-            title='Light mode'
-          >
-            <svg viewBox='0 0 24 24' aria-hidden='true'>
-              <circle cx='12' cy='12' r='4.2' fill='currentColor' />
-              <path
-                d='M12 2.5v2.4M12 19.1v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7'
-                fill='none'
-                stroke='currentColor'
-                strokeLinecap='round'
-                strokeWidth='1.8'
-              />
-            </svg>
-            <span className='sr-only'>Light</span>
-          </button>
-          <button
-            className={
-              theme === 'dark'
-                ? 'theme-toggle-button active'
-                : 'theme-toggle-button'
-            }
-            type='button'
-            onClick={() => onThemeChange('dark')}
-            aria-label='Switch to dark mode'
-            title='Dark mode'
-          >
-            <svg viewBox='0 0 24 24' aria-hidden='true'>
-              <path
-                d='M18.5 14.6A7.5 7.5 0 0 1 9.4 5.5a7.5 7.5 0 1 0 9.1 9.1Z'
-                fill='currentColor'
-              />
-            </svg>
-            <span className='sr-only'>Dark</span>
-          </button>
-        </div>
-        {user ? (
-          <div className='header-menu-wrap' ref={menuRef}>
-            <button
-              className='header-menu-trigger'
-              type='button'
-              onClick={() => setIsMenuOpen((current) => !current)}
-              aria-haspopup='menu'
-              aria-expanded={isMenuOpen}
-            >
-              <span>{user.name}</span>
-              <span className='header-menu-caret' aria-hidden='true'>
-                ▾
-              </span>
-            </button>
-            {isMenuOpen ? (
-              <div
-                className='header-menu-dropdown'
-                role='menu'
-                aria-label='Account menu'
-              >
-                {user.role !== 'requester' ? (
-                  <>
-                    <button
-                      type='button'
-                      role='menuitem'
-                      onClick={() => handleMenuAction(onOpenSuppliers)}
-                    >
-                      Suppliers
-                    </button>
-                    <button
-                      type='button'
-                      role='menuitem'
-                      onClick={() => handleMenuAction(onOpenUsers)}
-                    >
-                      Users
-                    </button>
-                    <button
-                      type='button'
-                      role='menuitem'
-                      onClick={() => handleMenuAction(onOpenPurchaseOrder)}
-                    >
-                      Purchase Order
-                    </button>
-                    <button
-                      type='button'
-                      role='menuitem'
-                      onClick={() => handleMenuAction(onOpenAuditTrail)}
-                    >
-                      Audit Trail
-                    </button>
-                  </>
-                ) : null}
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={() => handleMenuAction(onOpenSettings)}
-                >
-                  Settings
-                </button>
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={() => handleMenuAction(onLogout)}
-                >
-                  Logout
-                </button>
-              </div>
-            ) : null}
+  function handleOpenRfpRecord(item) {
+    setIsRfpModalOpen(false)
+    onOpenRfpRecord?.(item)
+  }
+
+  return (
+    <>
+      <header className='company-header'>
+        <div className='brand-lockup'>
+          <div className='brand-mark' aria-hidden='true'>
+            <img src={companySettings.logoUrl} alt='' />
           </div>
-        ) : null}
-      </div>
-    </header>
+          <div>
+            <p className='brand-kicker'>{companySettings.companyName}</p>
+            <strong>Procurement Management System</strong>
+          </div>
+        </div>
+
+        <div className='header-meta'>
+          <div className='theme-toggle' role='group' aria-label='Theme switcher'>
+            <button
+              className={
+                theme === 'light'
+                  ? 'theme-toggle-button active'
+                  : 'theme-toggle-button'
+              }
+              type='button'
+              onClick={() => onThemeChange('light')}
+              aria-label='Switch to light mode'
+              title='Light mode'
+            >
+              <svg viewBox='0 0 24 24' aria-hidden='true'>
+                <circle cx='12' cy='12' r='4.2' fill='currentColor' />
+                <path
+                  d='M12 2.5v2.4M12 19.1v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeLinecap='round'
+                  strokeWidth='1.8'
+                />
+              </svg>
+              <span className='sr-only'>Light</span>
+            </button>
+            <button
+              className={
+                theme === 'dark'
+                  ? 'theme-toggle-button active'
+                  : 'theme-toggle-button'
+              }
+              type='button'
+              onClick={() => onThemeChange('dark')}
+              aria-label='Switch to dark mode'
+              title='Dark mode'
+            >
+              <svg viewBox='0 0 24 24' aria-hidden='true'>
+                <path
+                  d='M18.5 14.6A7.5 7.5 0 0 1 9.4 5.5a7.5 7.5 0 1 0 9.1 9.1Z'
+                  fill='currentColor'
+                />
+              </svg>
+              <span className='sr-only'>Dark</span>
+            </button>
+          </div>
+          {user ? (
+            <div className='header-menu-wrap' ref={menuRef}>
+              <button
+                className='header-menu-trigger'
+                type='button'
+                onClick={() => setIsMenuOpen((current) => !current)}
+                aria-haspopup='menu'
+                aria-expanded={isMenuOpen}
+              >
+                <span>{user.name}</span>
+                <span className='header-menu-caret' aria-hidden='true'>
+                  ▾
+                </span>
+              </button>
+              {isMenuOpen ? (
+                <div
+                  className='header-menu-dropdown'
+                  role='menu'
+                  aria-label='Account menu'
+                >
+                  {user.role !== 'requester' ? (
+                    <>
+                      <button
+                        type='button'
+                        role='menuitem'
+                        onClick={() => handleMenuAction(onOpenSuppliers)}
+                      >
+                        Suppliers
+                      </button>
+                      <button
+                        type='button'
+                        role='menuitem'
+                        onClick={() => handleMenuAction(onOpenUsers)}
+                      >
+                        Users
+                      </button>
+                      <button
+                        type='button'
+                        role='menuitem'
+                        onClick={() => handleMenuAction(onOpenPurchaseOrder)}
+                      >
+                        Purchase Order
+                      </button>
+                      <button
+                        type='button'
+                        role='menuitem'
+                        onClick={handleOpenRfpModal}
+                      >
+                        RFP
+                      </button>
+                      <button
+                        type='button'
+                        role='menuitem'
+                        onClick={() => handleMenuAction(onOpenAuditTrail)}
+                      >
+                        Audit Trail
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    type='button'
+                    role='menuitem'
+                    onClick={() => handleMenuAction(onOpenSettings)}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type='button'
+                    role='menuitem'
+                    onClick={() => handleMenuAction(onLogout)}
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </header>
+
+      {isRfpModalOpen ? (
+        <Modal
+          eyebrow='Request for Payment'
+          title='Saved RFP records'
+          onClose={() => setIsRfpModalOpen(false)}
+        >
+          <div className='modal-form audit-trail-modal-content'>
+            <div className='audit-trail-modal-meta'>
+              <div>
+                <strong>Request for Payment list</strong>
+                <div className='audit-trail-cell-subtext'>
+                  Open any saved RFP record from the list below.
+                </div>
+              </div>
+              <span className='panel-counter'>
+                {rfpItems.length} {rfpItems.length === 1 ? 'record' : 'records'}
+              </span>
+            </div>
+
+            {rfpItems.length === 0 ? (
+              <p className='empty-state'>No saved RFP records available.</p>
+            ) : (
+              <div className='supplier-table audit-trail-table-wrap'>
+                <table className='supplier-table-grid audit-trail-table'>
+                  <thead className='supplier-table-header'>
+                    <tr>
+                      <th>Request</th>
+                      <th>Payee / Supplier</th>
+                      <th>Invoice</th>
+                      <th>Due date</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rfpItems.map((record) => (
+                      <tr key={record.id} className='supplier-row audit-trail-row'>
+                        <td>
+                          <strong>{record.requestNumber}</strong>
+                          <div className='audit-trail-cell-subtext'>{record.title}</div>
+                        </td>
+                        <td>{record.rfpDraft?.payee || 'Not set'}</td>
+                        <td>{record.rfpDraft?.invoiceNumber || 'Not set'}</td>
+                        <td>{record.rfpDraft?.dueDate || 'Not set'}</td>
+                        <td>
+                          <button
+                            className='ghost-button'
+                            type='button'
+                            onClick={() => handleOpenRfpRecord(record)}
+                          >
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Modal>
+      ) : null}
+    </>
   )
 }
 
@@ -771,11 +857,14 @@ export default function App() {
   const [isPurchaseOrderPageOpen, setIsPurchaseOrderPageOpen] = useState(false)
   const [isPurchaseOrderDirectoryOpen, setIsPurchaseOrderDirectoryOpen] =
     useState(false)
+  const [isRfpDirectoryOpen, setIsRfpDirectoryOpen] = useState(false)
   const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] =
     useState(false)
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(
     getInitialRequestForPaymentForm(),
   )
+  const [isRequestForPaymentEditing, setIsRequestForPaymentEditing] =
+    useState(true)
   const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] =
     useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -854,6 +943,16 @@ export default function App() {
   })
   const purchaseOrderRecords = items.filter((item) =>
     String(item.poNumber || item.poDraft?.poNumber || '').trim(),
+  )
+  const requestForPaymentRecords = items.filter((item) =>
+    Boolean(
+      item.rfpDraft?.payee ||
+        item.rfpDraft?.tinNumber ||
+        item.rfpDraft?.invoiceNumber ||
+        item.rfpDraft?.amountRequested ||
+        item.rfpDraft?.dueDate ||
+        item.rfpDraft?.notes,
+    ),
   )
   const shouldPauseDashboardRefresh =
     isCreateRequestModalOpen ||
@@ -2081,6 +2180,14 @@ export default function App() {
       (supplier) => supplier.name === savedSupplier,
     )
     const savedRfpDraft = targetRequest.rfpDraft ?? {}
+    const hasSavedRfpDraft = Boolean(
+      savedRfpDraft.payee ||
+        savedRfpDraft.tinNumber ||
+        savedRfpDraft.invoiceNumber ||
+        savedRfpDraft.amountRequested ||
+        savedRfpDraft.dueDate ||
+        savedRfpDraft.notes,
+    )
 
     setSelectedId(targetRequest.id)
     setIsRequestWorkspacePageOpen(false)
@@ -2105,6 +2212,7 @@ export default function App() {
         (targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : ''),
       notes: savedRfpDraft.notes || targetRequest.description || '',
     }))
+    setIsRequestForPaymentEditing(!hasSavedRfpDraft)
     setIsRequestForPaymentPageOpen(true)
   }
 
@@ -2145,6 +2253,7 @@ export default function App() {
 
   function closeRequestForPaymentPage() {
     setIsRequestForPaymentPageOpen(false)
+    setIsRequestForPaymentEditing(true)
   }
 
   function closePurchaseOrderPage() {
@@ -2195,6 +2304,7 @@ export default function App() {
         dueDate: data.rfpDraft?.dueDate ?? '',
         notes: data.rfpDraft?.notes ?? '',
       })
+      setIsRequestForPaymentEditing(false)
       setActionForm((current) => ({
         ...current,
         supplier: data.supplier || current.supplier,
@@ -3939,8 +4049,10 @@ export default function App() {
           item={selectedItem}
           form={requestForPaymentForm}
           suppliers={suppliers}
+          isEditing={isRequestForPaymentEditing}
           onChange={handleRequestForPaymentFormChange}
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
+          onEdit={() => setIsRequestForPaymentEditing(true)}
           onSave={handleSaveRequestForPaymentPage}
           onClose={closeRequestForPaymentPage}
           isSubmitting={isSubmitting}
