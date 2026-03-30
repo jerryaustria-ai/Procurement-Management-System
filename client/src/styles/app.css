@@ -1581,6 +1581,15 @@ label,
   gap: 20px;
 }
 
+.panel-form-actions {
+  display: flex;
+  margin-top: 18px;
+}
+
+.panel-form-actions-right {
+  justify-content: flex-end;
+}
+
 .request-workspace-stack {
   display: grid;
   gap: 20px;

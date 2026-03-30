@@ -2080,6 +2080,7 @@ export default function App() {
     const matchedSupplier = suppliers.find(
       (supplier) => supplier.name === savedSupplier,
     )
+    const savedRfpDraft = targetRequest.rfpDraft ?? {}
 
     setSelectedId(targetRequest.id)
     setIsRequestWorkspacePageOpen(false)
@@ -2088,16 +2089,21 @@ export default function App() {
 
     setRequestForPaymentForm((current) => ({
       ...current,
-      payee: savedSupplier,
-      tinNumber: current.tinNumber || matchedSupplier?.tinNumber || '',
+      payee: savedRfpDraft.payee || savedSupplier,
+      tinNumber:
+        savedRfpDraft.tinNumber || current.tinNumber || matchedSupplier?.tinNumber || '',
       invoiceNumber:
+        savedRfpDraft.invoiceNumber ||
         current.invoiceNumber ||
         actionForm.invoiceNumber ||
         targetRequest.invoiceNumber ||
         '',
-      amountRequested: String(targetRequest.amount || ''),
-      dueDate: targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : '',
-      notes: targetRequest.description || '',
+      amountRequested:
+        savedRfpDraft.amountRequested || String(targetRequest.amount || ''),
+      dueDate:
+        savedRfpDraft.dueDate ||
+        (targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : ''),
+      notes: savedRfpDraft.notes || targetRequest.description || '',
     }))
     setIsRequestForPaymentPageOpen(true)
   }
@@ -2153,19 +2159,62 @@ export default function App() {
     setIsRequestWorkspacePageOpen(false)
   }
 
-  function handleSaveRequestForPaymentPage() {
-    setActionForm((current) => ({
-      ...current,
-      invoiceNumber: requestForPaymentForm.invoiceNumber,
-      notes: requestForPaymentForm.notes,
-    }))
-    setIsRequestForPaymentPageOpen(false)
-    pushToast({
-      title: 'Request for payment draft saved',
-      message:
-        'The payment request details were copied back into the workflow form.',
-      variant: 'success',
-    })
+  async function handleSaveRequestForPaymentPage() {
+    if (!selectedItem || !session?.token) {
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/rfp-draft`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify(requestForPaymentForm),
+        },
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to save request for payment.')
+      }
+
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
+      setRequestForPaymentForm({
+        payee: data.rfpDraft?.payee ?? '',
+        tinNumber: data.rfpDraft?.tinNumber ?? '',
+        invoiceNumber: data.rfpDraft?.invoiceNumber ?? '',
+        amountRequested: data.rfpDraft?.amountRequested ?? '',
+        dueDate: data.rfpDraft?.dueDate ?? '',
+        notes: data.rfpDraft?.notes ?? '',
+      })
+      setActionForm((current) => ({
+        ...current,
+        supplier: data.supplier || current.supplier,
+        invoiceNumber: data.invoiceNumber || current.invoiceNumber,
+      }))
+      pushToast({
+        title: 'Request for payment saved',
+        message: `${data.requestNumber} payment details were saved to the database.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      pushToast({
+        title: 'Save failed',
+        message: error.message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   function handleSavePurchaseOrderPage() {

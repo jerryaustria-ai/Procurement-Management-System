@@ -60,6 +60,18 @@ const purchaseOrderDraftSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const requestForPaymentDraftSchema = new mongoose.Schema(
+  {
+    payee: { type: String, default: "" },
+    tinNumber: { type: String, default: "" },
+    invoiceNumber: { type: String, default: "" },
+    amountRequested: { type: String, default: "" },
+    dueDate: { type: String, default: "" },
+    notes: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
 const purchaseRequestSchema = new mongoose.Schema(
   {
     requestNumber: { type: String, required: true, unique: true },
@@ -97,6 +109,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     status: { type: String, enum: ["open", "completed"], default: "open" },
     notes: { type: String, default: "" },
     poDraft: { type: purchaseOrderDraftSchema, default: () => ({}) },
+    rfpDraft: { type: requestForPaymentDraftSchema, default: () => ({}) },
     history: [historySchema],
     documents: [documentSchema]
   },

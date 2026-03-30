@@ -126,9 +126,6 @@ export default function RequestForPaymentPage({
           <button className="ghost-button" type="button" onClick={onClose}>
             Back to workflow
           </button>
-          <button type="button" onClick={onSave} disabled={isSubmitting}>
-            Save request for payment
-          </button>
         </div>
       </div>
 
@@ -256,6 +253,11 @@ export default function RequestForPaymentPage({
                 placeholder="Use the requested item description"
               />
             </label>
+          </div>
+          <div className="panel-form-actions panel-form-actions-right">
+            <button type="button" onClick={onSave} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save"}
+            </button>
           </div>
         </section>
       </div>

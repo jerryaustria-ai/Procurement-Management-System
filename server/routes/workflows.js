@@ -279,6 +279,38 @@ router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
   return res.json(serializePurchaseRequest(request));
 });
 
+router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!canManageRequestDrafts(req, request)) {
+    return res.status(403).json({ message: "Your role cannot update the request for payment draft." });
+  }
+
+  request.rfpDraft = {
+    payee: String(req.body.payee ?? ""),
+    tinNumber: String(req.body.tinNumber ?? ""),
+    invoiceNumber: String(req.body.invoiceNumber ?? ""),
+    amountRequested: String(req.body.amountRequested ?? ""),
+    dueDate: String(req.body.dueDate ?? ""),
+    notes: String(req.body.notes ?? "")
+  };
+
+  if (typeof req.body.payee === "string" && req.body.payee.trim()) {
+    request.supplier = req.body.payee.trim();
+  }
+
+  if (typeof req.body.invoiceNumber === "string") {
+    request.invoiceNumber = req.body.invoiceNumber;
+  }
+
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
 router.patch("/purchase-requests/:id/advance", async (req, res) => {
   const request = await PurchaseRequest.findById(req.params.id);
 
