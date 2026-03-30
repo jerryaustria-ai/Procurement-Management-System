@@ -937,6 +937,18 @@ label,
   gap: 16px;
 }
 
+.request-status-group {
+  display: grid;
+  gap: 4px;
+}
+
+.request-workflow-link {
+  justify-self: start;
+  font-size: 0.92rem;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+}
+
 .request-list-pagination {
   display: flex;
   align-items: center;
@@ -1708,6 +1720,33 @@ label,
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 20px;
   margin-top: 18px;
+}
+
+.settings-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--panel-soft);
+  border: 1px solid var(--card-border);
+}
+
+.settings-checkbox-row input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.settings-checkbox-row strong {
+  display: block;
+  color: var(--heading-color);
+}
+
+.settings-checkbox-row p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .settings-branding-panel {

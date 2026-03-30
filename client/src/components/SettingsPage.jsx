@@ -1,9 +1,14 @@
 export default function SettingsPage({
+  user,
+  isAdmin,
   identities,
   canManageIdentities,
   isMainSettingsEditing,
   form,
   onChange,
+  requesterForm,
+  onRequesterChange,
+  onSaveRequesterSettings,
   onLogoFileChange,
   onStartMainSettingsEdit,
   onCancelMainSettingsEdit,
@@ -11,8 +16,97 @@ export default function SettingsPage({
   onCreateIdentity,
   onEditIdentity,
   onDeleteIdentity,
+  settingsError,
+  isSubmitting,
   onClose
 }) {
+  if (!isAdmin) {
+    return (
+      <section className="po-page">
+        <div className="po-page-header">
+          <div>
+            <p className="eyebrow">User Settings</p>
+            <h1>Settings</h1>
+            <p className="hero-copy">
+              Manage your account security and notification preferences.
+            </p>
+          </div>
+          <div className="po-page-actions">
+            <button className="ghost-button" type="button" onClick={onClose}>
+              Back to dashboard
+            </button>
+          </div>
+        </div>
+
+        <section className="panel action-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Profile</p>
+              <h2>{user?.name || "My account"}</h2>
+              <p className="hero-copy">
+                {user?.email || "Update your personal account settings."}
+              </p>
+            </div>
+          </div>
+
+          <div className="form-grid two-column">
+            <label>
+              Current password
+              <input
+                name="currentPassword"
+                type="password"
+                value={requesterForm.currentPassword}
+                onChange={onRequesterChange}
+                placeholder="Enter current password"
+              />
+            </label>
+            <label>
+              New password
+              <input
+                name="newPassword"
+                type="password"
+                value={requesterForm.newPassword}
+                onChange={onRequesterChange}
+                placeholder="Enter new password"
+              />
+            </label>
+          </div>
+
+          <label>
+            Confirm new password
+            <input
+              name="confirmPassword"
+              type="password"
+              value={requesterForm.confirmPassword}
+              onChange={onRequesterChange}
+              placeholder="Confirm new password"
+            />
+          </label>
+
+          <label className="settings-checkbox-row">
+            <input
+              name="notifyOnRequestChanges"
+              type="checkbox"
+              checked={requesterForm.notifyOnRequestChanges}
+              onChange={onRequesterChange}
+            />
+            <div>
+              <strong>Notify me via email if there are changes in my request</strong>
+              <p>Receive email alerts whenever your purchase request status or workflow changes.</p>
+            </div>
+          </label>
+
+          <div className="button-row">
+            <button type="button" onClick={onSaveRequesterSettings} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save settings"}
+            </button>
+          </div>
+          {settingsError ? <p className="error-text">{settingsError}</p> : null}
+        </section>
+      </section>
+    )
+  }
+
   return (
     <section className="po-page">
       <div className="po-page-header">

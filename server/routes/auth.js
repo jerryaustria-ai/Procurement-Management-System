@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { roleLabels } from "../config/workflow.js";
 import { User } from "../models/User.js";
+import { serializeUser } from "../utils/serializers.js";
 
 const router = Router();
 
@@ -36,12 +37,8 @@ router.post("/login", async (req, res) => {
   return res.json({
     token,
     user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      roleLabel: roleLabels[user.role],
-      department: user.department
+      ...serializeUser(user),
+      roleLabel: roleLabels[user.role]
     }
   });
 });

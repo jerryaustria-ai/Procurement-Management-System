@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
 function getProcurementStatus(item) {
-  return item.status === "completed"
-    ? "Completed and ready for filing archive"
-    : "Actively moving through approvals";
+  if (item.status === "completed" || item.filingCompleted) {
+    return "Current stage: Complete";
+  }
+
+  if (!item.currentStage) {
+    return "Current stage: Not set";
+  }
+
+  return `Current stage: ${item.currentStage}`;
 }
 
 export default function RequestList({
@@ -14,6 +20,7 @@ export default function RequestList({
   searchQuery = "",
   onSearchChange,
   onSelect,
+  onOpenWorkflow,
   onOpenDetails,
   onEdit,
   canEditItem,
@@ -181,7 +188,16 @@ export default function RequestList({
               <small>Requester: {item.requester}</small>
             </button>
             <div className="request-list-footer">
-              <small>{getProcurementStatus(item)}</small>
+              <div className="request-status-group">
+                <small>{getProcurementStatus(item)}</small>
+                <button
+                  className="request-open-link request-workflow-link"
+                  type="button"
+                  onClick={() => onOpenWorkflow?.(item.id)}
+                >
+                  View workflow
+                </button>
+              </div>
               <div className="request-list-actions-inline">
                 {canEditItem?.(item) ? (
                   <button className="request-open-link" type="button" onClick={() => onEdit(item.id)}>

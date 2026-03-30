@@ -27,6 +27,18 @@ function getDisplayStageLabel(item) {
   return item.status === "completed" || item.filingCompleted ? "Complete" : item.currentStage;
 }
 
+function getProcurementStatusLabel(item) {
+  if (item.status === "completed" || item.filingCompleted) {
+    return "Current stage: Complete";
+  }
+
+  if (!item.currentStage) {
+    return "Current stage: Not set";
+  }
+
+  return `Current stage: ${item.currentStage}`;
+}
+
 export default function RequestSummary({
   item,
   apiOrigin = "",
@@ -85,7 +97,7 @@ export default function RequestSummary({
       <div className="summary-banner">
         <div>
           <span>Procurement status</span>
-          <strong>{item.status === "completed" ? "Completed and ready for filing archive" : "Actively moving through approvals"}</strong>
+          <strong>{getProcurementStatusLabel(item)}</strong>
         </div>
         <div>
           <span>Requester</span>

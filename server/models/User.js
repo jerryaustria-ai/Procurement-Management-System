@@ -11,7 +11,8 @@ const userSchema = new mongoose.Schema(
       enum: Object.keys(roleLabels),
       required: true
     },
-    department: { type: String, default: "" }
+    department: { type: String, default: "" },
+    notifyOnRequestChanges: { type: Boolean, default: false }
   },
   { timestamps: true }
 );

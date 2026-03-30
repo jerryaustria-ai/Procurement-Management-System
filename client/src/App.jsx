@@ -242,6 +242,15 @@ function getInitialUserForm() {
   }
 }
 
+function getInitialRequesterSettingsForm(user = null) {
+  return {
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    notifyOnRequestChanges: Boolean(user?.notifyOnRequestChanges),
+  }
+}
+
 function getInitialSupplierForm() {
   return {
     name: '',
@@ -680,6 +689,9 @@ export default function App() {
   )
   const [companyIdentities, setCompanyIdentities] = useState([])
   const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS)
+  const [requesterSettingsForm, setRequesterSettingsForm] = useState(() =>
+    getInitialRequesterSettingsForm(session?.user ?? null),
+  )
   const [identityForm, setIdentityForm] = useState(getInitialIdentityForm())
   const [editingIdentityId, setEditingIdentityId] = useState('')
   const [identitySaveMessage, setIdentitySaveMessage] = useState('')
@@ -753,6 +765,7 @@ export default function App() {
   const [uploadError, setUploadError] = useState('')
   const [userError, setUserError] = useState('')
   const [supplierError, setSupplierError] = useState('')
+  const [settingsError, setSettingsError] = useState('')
   const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] =
     useState(false)
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false)
@@ -937,6 +950,18 @@ export default function App() {
   }, [filteredItems, selectedId])
 
   useEffect(() => {
+    if (!session?.user || session.user.role === 'admin') {
+      return
+    }
+
+    setIsUserDirectoryOpen(false)
+    setIsSupplierDirectoryOpen(false)
+    setIsPurchaseOrderDirectoryOpen(false)
+    setIsPurchaseOrderPageOpen(false)
+    setIsAuditTrailPageOpen(false)
+  }, [session])
+
+  useEffect(() => {
     if (!selectedItem) {
       setRequestAdminForm(
         getRequestAdminForm(null, companySettings.companyName),
@@ -1037,6 +1062,10 @@ export default function App() {
   }, [session, companySettings.companyName])
 
   useEffect(() => {
+    setRequesterSettingsForm(getInitialRequesterSettingsForm(session?.user ?? null))
+  }, [session?.user])
+
+  useEffect(() => {
     if (!isAdmin) {
       return
     }
@@ -1111,14 +1140,26 @@ export default function App() {
       getRequestAdminForm(null, DEFAULT_COMPANY_SETTINGS.companyName),
     )
     setUserForm(getInitialUserForm())
+    setRequesterSettingsForm(getInitialRequesterSettingsForm())
     setSupplierForm(getInitialSupplierForm())
     setIsCreateRequestModalOpen(false)
     setIsEditRequestModalOpen(false)
     setIsUserModalOpen(false)
     setIsSupplierModalOpen(false)
+    setIsSupplierDirectoryOpen(false)
+    setIsUserDirectoryOpen(false)
+    setIsPurchaseOrderPageOpen(false)
+    setIsPurchaseOrderDirectoryOpen(false)
+    setIsRequestForPaymentPageOpen(false)
+    setIsAuditTrailPageOpen(false)
+    setIsSettingsPageOpen(false)
     setIsRequestWorkspacePageOpen(false)
+    setPurchaseOrderForm(getInitialPurchaseOrderForm())
+    setPurchaseOrderDrafts({})
+    setRequestForPaymentForm(getInitialRequestForPaymentForm())
     setExpandedPanel('')
     setConfirmDialog(null)
+    setSettingsError('')
   }
 
   function handleSessionExpired() {
@@ -1437,6 +1478,16 @@ export default function App() {
     setSettingsForm((current) => ({
       ...current,
       [event.target.name]: event.target.value,
+    }))
+  }
+
+  function handleRequesterSettingsFormChange(event) {
+    const { name, type, checked, value } = event.target
+
+    setSettingsError('')
+    setRequesterSettingsForm((current) => ({
+      ...current,
+      [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
@@ -1973,6 +2024,14 @@ export default function App() {
 
   function closeExpandedPanel() {
     setExpandedPanel('')
+  }
+
+  function handleOpenWorkflowPreview(itemId) {
+    if (itemId) {
+      setSelectedId(itemId)
+    }
+
+    setExpandedPanel('workflow')
   }
 
   function openRequestForPaymentPage() {
@@ -3401,7 +3460,9 @@ export default function App() {
 
   function handleOpenSettingsPage() {
     closeHeaderMenuPages()
+    setSettingsError('')
     setSettingsForm(companySettings)
+    setRequesterSettingsForm(getInitialRequesterSettingsForm(session?.user ?? null))
     setIdentityForm(getInitialIdentityForm(companySettings))
     setEditingIdentityId('')
     setIsMainSettingsEditing(false)
@@ -3423,6 +3484,7 @@ export default function App() {
   function closeSettingsPage() {
     setIsMainSettingsEditing(false)
     setIsIdentityModalOpen(false)
+    setSettingsError('')
     setIsSettingsPageOpen(false)
   }
 
@@ -3433,6 +3495,81 @@ export default function App() {
   function handleCancelMainSettingsEdit() {
     setSettingsForm(companySettings)
     setIsMainSettingsEditing(false)
+  }
+
+  function handleSaveRequesterSettings() {
+    void (async () => {
+      if (!session?.token || isAdmin) {
+        return
+      }
+
+      if (
+        requesterSettingsForm.newPassword &&
+        requesterSettingsForm.newPassword !== requesterSettingsForm.confirmPassword
+      ) {
+        const message = 'New password and confirm password must match.'
+        setSettingsError(message)
+        pushToast({
+          title: 'Save settings failed',
+          message,
+          variant: 'error',
+          duration: 4200,
+        })
+        return
+      }
+
+      setSettingsError('')
+      setIsSubmitting(true)
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/me`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            currentPassword: requesterSettingsForm.currentPassword,
+            newPassword: requesterSettingsForm.newPassword,
+            notifyOnRequestChanges:
+              requesterSettingsForm.notifyOnRequestChanges,
+          }),
+        })
+
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to save your settings.')
+        }
+
+        setSession((current) =>
+          current
+            ? {
+                ...current,
+                user: {
+                  ...current.user,
+                  ...data.user,
+                },
+              }
+            : current,
+        )
+        setRequesterSettingsForm(getInitialRequesterSettingsForm(data.user))
+        pushToast({
+          title: 'Settings saved',
+          message: 'Your personal settings were updated.',
+          variant: 'success',
+        })
+      } catch (error) {
+        setSettingsError(error.message)
+        pushToast({
+          title: 'Save settings failed',
+          message: error.message,
+          variant: 'error',
+          duration: 4200,
+        })
+      } finally {
+        setIsSubmitting(false)
+      }
+    })()
   }
 
   function handleSaveSettings() {
@@ -3956,11 +4093,16 @@ export default function App() {
           companySettings={companySettings}
         />
         <SettingsPage
+          user={session.user}
+          isAdmin={isAdmin}
           identities={companyIdentities}
           canManageIdentities={isAdmin}
           isMainSettingsEditing={isMainSettingsEditing}
           form={settingsForm}
           onChange={handleSettingsFormChange}
+          requesterForm={requesterSettingsForm}
+          onRequesterChange={handleRequesterSettingsFormChange}
+          onSaveRequesterSettings={handleSaveRequesterSettings}
           onLogoFileChange={handleSettingsLogoChange}
           onStartMainSettingsEdit={handleStartMainSettingsEdit}
           onCancelMainSettingsEdit={handleCancelMainSettingsEdit}
@@ -3968,6 +4110,8 @@ export default function App() {
           onCreateIdentity={handleOpenCreateIdentityModal}
           onEditIdentity={handleEditIdentity}
           onDeleteIdentity={handleDeleteIdentity}
+          settingsError={settingsError}
+          isSubmitting={isSubmitting}
           onClose={closeSettingsPage}
         />
         {isIdentityModalOpen ? (
@@ -4213,7 +4357,7 @@ export default function App() {
       ) : null}
 
       {session.user.role === 'requester' ? (
-        <div className='layout-grid requester-workspace'>
+        <div>
           <RequestList
             items={filteredItems}
             selectedId={selectedId}
@@ -4222,6 +4366,7 @@ export default function App() {
             searchQuery={requestSearchQuery}
             onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
+            onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
             canEditItem={(item) =>
@@ -4235,15 +4380,6 @@ export default function App() {
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
           />
-          {selectedItem ? (
-            <WorkflowTimeline
-              stages={stages}
-              currentStage={selectedItem.currentStage}
-              history={selectedItem.history}
-              onOpenRequestForPaymentPage={openRequestForPaymentPage}
-              onExpand={() => openExpandedPanel('workflow')}
-            />
-          ) : null}
         </div>
       ) : (
         <div>
@@ -4255,6 +4391,7 @@ export default function App() {
             searchQuery={requestSearchQuery}
             onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
+            onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
             canEditItem={(item) =>
@@ -4311,8 +4448,12 @@ export default function App() {
 
       {expandedPanel ? (
         <Modal
-          eyebrow='Expanded Panel'
-          title='Expanded view'
+          eyebrow={expandedPanel === 'workflow' ? 'Workflow' : 'Expanded Panel'}
+          title={
+            expandedPanel === 'workflow' && selectedItem
+              ? `${selectedItem.requestNumber} workflow`
+              : 'Expanded view'
+          }
           onClose={closeExpandedPanel}
         >
           {expandedPanel === 'request-list' ? (
@@ -4324,6 +4465,7 @@ export default function App() {
               searchQuery={requestSearchQuery}
               onSearchChange={setRequestSearchQuery}
               onSelect={handleSelect}
+              onOpenWorkflow={handleOpenWorkflowPreview}
               onOpenDetails={handleOpenRequestDetails}
               onExportCsv={handleExportCsv}
               onExportPdf={handleExportPdf}

@@ -17,14 +17,13 @@ function getStageAnchor(stage) {
 }
 
 function getDisplayIndex(stageIndex) {
-  return stageIndex >= 7 ? stageIndex + 2 : stageIndex + 1;
+  return stageIndex + 1;
 }
 
 export default function WorkflowTimeline({
   stages,
   currentStage,
   history,
-  onOpenRequestForPaymentPage,
   onExpand,
   showExpand = true
 }) {
@@ -63,53 +62,28 @@ export default function WorkflowTimeline({
 
           return (
             <div className="timeline-stack" key={stage}>
-              <article
-                className={`timeline-card ${state}`}
-                id={getStageAnchor(stage)}
-              >
-              <span className="timeline-index">{String(getDisplayIndex(index)).padStart(2, "0")}</span>
-              <div>
-                <h3>{stage}</h3>
-                <p>
-                  {state === "done"
-                    ? "Completed"
-                    : state === "active"
-                      ? "In progress"
-                      : "Waiting"}
-                </p>
-                {entry?.actor ? (
-                  <small>
-                    {entry.actor} · {entry.actorRoleLabel}
-                  </small>
-                ) : null}
-                {entry?.updatedAt ? <small>{formatDate(entry.updatedAt)}</small> : null}
-                {entry?.comment ? <small>{entry.comment}</small> : null}
-              </div>
+              <article className={`timeline-card ${state}`} id={getStageAnchor(stage)}>
+                <span className="timeline-index">
+                  {String(getDisplayIndex(index)).padStart(2, "0")}
+                </span>
+                <div>
+                  <h3>{stage}</h3>
+                  <p>
+                    {state === "done"
+                      ? "Completed"
+                      : state === "active"
+                        ? "In progress"
+                        : "Waiting"}
+                  </p>
+                  {entry?.actor ? (
+                    <small>
+                      {entry.actor} · {entry.actorRoleLabel}
+                    </small>
+                  ) : null}
+                  {entry?.updatedAt ? <small>{formatDate(entry.updatedAt)}</small> : null}
+                  {entry?.comment ? <small>{entry.comment}</small> : null}
+                </div>
               </article>
-              {stage === "Send PO" ? (
-                <article className="timeline-link-card">
-                  <span className="timeline-index timeline-index-link">08</span>
-                  <div>
-                    <h3>
-                      <a
-                        className="timeline-link-action"
-                        href={`#${getStageAnchor("Payment")}`}
-                        onClick={(event) => {
-                          if (!onOpenRequestForPaymentPage) {
-                            return;
-                          }
-
-                          event.preventDefault();
-                          onOpenRequestForPaymentPage();
-                        }}
-                      >
-                        Request for Payment
-                      </a>
-                    </h3>
-                    <p>Waiting</p>
-                  </div>
-                </article>
-              ) : null}
             </div>
           );
         })}

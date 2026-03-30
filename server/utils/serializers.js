@@ -14,6 +14,7 @@ export function serializeUser(user) {
     role: user.role,
     roleLabel: roleLabels[user.role] ?? user.role,
     department: user.department,
+    notifyOnRequestChanges: Boolean(user.notifyOnRequestChanges),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };

@@ -7,7 +7,43 @@ import { serializeUser } from "../utils/serializers.js";
 
 const router = Router();
 
-router.use(requireAuth, requireRole("admin"));
+router.use(requireAuth);
+
+router.get("/me", async (req, res) => {
+  return res.json({ user: serializeUser(req.user) });
+});
+
+router.patch("/me", async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found." });
+  }
+
+  const { currentPassword, newPassword, notifyOnRequestChanges } = req.body;
+
+  if (typeof notifyOnRequestChanges !== "undefined") {
+    user.notifyOnRequestChanges = Boolean(notifyOnRequestChanges);
+  }
+
+  if (typeof newPassword === "string" && newPassword.trim()) {
+    if (!currentPassword?.trim()) {
+      return res.status(400).json({ message: "Current password is required to change your password." });
+    }
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Current password is incorrect." });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword.trim(), 10);
+  }
+
+  await user.save();
+  return res.json({ user: serializeUser(user) });
+});
+
+router.use(requireRole("admin"));
 
 router.get("/", async (_req, res) => {
   const users = await User.find().sort({ createdAt: -1 });
