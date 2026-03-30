@@ -12,6 +12,7 @@ function serializeSupplier(supplier) {
     name: supplier.name,
     category: supplier.category,
     supplierType: supplier.supplierType,
+    tinNumber: supplier.tinNumber,
     contactPerson: supplier.contactPerson,
     email: supplier.email,
     phone: supplier.phone,
@@ -29,7 +30,7 @@ router.get("/", async (_req, res) => {
 });
 
 router.post("/", requireRole("admin"), async (req, res) => {
-  const { name, category, supplierType, contactPerson, email, phone, address, notes } = req.body;
+  const { name, category, supplierType, tinNumber, contactPerson, email, phone, address, notes } = req.body;
 
   if (!name?.trim()) {
     return res.status(400).json({ message: "Supplier name is required." });
@@ -45,6 +46,7 @@ router.post("/", requireRole("admin"), async (req, res) => {
     name: normalizedName,
     category: category || "Product",
     supplierType: supplierType || "Manufacturer",
+    tinNumber: tinNumber || "",
     contactPerson: contactPerson || "",
     email: email || "",
     phone: phone || "",
@@ -80,6 +82,7 @@ router.patch("/:id", requireRole("admin"), async (req, res) => {
   supplier.name = normalizedName;
   supplier.category = req.body.category || "Product";
   supplier.supplierType = req.body.supplierType || "Manufacturer";
+  supplier.tinNumber = req.body.tinNumber || "";
   supplier.contactPerson = req.body.contactPerson || "";
   supplier.email = req.body.email || "";
   supplier.phone = req.body.phone || "";

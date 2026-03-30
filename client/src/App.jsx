@@ -256,6 +256,7 @@ function getInitialSupplierForm() {
     name: '',
     category: 'Product',
     supplierType: 'Manufacturer',
+    tinNumber: '',
     contactPerson: '',
     email: '',
     phone: '',
@@ -319,12 +320,29 @@ function getPurchaseOrderDraft(item, items) {
 function getInitialRequestForPaymentForm() {
   return {
     payee: '',
+    tinNumber: '',
     invoiceNumber: '',
     paymentReference: '',
     amountRequested: '',
     dueDate: '',
     notes: '',
   }
+}
+
+function canUserEditRequest(user, item) {
+  if (!user || !item) {
+    return false
+  }
+
+  if (user.role === 'admin') {
+    return true
+  }
+
+  if (user.email !== item.requesterEmail) {
+    return false
+  }
+
+  return !item.approvalCompleted && item.status !== 'completed'
 }
 
 function getNextPurchaseOrderNumber(items) {
@@ -383,6 +401,7 @@ function getRequestAdminForm(
       poNumber: '',
       invoiceNumber: '',
       paymentReference: '',
+      skipToRfp: false,
       notes: '',
     }
   }
@@ -402,6 +421,7 @@ function getRequestAdminForm(
     poNumber: item.poNumber ?? '',
     invoiceNumber: item.invoiceNumber ?? '',
     paymentReference: item.paymentReference ?? '',
+    skipToRfp: false,
     notes: item.notes ?? '',
   }
 }
@@ -688,6 +708,7 @@ export default function App() {
     DEFAULT_COMPANY_SETTINGS,
   )
   const [companyIdentities, setCompanyIdentities] = useState([])
+  const [session, setSession] = useState(() => getStoredSession())
   const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS)
   const [requesterSettingsForm, setRequesterSettingsForm] = useState(() =>
     getInitialRequesterSettingsForm(session?.user ?? null),
@@ -697,7 +718,6 @@ export default function App() {
   const [identitySaveMessage, setIdentitySaveMessage] = useState('')
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false)
   const [isMainSettingsEditing, setIsMainSettingsEditing] = useState(false)
-  const [session, setSession] = useState(() => getStoredSession())
   const [credentials, setCredentials] = useState({
     email: '',
     password: '',
@@ -853,10 +873,7 @@ export default function App() {
       selectedItem.allowedRoles.includes(session.user.role)),
   )
   const canEditSelectedRequest = Boolean(
-    selectedItem &&
-    session?.user &&
-    (session.user.role === 'admin' ||
-      session.user.email === selectedItem.requesterEmail),
+    canUserEditRequest(session?.user, selectedItem),
   )
 
   async function syncCompanySettings() {
@@ -1387,9 +1404,11 @@ export default function App() {
   }
 
   function handleActionFormChange(event) {
+    const { name, type, checked, value } = event.target
+
     setActionForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
@@ -1552,6 +1571,14 @@ export default function App() {
     setRequestForPaymentForm((current) => ({
       ...current,
       [event.target.name]: event.target.value,
+    }))
+  }
+
+  function handleRequestForPaymentSupplierSelect(supplier) {
+    setRequestForPaymentForm((current) => ({
+      ...current,
+      payee: supplier?.name || '',
+      tinNumber: supplier?.tinNumber || '',
     }))
   }
 
@@ -1987,6 +2014,7 @@ export default function App() {
       name: targetSupplier.name,
       category: targetSupplier.category,
       supplierType: targetSupplier.supplierType,
+      tinNumber: targetSupplier.tinNumber ?? '',
       contactPerson: targetSupplier.contactPerson ?? '',
       email: targetSupplier.email ?? '',
       phone: targetSupplier.phone ?? '',
@@ -2034,34 +2062,48 @@ export default function App() {
     setExpandedPanel('workflow')
   }
 
-  function openRequestForPaymentPage() {
-    if (!selectedItem) {
+  function openRequestForPaymentPage(targetRequest = selectedItem) {
+    if (!targetRequest) {
       return
     }
 
+    const latestDraft =
+      purchaseOrderDrafts[targetRequest.id] ??
+      getPurchaseOrderDraft(targetRequest, items)
+    const savedSupplier =
+      purchaseOrderForm.supplier ||
+      actionForm.supplier ||
+      latestDraft.supplier ||
+      (targetRequest.supplier === 'Pending selection'
+        ? ''
+        : targetRequest.supplier || '')
+    const matchedSupplier = suppliers.find(
+      (supplier) => supplier.name === savedSupplier,
+    )
+
+    setSelectedId(targetRequest.id)
+    setIsRequestWorkspacePageOpen(false)
+    setIsPurchaseOrderPageOpen(false)
+    setIsPurchaseOrderDirectoryOpen(false)
+
     setRequestForPaymentForm((current) => ({
       ...current,
-      payee:
-        current.payee ||
-        (selectedItem.supplier === 'Pending selection'
-          ? ''
-          : selectedItem.supplier || ''),
+      payee: savedSupplier,
+      tinNumber: current.tinNumber || matchedSupplier?.tinNumber || '',
       invoiceNumber:
         current.invoiceNumber ||
         actionForm.invoiceNumber ||
-        selectedItem.invoiceNumber ||
+        targetRequest.invoiceNumber ||
         '',
-      paymentReference:
-        current.paymentReference ||
-        actionForm.paymentReference ||
-        selectedItem.paymentReference ||
-        '',
-      amountRequested:
-        current.amountRequested || String(selectedItem.amount || ''),
+      amountRequested: String(targetRequest.amount || ''),
       dueDate:
         current.dueDate ||
-        (selectedItem.dateNeeded ? selectedItem.dateNeeded.slice(0, 10) : ''),
-      notes: current.notes || actionForm.notes || '',
+        (targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : ''),
+      notes:
+        current.notes ||
+        targetRequest.description ||
+        actionForm.notes ||
+        '',
     }))
     setIsRequestForPaymentPageOpen(true)
   }
@@ -2121,7 +2163,6 @@ export default function App() {
     setActionForm((current) => ({
       ...current,
       invoiceNumber: requestForPaymentForm.invoiceNumber,
-      paymentReference: requestForPaymentForm.paymentReference,
       notes: requestForPaymentForm.notes,
     }))
     setIsRequestForPaymentPageOpen(false)
@@ -2629,6 +2670,9 @@ export default function App() {
       return
     }
 
+    const shouldOpenRfpAfterAdvance =
+      selectedItem.currentStage === 'Review' && Boolean(actionForm.skipToRfp)
+
     setActionError('')
     setIsSubmitting(true)
 
@@ -2674,8 +2718,12 @@ export default function App() {
         ...current,
         supplier: data.supplier || current.supplier,
         poNumber: data.poNumber || current.poNumber,
+        skipToRfp: false,
         notes: '',
       }))
+      if (shouldOpenRfpAfterAdvance) {
+        openRequestForPaymentPage(data)
+      }
       pushToast({
         title: 'Stage advanced',
         message: `${data.requestNumber} moved to ${data.currentStage}.`,
@@ -3426,6 +3474,7 @@ export default function App() {
     setIsUserDirectoryOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
     setIsPurchaseOrderPageOpen(false)
+    setIsRequestForPaymentPageOpen(false)
     setIsAuditTrailPageOpen(false)
     setIsSettingsPageOpen(false)
   }
@@ -3846,7 +3895,9 @@ export default function App() {
         <RequestForPaymentPage
           item={selectedItem}
           form={requestForPaymentForm}
+          suppliers={suppliers}
           onChange={handleRequestForPaymentFormChange}
+          onSelectSupplier={handleRequestForPaymentSupplierSelect}
           onSave={handleSaveRequestForPaymentPage}
           onClose={closeRequestForPaymentPage}
           isSubmitting={isSubmitting}
@@ -4369,13 +4420,7 @@ export default function App() {
             onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
-            canEditItem={(item) =>
-              Boolean(
-                session?.user &&
-                (session.user.role === 'admin' ||
-                  session.user.email === item.requesterEmail),
-              )
-            }
+            canEditItem={(item) => canUserEditRequest(session?.user, item)}
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
@@ -4394,13 +4439,7 @@ export default function App() {
             onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
-            canEditItem={(item) =>
-              Boolean(
-                session?.user &&
-                (session.user.role === 'admin' ||
-                  session.user.email === item.requesterEmail),
-              )
-            }
+            canEditItem={(item) => canUserEditRequest(session?.user, item)}
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
@@ -4467,6 +4506,8 @@ export default function App() {
               onSelect={handleSelect}
               onOpenWorkflow={handleOpenWorkflowPreview}
               onOpenDetails={handleOpenRequestDetails}
+              onEdit={openEditRequestModalForItem}
+              canEditItem={(item) => canUserEditRequest(session?.user, item)}
               onExportCsv={handleExportCsv}
               onExportPdf={handleExportPdf}
               showExpand={false}

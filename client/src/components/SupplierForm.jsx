@@ -51,6 +51,15 @@ export default function SupplierForm({
           />
         </label>
         <label>
+          TIN No.
+          <input
+            name="tinNumber"
+            value={form.tinNumber}
+            onChange={onChange}
+            placeholder="123-456-789-000"
+          />
+        </label>
+        <label>
           Email
           <input
             name="email"

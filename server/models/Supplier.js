@@ -25,6 +25,7 @@ const supplierSchema = new mongoose.Schema(
       default: "Manufacturer",
       trim: true
     },
+    tinNumber: { type: String, default: "", trim: true },
     contactPerson: { type: String, default: "", trim: true },
     email: { type: String, default: "", trim: true, lowercase: true },
     phone: { type: String, default: "", trim: true },

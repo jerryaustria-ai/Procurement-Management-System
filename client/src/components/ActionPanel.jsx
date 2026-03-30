@@ -500,6 +500,17 @@ export default function ActionPanel({
         >
           {getAdvanceButtonLabel(item.currentStage, nextStage, isComplete, workflowFinished)}
         </button>
+        {item.currentStage === "Review" ? (
+          <label className="stage-inline-checkbox">
+            <input
+              type="checkbox"
+              name="skipToRfp"
+              checked={Boolean(form.skipToRfp)}
+              onChange={onChange}
+            />
+            <span>Skip to RFP</span>
+          </label>
+        ) : null}
         {item.currentStage === "Prepare PO" ? (
           <button
             className="print-po-icon"

@@ -142,21 +142,25 @@ export default function RequestList({
           <span className="panel-counter">{items.length} total</span>
           <div className="request-list-filter-group">
             <button
-              className={activeFilter === "all" ? "" : "ghost-button"}
+              className={activeFilter === "all" ? "request-filter-pill active" : "request-filter-pill"}
               type="button"
               onClick={() => onFilterChange?.("all")}
             >
               All
             </button>
             <button
-              className={activeFilter === "open" ? "" : "ghost-button"}
+              className={activeFilter === "open" ? "request-filter-pill active" : "request-filter-pill"}
               type="button"
               onClick={() => onFilterChange?.("open")}
             >
               Open
             </button>
             <button
-              className={activeFilter === "completed" ? "" : "ghost-button"}
+              className={
+                activeFilter === "completed"
+                  ? "request-filter-pill active"
+                  : "request-filter-pill"
+              }
               type="button"
               onClick={() => onFilterChange?.("completed")}
             >

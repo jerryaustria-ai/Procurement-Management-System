@@ -40,7 +40,15 @@ function isRequesterAccessingOwnRequest(req, request) {
 }
 
 function canEditRequest(req, request) {
-  return req.user.role === "admin" || request.requesterEmail === req.user.email;
+  if (req.user.role === "admin") {
+    return true;
+  }
+
+  if (request.requesterEmail !== req.user.email) {
+    return false;
+  }
+
+  return !request.approvalCompleted && request.status !== "completed";
 }
 
 function canManageRequestDrafts(req, request) {

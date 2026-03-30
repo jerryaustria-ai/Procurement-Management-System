@@ -34,7 +34,7 @@ export default function RequestWorkspacePage({
   canEditRequest
 }) {
   const stageActionsRef = useRef(null);
-  const [isSummaryHidden, setIsSummaryHidden] = useState(true);
+  const [isSummaryHidden, setIsSummaryHidden] = useState(user.role === "requester" ? false : true);
 
   useEffect(() => {
     if (user.role === "requester") {
@@ -53,33 +53,47 @@ export default function RequestWorkspacePage({
 
   return (
     <section className="po-page">
-      <div className="po-page-header">
-        <div>
-          <p className="eyebrow">Request Workspace</p>
-          <h1>{item.requestNumber}</h1>
-          <p className="hero-copy">
-            Review the request and continue the workflow from a focused page instead of a modal.
-          </p>
-        </div>
-        <div className="po-page-actions">
+      {user.role === "requester" ? (
+        <div className="po-page-actions requester-workspace-back">
           <button className="ghost-button" type="button" onClick={onClose}>
             Back to dashboard
           </button>
-          {canEditRequest ? (
-            <button className="ghost-button" type="button" onClick={onEditRequest}>
-              Edit request
-            </button>
-          ) : null}
         </div>
-      </div>
+      ) : null}
+
+      {user.role !== "requester" ? (
+        <div className="po-page-header">
+          <div>
+            <p className="eyebrow">Request Workspace</p>
+            <h1>{item.requestNumber}</h1>
+            <p className="hero-copy">
+              Review the request and continue the workflow from a focused page instead of a modal.
+            </p>
+          </div>
+          <div className="po-page-actions">
+            <button className="ghost-button" type="button" onClick={onClose}>
+              Back to dashboard
+            </button>
+            {canEditRequest ? (
+              <button className="ghost-button" type="button" onClick={onEditRequest}>
+                Edit request
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="request-workspace-stack">
         <RequestSummary
           item={item}
           apiOrigin={apiOrigin}
           showExpand={false}
-          isCollapsed={isSummaryHidden}
-          onToggleVisibility={() => setIsSummaryHidden((current) => !current)}
+          isCollapsed={user.role === "requester" ? false : isSummaryHidden}
+          onToggleVisibility={
+            user.role === "requester"
+              ? undefined
+              : () => setIsSummaryHidden((current) => !current)
+          }
         />
 
         {user.role !== "requester" ? (

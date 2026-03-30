@@ -54,6 +54,7 @@ export default function SupplierManagementPage({
                 </div>
                 <span>{supplier.supplierType}</span>
                 <small>{supplier.contactPerson || supplier.email || supplier.phone || "No contact details yet"}</small>
+                {supplier.tinNumber ? <small>TIN: {supplier.tinNumber}</small> : null}
               </button>
               {canManage ? (
                 <div className="request-list-footer">

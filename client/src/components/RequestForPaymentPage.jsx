@@ -1,3 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
+import Modal from "./Modal.jsx";
+
 function formatDate(value) {
   if (!value) {
     return "Not set";
@@ -20,11 +23,71 @@ function formatAmount(amount, currency) {
 export default function RequestForPaymentPage({
   item,
   form,
+  suppliers = [],
   onChange,
+  onSelectSupplier,
   onSave,
   onClose,
   isSubmitting
 }) {
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const filteredSuppliers = useMemo(() => {
+    const normalizedSearch = supplierSearch.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return suppliers;
+    }
+
+    return suppliers.filter((supplier) =>
+      [supplier.name, supplier.contactPerson, supplier.email, supplier.phone, supplier.address]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+    );
+  }, [supplierSearch, suppliers]);
+
+  useEffect(() => {
+    const normalizedPayee = String(form.payee || "").trim().toLowerCase();
+    if (!normalizedPayee) {
+      return;
+    }
+
+    const matchedSupplier = suppliers.find(
+      (supplier) => String(supplier.name || "").trim().toLowerCase() === normalizedPayee
+    );
+
+    if (!matchedSupplier) {
+      return;
+    }
+
+    const matchedTin = String(matchedSupplier.tinNumber || "");
+    if (matchedTin === String(form.tinNumber || "")) {
+      return;
+    }
+
+    onChange({
+      target: {
+        name: "tinNumber",
+        value: matchedTin
+      }
+    });
+  }, [form.payee, form.tinNumber, onChange, suppliers]);
+
+  function handleFieldChange(name, value) {
+    onChange({
+      target: {
+        name,
+        value
+      }
+    });
+  }
+
+  function handleSupplierPick(supplier) {
+    onSelectSupplier?.(supplier);
+    setIsSupplierModalOpen(false);
+    setSupplierSearch("");
+  }
+
   return (
     <section className="po-page">
       <div className="po-page-header">
@@ -100,11 +163,33 @@ export default function RequestForPaymentPage({
           <div className="form-grid">
             <label>
               Payee / supplier
+              <div className="supplier-select-row">
+                <input
+                  name="payee"
+                  value={form.payee}
+                  onChange={onChange}
+                  placeholder="Enter payee name"
+                />
+                <button
+                  className="ghost-button supplier-select-button"
+                  type="button"
+                  onClick={() => {
+                    setSupplierSearch("");
+                    setIsSupplierModalOpen(true);
+                  }}
+                >
+                  Select
+                </button>
+              </div>
+            </label>
+
+            <label>
+              TIN No.
               <input
-                name="payee"
-                value={form.payee}
+                name="tinNumber"
+                value={form.tinNumber || ""}
                 onChange={onChange}
-                placeholder="Enter payee name"
+                placeholder="Enter TIN number"
               />
             </label>
 
@@ -119,22 +204,12 @@ export default function RequestForPaymentPage({
             </label>
 
             <label>
-              Payment reference
-              <input
-                name="paymentReference"
-                value={form.paymentReference}
-                onChange={onChange}
-                placeholder="RFP-2026-001"
-              />
-            </label>
-
-            <label>
               Amount requested
               <input
                 name="amountRequested"
                 value={form.amountRequested}
                 onChange={onChange}
-                placeholder="0.00"
+                placeholder={String(item.amount || "0.00")}
               />
             </label>
 
@@ -149,18 +224,70 @@ export default function RequestForPaymentPage({
             </label>
 
             <label>
-              Payment notes
+              Description
               <textarea
                 name="notes"
                 value={form.notes}
                 onChange={onChange}
                 rows="6"
-                placeholder="Add payment instructions, supporting note, or approval summary"
+                placeholder="Use the requested item description"
               />
             </label>
           </div>
         </section>
       </div>
+
+      {isSupplierModalOpen ? (
+        <Modal
+          eyebrow="Request for Payment"
+          title="Select Supplier"
+          onClose={() => setIsSupplierModalOpen(false)}
+        >
+          <div className="supplier-picker-modal">
+            <label>
+              Search supplier
+              <input
+                value={supplierSearch}
+                onChange={(event) => setSupplierSearch(event.target.value)}
+                placeholder="Search by supplier, contact person, email, or phone"
+                autoComplete="off"
+              />
+            </label>
+
+            <table className="supplier-table-grid">
+              <thead>
+                <tr className="supplier-table-header">
+                  <th>Supplier</th>
+                  <th>Contact</th>
+                  <th>Email / Phone</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSuppliers.map((supplier) => (
+                  <tr
+                    key={supplier.id}
+                    className={form.payee === supplier.name ? "supplier-row selected" : "supplier-row"}
+                    onClick={() => handleSupplierPick(supplier)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleSupplierPick(supplier);
+                      }
+                    }}
+                    tabIndex={0}
+                  >
+                    <td>{supplier.name}</td>
+                    <td>{supplier.contactPerson || "Not set"}</td>
+                    <td>{supplier.email || supplier.phone || "Not set"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {!filteredSuppliers.length ? <div className="suggestion-empty">No matching suppliers</div> : null}
+          </div>
+        </Modal>
+      ) : null}
     </section>
   );
 }
