@@ -500,7 +500,7 @@ export default function ActionPanel({
         >
           {getAdvanceButtonLabel(item.currentStage, nextStage, isComplete, workflowFinished)}
         </button>
-        {item.currentStage === "Review" ? (
+        {item.currentStage === "Approval" ? (
           <label className="stage-inline-checkbox">
             <input
               type="checkbox"

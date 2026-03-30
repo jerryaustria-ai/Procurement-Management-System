@@ -2096,14 +2096,8 @@ export default function App() {
         targetRequest.invoiceNumber ||
         '',
       amountRequested: String(targetRequest.amount || ''),
-      dueDate:
-        current.dueDate ||
-        (targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : ''),
-      notes:
-        current.notes ||
-        targetRequest.description ||
-        actionForm.notes ||
-        '',
+      dueDate: targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : '',
+      notes: targetRequest.description || '',
     }))
     setIsRequestForPaymentPageOpen(true)
   }
@@ -2671,7 +2665,7 @@ export default function App() {
     }
 
     const shouldOpenRfpAfterAdvance =
-      selectedItem.currentStage === 'Review' && Boolean(actionForm.skipToRfp)
+      selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
 
     setActionError('')
     setIsSubmitting(true)

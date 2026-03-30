@@ -73,6 +73,29 @@ export default function RequestForPaymentPage({
     });
   }, [form.payee, form.tinNumber, onChange, suppliers]);
 
+  useEffect(() => {
+    const nextDueDate =
+      item?.dateNeeded && String(item.dateNeeded).slice(0, 10);
+
+    if (!form.dueDate && nextDueDate) {
+      onChange({
+        target: {
+          name: "dueDate",
+          value: nextDueDate
+        }
+      });
+    }
+
+    if (!form.notes && item?.description) {
+      onChange({
+        target: {
+          name: "notes",
+          value: item.description
+        }
+      });
+    }
+  }, [form.dueDate, form.notes, item?.dateNeeded, item?.description, onChange]);
+
   function handleFieldChange(name, value) {
     onChange({
       target: {

@@ -373,38 +373,14 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     return res.json(serializePurchaseRequest(request));
   }
 
-  if (request.currentStage === "Review") {
-    const approvalStage = "Approval";
-    const preparePoStage = "Prepare PO";
-
-    request.history.push({
-      stage: approvalStage,
-      status: "completed",
-      updatedAt: new Date(),
-      actor: req.user.name,
-      actorRole: req.user.role,
-      comment: req.body.comment || req.body.notes || "Approval completed."
-    });
-
-    request.currentStage = preparePoStage;
-    request.approvalCompleted = true;
-    request.history.push({
-      stage: preparePoStage,
-      status: "current",
-      updatedAt: new Date(),
-      actor: req.user.name,
-      actorRole: req.user.role,
-      comment: `Moved to ${preparePoStage}`
-    });
-
-    await request.save();
-    return res.json(serializePurchaseRequest(request));
-  }
-
   if (nextStage !== request.currentStage) {
+    const previousStage = request.currentStage;
     request.currentStage = nextStage;
     if (nextStage === "Approval") {
       request.approvalCompleted = false;
+    }
+    if (previousStage === "Approval") {
+      request.approvalCompleted = true;
     }
     if (nextStage === "Filing") {
       request.filingCompleted = false;
