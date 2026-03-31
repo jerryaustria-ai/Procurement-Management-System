@@ -76,6 +76,7 @@ export function serializePurchaseRequest(request) {
     currentStage: request.currentStage,
     currentStageDescription: stageDescriptions[request.currentStage],
     approvalCompleted: Boolean(request.approvalCompleted),
+    requestForPaymentEnabled: Boolean(request.requestForPaymentEnabled),
     filingCompleted: Boolean(request.filingCompleted),
     status: request.status,
     notes: request.notes,

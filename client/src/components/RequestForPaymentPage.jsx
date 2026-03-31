@@ -28,6 +28,7 @@ export default function RequestForPaymentPage({
   onChange,
   onSelectSupplier,
   onEdit,
+  onPrint,
   onSave,
   onClose,
   isSubmitting
@@ -269,9 +270,14 @@ export default function RequestForPaymentPage({
                 {isSubmitting ? "Saving..." : "Save"}
               </button>
             ) : (
-              <button type="button" onClick={onEdit}>
-                Edit
-              </button>
+              <>
+                <button className="ghost-button" type="button" onClick={onPrint}>
+                  Print
+                </button>
+                <button type="button" onClick={onEdit}>
+                  Edit
+                </button>
+              </>
             )}
           </div>
         </section>

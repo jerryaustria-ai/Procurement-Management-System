@@ -5,6 +5,7 @@ import ConfirmDialog from './components/ConfirmDialog.jsx'
 import CreateRequestForm from './components/CreateRequestForm.jsx'
 import DocumentPanel from './components/DocumentPanel.jsx'
 import LoginForm from './components/LoginForm.jsx'
+import LoadingOverlay from './components/LoadingOverlay.jsx'
 import Modal from './components/Modal.jsx'
 import PanelExpandButton from './components/PanelExpandButton.jsx'
 import PurchaseOrderDirectoryPage from './components/PurchaseOrderDirectoryPage.jsx'
@@ -345,6 +346,14 @@ function canUserEditRequest(user, item) {
   return !item.approvalCompleted && item.status !== 'completed'
 }
 
+function canAccessRequestForPayment(item) {
+  if (!item) {
+    return false
+  }
+
+  return Boolean(item.requestForPaymentEnabled)
+}
+
 function getNextPurchaseOrderNumber(items) {
   const currentYear = new Date().getFullYear()
   let highestYear = currentYear
@@ -464,7 +473,9 @@ function filterRequests(items, filter) {
 }
 
 function searchRequests(items, query) {
-  const normalizedQuery = String(query || '').trim().toLowerCase()
+  const normalizedQuery = String(query || '')
+    .trim()
+    .toLowerCase()
 
   if (!normalizedQuery) {
     return items
@@ -527,11 +538,12 @@ function CompanyHeader({
   isAuthenticated,
   user,
   onLogout,
-  theme,
-  onThemeChange,
+  requestSearchQuery = '',
+  onRequestSearchChange,
   onOpenSuppliers,
   onOpenRfpDirectory,
   onOpenRfpRecord,
+  onPrintRfpRecord,
   onOpenAuditTrail,
   onOpenUsers,
   onOpenPurchaseOrder,
@@ -585,6 +597,10 @@ function CompanyHeader({
     onOpenRfpRecord?.(item)
   }
 
+  function handlePrintRfpRecord(item) {
+    onPrintRfpRecord?.(item)
+  }
+
   return (
     <>
       <header className='company-header'>
@@ -599,50 +615,16 @@ function CompanyHeader({
         </div>
 
         <div className='header-meta'>
-          <div className='theme-toggle' role='group' aria-label='Theme switcher'>
-            <button
-              className={
-                theme === 'light'
-                  ? 'theme-toggle-button active'
-                  : 'theme-toggle-button'
-              }
-              type='button'
-              onClick={() => onThemeChange('light')}
-              aria-label='Switch to light mode'
-              title='Light mode'
-            >
-              <svg viewBox='0 0 24 24' aria-hidden='true'>
-                <circle cx='12' cy='12' r='4.2' fill='currentColor' />
-                <path
-                  d='M12 2.5v2.4M12 19.1v2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeLinecap='round'
-                  strokeWidth='1.8'
-                />
-              </svg>
-              <span className='sr-only'>Light</span>
-            </button>
-            <button
-              className={
-                theme === 'dark'
-                  ? 'theme-toggle-button active'
-                  : 'theme-toggle-button'
-              }
-              type='button'
-              onClick={() => onThemeChange('dark')}
-              aria-label='Switch to dark mode'
-              title='Dark mode'
-            >
-              <svg viewBox='0 0 24 24' aria-hidden='true'>
-                <path
-                  d='M18.5 14.6A7.5 7.5 0 0 1 9.4 5.5a7.5 7.5 0 1 0 9.1 9.1Z'
-                  fill='currentColor'
-                />
-              </svg>
-              <span className='sr-only'>Dark</span>
-            </button>
-          </div>
+          {user ? (
+            <input
+              className='header-request-search'
+              type='search'
+              value={requestSearchQuery}
+              onChange={(event) => onRequestSearchChange?.(event.target.value)}
+              placeholder='Search all requests'
+              aria-label='Search all requests'
+            />
+          ) : null}
           {user ? (
             <div className='header-menu-wrap' ref={menuRef}>
               <button
@@ -758,22 +740,36 @@ function CompanyHeader({
                   </thead>
                   <tbody>
                     {rfpItems.map((record) => (
-                      <tr key={record.id} className='supplier-row audit-trail-row'>
+                      <tr
+                        key={record.id}
+                        className='supplier-row audit-trail-row'
+                      >
                         <td>
                           <strong>{record.requestNumber}</strong>
-                          <div className='audit-trail-cell-subtext'>{record.title}</div>
+                          <div className='audit-trail-cell-subtext'>
+                            {record.title}
+                          </div>
                         </td>
                         <td>{record.rfpDraft?.payee || 'Not set'}</td>
                         <td>{record.rfpDraft?.invoiceNumber || 'Not set'}</td>
                         <td>{record.rfpDraft?.dueDate || 'Not set'}</td>
                         <td>
-                          <button
-                            className='ghost-button'
-                            type='button'
-                            onClick={() => handleOpenRfpRecord(record)}
-                          >
-                            Open
-                          </button>
+                          <div className='table-action-row'>
+                            <button
+                              className='ghost-button'
+                              type='button'
+                              onClick={() => handleOpenRfpRecord(record)}
+                            >
+                              Open
+                            </button>
+                            <button
+                              className='ghost-button'
+                              type='button'
+                              onClick={() => handlePrintRfpRecord(record)}
+                            >
+                              Print
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -946,12 +942,13 @@ export default function App() {
   )
   const requestForPaymentRecords = items.filter((item) =>
     Boolean(
-      item.rfpDraft?.payee ||
-        item.rfpDraft?.tinNumber ||
-        item.rfpDraft?.invoiceNumber ||
-        item.rfpDraft?.amountRequested ||
-        item.rfpDraft?.dueDate ||
-        item.rfpDraft?.notes,
+      canAccessRequestForPayment(item) &&
+        (item.rfpDraft?.payee ||
+          item.rfpDraft?.tinNumber ||
+          item.rfpDraft?.invoiceNumber ||
+          item.rfpDraft?.amountRequested ||
+          item.rfpDraft?.dueDate ||
+          item.rfpDraft?.notes),
     ),
   )
   const shouldPauseDashboardRefresh =
@@ -1178,7 +1175,9 @@ export default function App() {
   }, [session, companySettings.companyName])
 
   useEffect(() => {
-    setRequesterSettingsForm(getInitialRequesterSettingsForm(session?.user ?? null))
+    setRequesterSettingsForm(
+      getInitialRequesterSettingsForm(session?.user ?? null),
+    )
   }, [session?.user])
 
   useEffect(() => {
@@ -2166,6 +2165,17 @@ export default function App() {
       return
     }
 
+    if (!canAccessRequestForPayment(targetRequest)) {
+      pushToast({
+        title: 'Approval required',
+        message:
+          'Request for Payment becomes available only after admin approval with Skip to RFP checked.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
     const latestDraft =
       purchaseOrderDrafts[targetRequest.id] ??
       getPurchaseOrderDraft(targetRequest, items)
@@ -2182,11 +2192,11 @@ export default function App() {
     const savedRfpDraft = targetRequest.rfpDraft ?? {}
     const hasSavedRfpDraft = Boolean(
       savedRfpDraft.payee ||
-        savedRfpDraft.tinNumber ||
-        savedRfpDraft.invoiceNumber ||
-        savedRfpDraft.amountRequested ||
-        savedRfpDraft.dueDate ||
-        savedRfpDraft.notes,
+      savedRfpDraft.tinNumber ||
+      savedRfpDraft.invoiceNumber ||
+      savedRfpDraft.amountRequested ||
+      savedRfpDraft.dueDate ||
+      savedRfpDraft.notes,
     )
 
     setSelectedId(targetRequest.id)
@@ -2198,7 +2208,10 @@ export default function App() {
       ...current,
       payee: savedRfpDraft.payee || savedSupplier,
       tinNumber:
-        savedRfpDraft.tinNumber || current.tinNumber || matchedSupplier?.tinNumber || '',
+        savedRfpDraft.tinNumber ||
+        current.tinNumber ||
+        matchedSupplier?.tinNumber ||
+        '',
       invoiceNumber:
         savedRfpDraft.invoiceNumber ||
         current.invoiceNumber ||
@@ -2849,6 +2862,7 @@ export default function App() {
             paymentReference: actionForm.paymentReference,
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
+            skipToRfp: Boolean(actionForm.skipToRfp),
             poDraft: purchaseOrderForm,
             comment: stageComment,
           }),
@@ -3626,6 +3640,7 @@ export default function App() {
     setIsSupplierDirectoryOpen(false)
     setIsUserDirectoryOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
+    setIsRfpDirectoryOpen(false)
     setIsPurchaseOrderPageOpen(false)
     setIsRequestForPaymentPageOpen(false)
     setIsAuditTrailPageOpen(false)
@@ -3651,6 +3666,15 @@ export default function App() {
     setIsPurchaseOrderDirectoryOpen(true)
   }
 
+  function handleOpenRfpDirectoryMenu() {
+    if (session?.user?.role === 'requester') {
+      return
+    }
+
+    closeHeaderMenuPages()
+    setIsRfpDirectoryOpen(true)
+  }
+
   function handleOpenAuditTrailPage() {
     if (session?.user?.role === 'requester') {
       return
@@ -3664,11 +3688,465 @@ export default function App() {
     closeHeaderMenuPages()
     setSettingsError('')
     setSettingsForm(companySettings)
-    setRequesterSettingsForm(getInitialRequesterSettingsForm(session?.user ?? null))
+    setRequesterSettingsForm(
+      getInitialRequesterSettingsForm(session?.user ?? null),
+    )
     setIdentityForm(getInitialIdentityForm(companySettings))
     setEditingIdentityId('')
     setIsMainSettingsEditing(false)
     setIsSettingsPageOpen(true)
+  }
+
+  function handleOpenSavedRfpRecord(record) {
+    if (!record) {
+      return
+    }
+
+    setIsRfpDirectoryOpen(false)
+    openRequestForPaymentPage(record)
+  }
+
+  function handlePrintRequestForPaymentRecord(record) {
+    if (!record) {
+      return
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1100,height=900')
+    if (!printWindow) {
+      pushToast({
+        title: 'Popup blocked',
+        message: 'Allow popups to print the request for payment.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    const currency = record.currency || 'PHP'
+    const activeCompanyIdentity = getCompanyIdentityForBranch(
+      record.branch,
+      companySettings,
+      companyIdentities,
+    )
+    const dueDate = record.rfpDraft?.dueDate || record.dateNeeded || ''
+    const createdDate = record.requestedAt || record.createdAt || ''
+    const amountRequested =
+      record.rfpDraft?.amountRequested || String(record.amount || '')
+    const description = record.rfpDraft?.notes || record.description || ''
+    const payee = record.rfpDraft?.payee || 'Not set'
+    const tinNumber = record.rfpDraft?.tinNumber || 'Not set'
+    const invoiceNumber = record.rfpDraft?.invoiceNumber || 'Not set'
+    const matchedSupplier = suppliers.find(
+      (supplier) =>
+        String(supplier.name || '')
+          .trim()
+          .toLowerCase() ===
+        String(payee || '')
+          .trim()
+          .toLowerCase(),
+    )
+    const payeeAddress =
+      matchedSupplier?.address ||
+      record.deliveryAddress ||
+      activeCompanyIdentity.address ||
+      'Not set'
+    const logoMarkup = companySettings.logoUrl
+      ? `<img src="${companySettings.logoUrl}" alt="${companySettings.companyName}" />`
+      : ''
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Request for Payment ${record.requestNumber}</title>
+          <style>
+            * { box-sizing: border-box; }
+            html, body {
+              width: 100%;
+              min-height: 100%;
+            }
+            @page { size: A4 portrait; margin: 0; }
+            body {
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              color: #111111;
+              font-family: Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .page {
+              width: 210mm;
+              min-height: 297mm;
+              margin: 0 auto;
+              padding: 12mm;
+              background: #ffffff;
+            }
+            .sheet {
+              width: 100%;
+              min-height: calc(297mm - 24mm);
+              border: 2px solid #444;
+              padding: 9mm 10mm 10mm;
+              display: flex;
+              flex-direction: column;
+            }
+            .header {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
+              align-items: start;
+              margin-bottom: 12px;
+            }
+            .brand {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+            .brand img {
+              width: 56px;
+              height: 56px;
+              object-fit: contain;
+            }
+            .brand-title {
+              font-size: 18px;
+              font-weight: 700;
+              color: #7d1d1d;
+              line-height: 1.1;
+            }
+            .doc-head {
+              text-align: center;
+            }
+            .doc-address {
+              margin: 0 0 4px;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.08em;
+              font-weight: 700;
+            }
+            .doc-title {
+              margin: 20px 0;
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.08em;
+            }
+            .top-meta {
+              display: grid;
+              gap: 8px;
+              margin-bottom: 8px;
+            }
+            .top-meta-row {
+              display: grid;
+              gap: 24px;
+            }
+            .top-meta-row--dates {
+              grid-template-columns: 1fr auto;
+              align-items: start;
+            }
+            .top-meta-row--payee {
+              grid-template-columns: 1fr;
+            }
+            .line-stack--dates {
+              min-width: 240px;
+            }
+            .line-stack {
+              display: grid;
+              gap: 4px;
+            }
+            .line-row {
+              display: grid;
+              grid-template-columns: 110px 1fr;
+              align-items: end;
+              gap: 2px;
+              font-size: 11px;
+              font-weight: 700;
+            }
+            .line-row--wide-label {
+              grid-template-columns: max-content 1fr;
+              gap: 6px;
+            }
+            .line-row--date {
+              grid-template-columns: max-content 1fr;
+              gap: 4px;
+            }
+            .line-fill {
+              min-height: 18px;
+              border-bottom: 1px solid #444;
+              display: flex;
+              align-items: flex-end;
+              padding-bottom: 1px;
+              font-size: 11px;
+              font-weight: 400;
+            }
+            .transaction-table,
+            .entry-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 10px;
+            }
+            .transaction-table th,
+            .transaction-table td,
+            .entry-table th,
+            .entry-table td {
+              border: 1px solid #444;
+              padding: 4px 6px;
+              font-size: 11px;
+              vertical-align: top;
+            }
+            .transaction-table th,
+            .entry-table th,
+            .entry-caption {
+              text-transform: uppercase;
+              font-weight: 700;
+              letter-spacing: 0.04em;
+            }
+            .transaction-table th:last-child,
+            .transaction-table td:last-child {
+              width: 20%;
+              
+            }
+            .transaction-desc {
+              height: 85px;
+              white-space: pre-wrap;
+              line-height: 1.4;
+              
+            }
+            .amount-cell {
+              text-align: right;
+              font-weight: 700;
+              text-alignment:center;
+            }
+            .signature-grid {
+              display: grid;
+              grid-template-columns: 110px 1fr;
+              gap: 10px 18px;
+              margin-top: 18px;
+              max-width: 420px;
+              font-size: 11px;
+            }
+            .signature-line {
+              border-bottom: 1px solid #444;
+              min-height: 18px;
+            }
+            .accounting-block {
+              margin-top: 18px;
+              padding-top: 10px;
+              border-top: 1px solid #444;
+            }
+            .accounting-only {
+              margin-bottom: 8px;
+              font-size: 11px;
+              font-weight: 700;
+            }
+            .entry-caption {
+              border: 1px solid #444;
+              padding: 2px 6px;
+              margin-bottom: 8px;
+              text-align: center;
+              font-size: 11px;
+            }
+            .entry-table td {
+              height: 18px;
+            }
+            .entry-table .fill-row td {
+              height: 16px;
+            }
+            .entry-table .total-row td {
+              font-weight: 700;
+            }
+            .bottom-approvals {
+              margin-top: 18px;
+              display: grid;
+              grid-template-columns: 1fr auto 1fr;
+              gap: 12px 8px;
+              align-items: center;
+              font-size: 11px;
+            }
+            .approval-label {
+              font-weight: 700;
+              white-space: nowrap;
+            }
+            .approval-value {
+              display: grid;
+              gap: 2px;
+              min-width: 0;
+            }
+            .approval-value .line-fill {
+              min-width: 170px;
+              justify-content: center;
+              text-align: center;
+              font-weight: 700;
+            }
+            .approval-subtitle {
+              text-align: center;
+              font-size: 10px;
+              line-height: 1.2;
+            }
+            .approval-date-label {
+              font-weight: 700;
+              white-space: nowrap;
+              align-self: center;
+            }
+            .approval-date-line {
+              min-width: 170px;
+            }
+            .muted {
+              color: #444;
+            }
+            @media screen {
+              body {
+                background: #eef2f7;
+              }
+              .page {
+                box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="sheet">
+              <div class="header">
+                <div class="brand">
+                  ${logoMarkup}
+                  <div class="brand-title">${companySettings.companyName}</div>
+                </div>
+                <div class="doc-head">
+                  <p class="doc-address">${companySettings.address}</p>
+                  <p class="doc-title">Request for Payment Order</p>
+                </div>
+              </div>
+
+              <div class="top-meta">
+                <div class="top-meta-row top-meta-row--dates">
+                  <div></div>
+                  <div class="line-stack line-stack--dates">
+                    <div class="line-row line-row--date">
+                      <span>Date</span>
+                      <div class="line-fill">${formatExportDate(createdDate)}</div>
+                    </div>
+                    <div class="line-row line-row--date">
+                      <span>Due Date:</span>
+                      <div class="line-fill">${formatExportDate(dueDate)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="top-meta-row top-meta-row--payee">
+                  <div class="line-stack">
+                    <div class="line-row line-row--wide-label">
+                      <span>Payee</span>
+                      <div class="line-fill">${payee}</div>
+                    </div>
+                    <div class="line-row line-row--wide-label">
+                      <span>Address:</span>
+                      <div class="line-fill">${payeeAddress}</div>
+                    </div>
+                    <div class="line-row line-row--wide-label">
+                      <span>TIN:</span>
+                      <div class="line-fill">${tinNumber}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <table class="transaction-table">
+                <thead>
+                  <tr>
+                    <th>Description of Transaction</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="transaction-desc">${description || record.title || 'No description provided.'}</td>
+                    <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="signature-grid">
+                <span>Prepared by:</span>
+                <div class="signature-line">${record.requester || ''}</div>
+                <span>Checked by:</span>
+                <div class="signature-line"></div>
+                <span>Approved by:</span>
+                <div class="signature-line"></div>
+              </div>
+
+              <div class="accounting-block">
+                <div class="accounting-only">For Accounting Only:</div>
+                <div class="entry-caption">Recommending Entry Form</div>
+                <table class="entry-table">
+                  <thead>
+                    <tr>
+                      <th style="width:22%;">GL Code</th>
+                      <th>Account</th>
+                      <th style="width:14%;">Debit</th>
+                      <th style="width:14%;">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td></td>
+                      <td>${record.title || 'Request expense'}</td>
+                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td></td>
+                      <td>Accounts Payable</td>
+                      <td></td>
+                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                    </tr>
+                    <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="total-row">
+                      <td colspan="2" style="text-align:right;">Total</td>
+                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div class="bottom-approvals">
+                  <span class="approval-label">Prepared by</span>
+                  <span class="muted">:</span>
+                  <div class="approval-value">
+                    <div class="line-fill"></div>
+                    <div class="approval-subtitle">Accounting Assistant</div>
+                  </div>
+
+                  <span class="approval-label">Checked by</span>
+                  <span class="muted">:</span>
+                  <div class="approval-value">
+                    <div class="line-fill"></div>
+                    <div class="approval-subtitle">General Accountant / Head ACC</div>
+                  </div>
+
+                  <span class="approval-label">Approved by</span>
+                  <span class="muted">:</span>
+                  <div class="approval-value">
+                    <div class="line-fill"></div>
+                    <div class="approval-subtitle">Chief Investment Officer</div>
+                  </div>
+
+                  <span class="approval-date-label">Date</span>
+                  <span class="muted">:</span>
+                  <div class="line-fill approval-date-line"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <script>
+            window.onload = function () {
+              window.print();
+              window.onafterprint = function () { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   function closeSupplierDirectory() {
@@ -3707,7 +4185,8 @@ export default function App() {
 
       if (
         requesterSettingsForm.newPassword &&
-        requesterSettingsForm.newPassword !== requesterSettingsForm.confirmPassword
+        requesterSettingsForm.newPassword !==
+          requesterSettingsForm.confirmPassword
       ) {
         const message = 'New password and confirm password must match.'
         setSettingsError(message)
@@ -4002,6 +4481,15 @@ export default function App() {
   if (!session?.token) {
     return (
       <main className='app-shell auth-shell'>
+        <LoadingOverlay
+          visible={isSubmitting || isLoading}
+          title={isSubmitting ? 'Signing in' : 'Loading'}
+          message={
+            isSubmitting
+              ? 'Please wait while we sign you in.'
+              : 'Please wait while we prepare your workspace.'
+          }
+        />
         <section className='auth-landing'>
           <div className='auth-copy'>
             <img
@@ -4029,6 +4517,7 @@ export default function App() {
   if (isRequestForPaymentPageOpen && selectedItem) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4039,10 +4528,14 @@ export default function App() {
           requestSearchQuery={requestSearchQuery}
           onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <RequestForPaymentPage
@@ -4053,6 +4546,7 @@ export default function App() {
           onChange={handleRequestForPaymentFormChange}
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
           onEdit={() => setIsRequestForPaymentEditing(true)}
+          onPrint={() => handlePrintRequestForPaymentRecord(selectedItem)}
           onSave={handleSaveRequestForPaymentPage}
           onClose={closeRequestForPaymentPage}
           isSubmitting={isSubmitting}
@@ -4064,6 +4558,7 @@ export default function App() {
   if (isPurchaseOrderPageOpen && selectedItem) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4074,10 +4569,14 @@ export default function App() {
           requestSearchQuery={requestSearchQuery}
           onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <PurchaseOrderPage
@@ -4100,6 +4599,7 @@ export default function App() {
   if (isPurchaseOrderDirectoryOpen) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4110,10 +4610,14 @@ export default function App() {
           requestSearchQuery={requestSearchQuery}
           onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <PurchaseOrderDirectoryPage
@@ -4128,6 +4632,7 @@ export default function App() {
   if (isSupplierDirectoryOpen) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4138,10 +4643,14 @@ export default function App() {
           requestSearchQuery={requestSearchQuery}
           onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <SupplierManagementPage
@@ -4201,6 +4710,7 @@ export default function App() {
   if (isUserDirectoryOpen) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4211,10 +4721,14 @@ export default function App() {
           requestSearchQuery={requestSearchQuery}
           onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <section className='po-page'>
@@ -4282,6 +4796,7 @@ export default function App() {
   if (isSettingsPageOpen) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4292,10 +4807,14 @@ export default function App() {
           requestSearchQuery={requestSearchQuery}
           onRequestSearchChange={setRequestSearchQuery}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <SettingsPage
@@ -4383,6 +4902,7 @@ export default function App() {
   if (isAuditTrailPageOpen) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4391,10 +4911,14 @@ export default function App() {
           theme={theme}
           onThemeChange={setTheme}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <AuditTrailPage items={items} onClose={closeAuditTrailPage} />
@@ -4405,6 +4929,7 @@ export default function App() {
   if (isRequestWorkspacePageOpen && selectedItem) {
     return (
       <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <CompanyHeader
           isAuthenticated
@@ -4471,6 +4996,7 @@ export default function App() {
 
   return (
     <main className='app-shell'>
+      <LoadingOverlay visible={isSubmitting || isLoading} />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <CompanyHeader
         isAuthenticated
@@ -4481,10 +5007,14 @@ export default function App() {
         requestSearchQuery={requestSearchQuery}
         onRequestSearchChange={setRequestSearchQuery}
         onOpenSuppliers={handleOpenSuppliersMenu}
+        onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+        onOpenRfpRecord={handleOpenSavedRfpRecord}
+        onPrintRfpRecord={handlePrintRequestForPaymentRecord}
         onOpenAuditTrail={handleOpenAuditTrailPage}
         onOpenUsers={handleOpenUsersDirectory}
         onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
         onOpenSettings={handleOpenSettingsPage}
+        rfpItems={requestForPaymentRecords}
         companySettings={companySettings}
       />
       <section className='hero'>
@@ -4501,7 +5031,7 @@ export default function App() {
             <div className='hero-action-card'>
               <p className='eyebrow'>Quick Actions</p>
               <div className='hero-action-stack'>
-              {canCreateRequest ? (
+                {canCreateRequest ? (
                   <button
                     className='hero-primary-action'
                     type='button'
@@ -4509,12 +5039,12 @@ export default function App() {
                   >
                     New purchase request
                   </button>
-              ) : null}
+                ) : null}
                 <button
                   className='hero-secondary-action'
                   type='button'
                   onClick={openRequestForPaymentPage}
-                  disabled={!selectedItem}
+                  disabled={!selectedItem || !canAccessRequestForPayment(selectedItem)}
                 >
                   Request for Payment
                 </button>

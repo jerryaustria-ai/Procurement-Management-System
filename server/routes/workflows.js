@@ -410,9 +410,11 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     request.currentStage = nextStage;
     if (nextStage === "Approval") {
       request.approvalCompleted = false;
+      request.requestForPaymentEnabled = false;
     }
     if (previousStage === "Approval") {
       request.approvalCompleted = true;
+      request.requestForPaymentEnabled = Boolean(req.body.skipToRfp);
     }
     if (nextStage === "Filing") {
       request.filingCompleted = false;
@@ -455,6 +457,7 @@ router.patch("/purchase-requests/:id/approve", async (req, res) => {
   }
 
   request.approvalCompleted = true;
+  request.requestForPaymentEnabled = Boolean(req.body.skipToRfp);
   request.history = request.history.map((entry) =>
     entry.stage === "Approval" && entry.status === "current"
       ? {
@@ -507,6 +510,7 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
 
   request.currentStage = previousStage;
   request.approvalCompleted = false;
+  request.requestForPaymentEnabled = false;
   request.filingCompleted = false;
   request.status = "open";
   request.history.push({

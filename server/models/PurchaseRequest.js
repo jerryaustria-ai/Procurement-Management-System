@@ -105,6 +105,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     requestedAt: { type: Date, required: true, default: Date.now },
     currentStage: { type: String, enum: workflowStages, required: true },
     approvalCompleted: { type: Boolean, default: false },
+    requestForPaymentEnabled: { type: Boolean, default: false },
     filingCompleted: { type: Boolean, default: false },
     status: { type: String, enum: ["open", "completed"], default: "open" },
     notes: { type: String, default: "" },

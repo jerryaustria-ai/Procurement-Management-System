@@ -17,8 +17,6 @@ export default function RequestList({
   selectedId,
   activeFilter = "all",
   onFilterChange,
-  searchQuery = "",
-  onSearchChange,
   onSelect,
   onOpenWorkflow,
   onOpenDetails,
@@ -62,7 +60,7 @@ export default function RequestList({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [items.length, activeFilter, searchQuery]);
+  }, [items.length, activeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -72,13 +70,24 @@ export default function RequestList({
   return (
     <section className="panel request-list-panel panel-with-expand">
       <div className="panel-top-actions" ref={menuRef}>
-        <input
-          className="request-list-search request-list-search-top"
-          type="search"
-          value={searchQuery}
-          onChange={(event) => onSearchChange?.(event.target.value)}
-          placeholder="Search all requests"
-        />
+        <div className="request-list-tools request-list-tools-top">
+          <span className="panel-counter">{items.length} total</span>
+          <label className="request-list-filter-select">
+            <span className="sr-only">Filter requests</span>
+            <select
+              value={activeFilter}
+              onChange={(event) => onFilterChange?.(event.target.value)}
+              aria-label="Filter requests"
+            >
+              <option value="all">All</option>
+              <option value="open">Open</option>
+              <option value="completed">Completed</option>
+            </select>
+          </label>
+          {activeFilter !== "all" ? (
+            <span className="panel-counter">Filtered: {activeFilter}</span>
+          ) : null}
+        </div>
         <div className="panel-kebab-wrap">
           <button
             className="panel-kebab-button"
@@ -138,39 +147,6 @@ export default function RequestList({
           <p className="eyebrow">Requests</p>
           <h2>Request Registry</h2>
         </div>
-        <div className="request-list-tools">
-          <span className="panel-counter">{items.length} total</span>
-          <div className="request-list-filter-group">
-            <button
-              className={activeFilter === "all" ? "request-filter-pill active" : "request-filter-pill"}
-              type="button"
-              onClick={() => onFilterChange?.("all")}
-            >
-              All
-            </button>
-            <button
-              className={activeFilter === "open" ? "request-filter-pill active" : "request-filter-pill"}
-              type="button"
-              onClick={() => onFilterChange?.("open")}
-            >
-              Open
-            </button>
-            <button
-              className={
-                activeFilter === "completed"
-                  ? "request-filter-pill active"
-                  : "request-filter-pill"
-              }
-              type="button"
-              onClick={() => onFilterChange?.("completed")}
-            >
-              Completed
-            </button>
-          </div>
-          {activeFilter !== "all" ? (
-            <span className="panel-counter">Filtered: {activeFilter}</span>
-          ) : null}
-        </div>
       </div>
 
       <div className="request-list">
@@ -220,7 +196,7 @@ export default function RequestList({
         ) : null}
       </div>
 
-      {items.length ? (
+      {items.length && totalPages > 1 ? (
         <div className="request-list-pagination">
           <div className="request-list-pagination-meta">
             <label className="request-list-limit">
