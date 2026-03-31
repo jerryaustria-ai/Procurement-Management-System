@@ -351,7 +351,20 @@ function canAccessRequestForPayment(item) {
     return false
   }
 
-  return Boolean(item.requestForPaymentEnabled)
+  const requestForPaymentStages = new Set([
+    'Send PO',
+    'Delivery',
+    'Inspection',
+    'Invoice',
+    'Matching',
+    'Payment',
+    'Filing',
+  ])
+
+  return (
+    Boolean(item.requestForPaymentEnabled) ||
+    requestForPaymentStages.has(item.currentStage)
+  )
 }
 
 function getNextPurchaseOrderNumber(items) {
@@ -2167,9 +2180,9 @@ export default function App() {
 
     if (!canAccessRequestForPayment(targetRequest)) {
       pushToast({
-        title: 'Approval required',
+        title: 'Request for Payment unavailable',
         message:
-          'Request for Payment becomes available only after admin approval with Skip to RFP checked.',
+          'Request for Payment becomes available after Approval with Skip to RFP checked, or once the workflow reaches Send PO and beyond.',
         variant: 'error',
         duration: 4200,
       })
@@ -2837,9 +2850,7 @@ export default function App() {
     }
 
     const shouldOpenRfpAfterAdvance =
-      (selectedItem.currentStage === 'Approval' &&
-        Boolean(actionForm.skipToRfp)) ||
-      selectedItem.currentStage === 'Approve PO'
+      selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
 
     setActionError('')
     setIsSubmitting(true)
