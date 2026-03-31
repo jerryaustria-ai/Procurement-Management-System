@@ -2837,7 +2837,9 @@ export default function App() {
     }
 
     const shouldOpenRfpAfterAdvance =
-      selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
+      (selectedItem.currentStage === 'Approval' &&
+        Boolean(actionForm.skipToRfp)) ||
+      selectedItem.currentStage === 'Approve PO'
 
     setActionError('')
     setIsSubmitting(true)
