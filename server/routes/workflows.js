@@ -416,6 +416,9 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
       request.approvalCompleted = true;
       request.requestForPaymentEnabled = Boolean(req.body.skipToRfp);
     }
+    if (previousStage === "Approve PO") {
+      request.requestForPaymentEnabled = true;
+    }
     if (nextStage === "Filing") {
       request.filingCompleted = false;
       request.status = "open";
