@@ -508,7 +508,10 @@ export default function ActionPanel({
               checked={Boolean(form.skipToRfp)}
               onChange={onChange}
             />
-            <span>Skip to RFP</span>
+            <span className="stage-toggle-track" aria-hidden="true">
+              <span className="stage-toggle-thumb" />
+            </span>
+            <span>Enable RFP</span>
           </label>
         ) : null}
         {item.currentStage === "Prepare PO" ? (

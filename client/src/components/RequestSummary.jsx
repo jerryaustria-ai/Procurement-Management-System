@@ -39,6 +39,10 @@ function getProcurementStatusLabel(item) {
   return `Current stage: ${item.currentStage}`;
 }
 
+function hasActiveRfp(item) {
+  return Boolean(item.requestForPaymentEnabled);
+}
+
 export default function RequestSummary({
   item,
   apiOrigin = "",
@@ -68,6 +72,7 @@ export default function RequestSummary({
           </div>
           <div className="summary-header-actions">
             <span className="status-pill">{getDisplayStageLabel(item)}</span>
+            {hasActiveRfp(item) ? <span className="rfp-badge">RFP Enabled</span> : null}
             {onToggleVisibility ? (
               <button
                 className="summary-toggle-icon"

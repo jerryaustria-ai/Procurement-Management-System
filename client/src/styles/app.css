@@ -392,7 +392,7 @@ textarea {
 }
 
 .auth-logo {
-  width: min(220px, 48vw);
+  width: min(150px, 34vw);
   height: auto;
   display: block;
   margin: 0 auto 18px;
@@ -685,6 +685,23 @@ label,
   background: rgba(213, 181, 108, 0.12);
   color: #f3d287;
   border: 1px solid rgba(213, 181, 108, 0.24);
+}
+
+.rfp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(114, 197, 154, 0.28);
+  background: rgba(114, 197, 154, 0.12);
+  color: #3f8f67;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .summary-title {
@@ -1590,7 +1607,7 @@ label,
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
   padding: 0;
   margin-left: 8px;
   color: var(--text-soft);
@@ -1602,15 +1619,12 @@ label,
 }
 
 .stage-inline-checkbox input {
-  flex: 0 0 auto;
-  display: inline-block;
-  width: 18px;
-  height: 18px;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
   margin: 0;
-  padding: 0;
-  border-radius: 4px;
-  vertical-align: middle;
-  box-shadow: none;
 }
 
 .stage-inline-checkbox span {
@@ -1618,6 +1632,46 @@ label,
   display: inline-block;
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.stage-toggle-track {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  transition:
+    background-color 220ms var(--ease-soft),
+    border-color 220ms var(--ease-soft);
+}
+
+.stage-toggle-thumb {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+  transition:
+    transform 220ms var(--ease-standard),
+    background-color 220ms var(--ease-soft);
+}
+
+.stage-inline-checkbox input:checked + .stage-toggle-track {
+  background: rgba(213, 181, 108, 0.32);
+  border-color: rgba(213, 181, 108, 0.56);
+}
+
+.stage-inline-checkbox input:checked + .stage-toggle-track .stage-toggle-thumb {
+  transform: translateX(20px);
+  background: var(--accent-strong);
+}
+
+.stage-inline-checkbox input:focus-visible + .stage-toggle-track {
+  box-shadow: 0 0 0 3px rgba(213, 181, 108, 0.16);
 }
 
 .supplier-search-modal {

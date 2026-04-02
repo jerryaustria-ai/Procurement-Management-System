@@ -561,6 +561,7 @@ function CompanyHeader({
   onOpenUsers,
   onOpenPurchaseOrder,
   onOpenSettings,
+  canOpenRfp = false,
   rfpItems = [],
   companySettings = DEFAULT_COMPANY_SETTINGS,
 }) {
@@ -697,6 +698,15 @@ function CompanyHeader({
                       </button>
                     </>
                   ) : null}
+                  {user.role === 'requester' && canOpenRfp ? (
+                    <button
+                      type='button'
+                      role='menuitem'
+                      onClick={handleOpenRfpModal}
+                    >
+                      RFP
+                    </button>
+                  ) : null}
                   <button
                     type='button'
                     role='menuitem'
@@ -721,7 +731,7 @@ function CompanyHeader({
       {isRfpModalOpen ? (
         <Modal
           eyebrow='Request for Payment'
-          title='Saved RFP records'
+          title='RFP records'
           onClose={() => setIsRfpModalOpen(false)}
         >
           <div className='modal-form audit-trail-modal-content'>
@@ -729,7 +739,7 @@ function CompanyHeader({
               <div>
                 <strong>Request for Payment list</strong>
                 <div className='audit-trail-cell-subtext'>
-                  Open any saved RFP record from the list below.
+                  Open any request with active RFP access or continue a saved RFP draft.
                 </div>
               </div>
               <span className='panel-counter'>
@@ -738,7 +748,7 @@ function CompanyHeader({
             </div>
 
             {rfpItems.length === 0 ? (
-              <p className='empty-state'>No saved RFP records available.</p>
+              <p className='empty-state'>No RFP-enabled requests available.</p>
             ) : (
               <div className='supplier-table audit-trail-table-wrap'>
                 <table className='supplier-table-grid audit-trail-table'>
@@ -752,7 +762,17 @@ function CompanyHeader({
                     </tr>
                   </thead>
                   <tbody>
-                    {rfpItems.map((record) => (
+                    {rfpItems.map((record) => {
+                      const hasSavedRfpDraft = Boolean(
+                        record.rfpDraft?.payee ||
+                          record.rfpDraft?.tinNumber ||
+                          record.rfpDraft?.invoiceNumber ||
+                          record.rfpDraft?.amountRequested ||
+                          record.rfpDraft?.dueDate ||
+                          record.rfpDraft?.notes,
+                      )
+
+                      return (
                       <tr
                         key={record.id}
                         className='supplier-row audit-trail-row'
@@ -779,13 +799,15 @@ function CompanyHeader({
                               className='ghost-button'
                               type='button'
                               onClick={() => handlePrintRfpRecord(record)}
+                              disabled={!hasSavedRfpDraft}
                             >
                               Print
                             </button>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -954,15 +976,10 @@ export default function App() {
     String(item.poNumber || item.poDraft?.poNumber || '').trim(),
   )
   const requestForPaymentRecords = items.filter((item) =>
-    Boolean(
-      canAccessRequestForPayment(item) &&
-        (item.rfpDraft?.payee ||
-          item.rfpDraft?.tinNumber ||
-          item.rfpDraft?.invoiceNumber ||
-          item.rfpDraft?.amountRequested ||
-          item.rfpDraft?.dueDate ||
-          item.rfpDraft?.notes),
-    ),
+    canAccessRequestForPayment(item),
+  )
+  const canOpenRequestForPaymentMenu = items.some((item) =>
+    canAccessRequestForPayment(item),
   )
   const shouldPauseDashboardRefresh =
     isCreateRequestModalOpen ||
@@ -980,6 +997,12 @@ export default function App() {
     (session.user.role === 'admin' ||
       session.user.email === selectedItem.requesterEmail ||
       selectedItem.allowedRoles.includes(session.user.role)),
+  )
+  const canOpenSelectedRequestForPayment = Boolean(
+    selectedItem &&
+      (canAccessRequestForPayment(selectedItem) ||
+        (selectedItem.currentStage === 'Approval' &&
+          Boolean(actionForm.skipToRfp))),
   )
   const canEditSelectedRequest = Boolean(
     canUserEditRequest(session?.user, selectedItem),
@@ -1127,6 +1150,7 @@ export default function App() {
           ? selectedItem.deliveryDate.slice(0, 10)
           : '',
         inspectionStatus: selectedItem.inspectionStatus ?? 'pending',
+        skipToRfp: Boolean(selectedItem.requestForPaymentEnabled),
         selectedItemId: selectedItem.id,
         selectedItemStage: selectedItem.currentStage,
       }
@@ -2178,11 +2202,18 @@ export default function App() {
       return
     }
 
-    if (!canAccessRequestForPayment(targetRequest)) {
+    const resolvedRequest =
+      items.find((item) => item.id === targetRequest.id) ?? targetRequest
+    const isPendingRfpActivation =
+      selectedItem?.id === resolvedRequest.id &&
+      resolvedRequest.currentStage === 'Approval' &&
+      Boolean(actionForm.skipToRfp)
+
+    if (!canAccessRequestForPayment(resolvedRequest) && !isPendingRfpActivation) {
       pushToast({
         title: 'Request for Payment unavailable',
         message:
-          'Request for Payment becomes available after Approval with Skip to RFP checked, or once the workflow reaches Send PO and beyond.',
+          'Request for Payment becomes available when Enable RFP is turned on, or once the workflow reaches Send PO and beyond.',
         variant: 'error',
         duration: 4200,
       })
@@ -2190,19 +2221,19 @@ export default function App() {
     }
 
     const latestDraft =
-      purchaseOrderDrafts[targetRequest.id] ??
-      getPurchaseOrderDraft(targetRequest, items)
+      purchaseOrderDrafts[resolvedRequest.id] ??
+      getPurchaseOrderDraft(resolvedRequest, items)
     const savedSupplier =
       purchaseOrderForm.supplier ||
       actionForm.supplier ||
       latestDraft.supplier ||
-      (targetRequest.supplier === 'Pending selection'
+      (resolvedRequest.supplier === 'Pending selection'
         ? ''
-        : targetRequest.supplier || '')
+        : resolvedRequest.supplier || '')
     const matchedSupplier = suppliers.find(
       (supplier) => supplier.name === savedSupplier,
     )
-    const savedRfpDraft = targetRequest.rfpDraft ?? {}
+    const savedRfpDraft = resolvedRequest.rfpDraft ?? {}
     const hasSavedRfpDraft = Boolean(
       savedRfpDraft.payee ||
       savedRfpDraft.tinNumber ||
@@ -2212,7 +2243,7 @@ export default function App() {
       savedRfpDraft.notes,
     )
 
-    setSelectedId(targetRequest.id)
+    setSelectedId(resolvedRequest.id)
     setIsRequestWorkspacePageOpen(false)
     setIsPurchaseOrderPageOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
@@ -2229,14 +2260,16 @@ export default function App() {
         savedRfpDraft.invoiceNumber ||
         current.invoiceNumber ||
         actionForm.invoiceNumber ||
-        targetRequest.invoiceNumber ||
+        resolvedRequest.invoiceNumber ||
         '',
       amountRequested:
-        savedRfpDraft.amountRequested || String(targetRequest.amount || ''),
+        savedRfpDraft.amountRequested || String(resolvedRequest.amount || ''),
       dueDate:
         savedRfpDraft.dueDate ||
-        (targetRequest.dateNeeded ? targetRequest.dateNeeded.slice(0, 10) : ''),
-      notes: savedRfpDraft.notes || targetRequest.description || '',
+        (resolvedRequest.dateNeeded
+          ? resolvedRequest.dateNeeded.slice(0, 10)
+          : ''),
+      notes: savedRfpDraft.notes || resolvedRequest.description || '',
     }))
     setIsRequestForPaymentEditing(!hasSavedRfpDraft)
     setIsRequestForPaymentPageOpen(true)
@@ -2849,9 +2882,6 @@ export default function App() {
       return
     }
 
-    const shouldOpenRfpAfterAdvance =
-      selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
-
     setActionError('')
     setIsSubmitting(true)
 
@@ -2901,12 +2931,12 @@ export default function App() {
         skipToRfp: false,
         notes: '',
       }))
-      if (shouldOpenRfpAfterAdvance) {
-        openRequestForPaymentPage(data)
-      }
       pushToast({
         title: 'Stage advanced',
-        message: `${data.requestNumber} moved to ${data.currentStage}.`,
+        message:
+          selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
+            ? `${data.requestNumber} moved to ${data.currentStage}. Request for Payment is now active.`
+            : `${data.requestNumber} moved to ${data.currentStage}.`,
         variant: 'success',
       })
     } catch (error) {
@@ -3680,10 +3710,6 @@ export default function App() {
   }
 
   function handleOpenRfpDirectoryMenu() {
-    if (session?.user?.role === 'requester') {
-      return
-    }
-
     closeHeaderMenuPages()
     setIsRfpDirectoryOpen(true)
   }
@@ -4548,6 +4574,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4589,6 +4616,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4630,6 +4658,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4663,6 +4692,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4741,6 +4771,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4827,6 +4858,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4931,6 +4963,7 @@ export default function App() {
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
@@ -4951,10 +4984,15 @@ export default function App() {
           theme={theme}
           onThemeChange={setTheme}
           onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
           onOpenAuditTrail={handleOpenAuditTrailPage}
           onOpenUsers={handleOpenUsersDirectory}
           onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
           onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
+          rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
         <RequestWorkspacePage
@@ -5027,6 +5065,7 @@ export default function App() {
         onOpenUsers={handleOpenUsersDirectory}
         onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
         onOpenSettings={handleOpenSettingsPage}
+        canOpenRfp={canOpenRequestForPaymentMenu}
         rfpItems={requestForPaymentRecords}
         companySettings={companySettings}
       />
@@ -5057,7 +5096,7 @@ export default function App() {
                   className='hero-secondary-action'
                   type='button'
                   onClick={openRequestForPaymentPage}
-                  disabled={!selectedItem || !canAccessRequestForPayment(selectedItem)}
+                  disabled={!canOpenSelectedRequestForPayment}
                 >
                   Request for Payment
                 </button>

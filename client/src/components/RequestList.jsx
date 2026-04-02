@@ -12,6 +12,10 @@ function getProcurementStatus(item) {
   return `Current stage: ${item.currentStage}`;
 }
 
+function hasActiveRfp(item) {
+  return Boolean(item.requestForPaymentEnabled);
+}
+
 export default function RequestList({
   items,
   selectedId,
@@ -160,6 +164,11 @@ export default function RequestList({
             <button className="request-card-select" type="button" onClick={() => onSelect(item.id)}>
               <div className="request-list-topline">
                 <strong>{item.requestNumber}</strong>
+                {hasActiveRfp(item) ? (
+                  <span className="rfp-badge" aria-label="Request for Payment enabled">
+                    RFP Enabled
+                  </span>
+                ) : null}
               </div>
               <span>{item.title}</span>
               <small>
