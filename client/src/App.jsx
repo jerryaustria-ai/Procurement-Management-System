@@ -999,10 +999,11 @@ export default function App() {
       selectedItem.allowedRoles.includes(session.user.role)),
   )
   const canOpenSelectedRequestForPayment = Boolean(
-    selectedItem &&
+    (selectedItem &&
       (canAccessRequestForPayment(selectedItem) ||
         (selectedItem.currentStage === 'Approval' &&
-          Boolean(actionForm.skipToRfp))),
+          Boolean(actionForm.skipToRfp)))) ||
+      canOpenRequestForPaymentMenu,
   )
   const canEditSelectedRequest = Boolean(
     canUserEditRequest(session?.user, selectedItem),
@@ -1538,13 +1539,61 @@ export default function App() {
     setRequestQuotationFile(event.target.files?.[0] ?? null)
   }
 
-  function handleActionFormChange(event) {
+  async function handleActionFormChange(event) {
     const { name, type, checked, value } = event.target
+    const nextValue = type === 'checkbox' ? checked : value
 
     setActionForm((current) => ({
       ...current,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: nextValue,
     }))
+
+    if (
+      name !== 'skipToRfp' ||
+      !selectedItem ||
+      selectedItem.currentStage !== 'Approval' ||
+      !session?.token
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/rfp-access`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            enabled: Boolean(nextValue),
+          }),
+        },
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update Request for Payment access.')
+      }
+
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
+      setSelectedId(data.id)
+    } catch (error) {
+      setActionForm((current) => ({
+        ...current,
+        skipToRfp: !Boolean(nextValue),
+      }))
+      setActionError(error.message)
+      pushToast({
+        title: 'RFP toggle failed',
+        message: error.message,
+        variant: 'error',
+        duration: 4200,
+      })
+    }
   }
 
   function handleUploadFormChange(event) {
@@ -2198,18 +2247,28 @@ export default function App() {
   }
 
   function openRequestForPaymentPage(targetRequest = selectedItem) {
-    if (!targetRequest) {
+    const fallbackRequest =
+      items.find((item) => canAccessRequestForPayment(item)) ?? null
+    const nextTargetRequest = targetRequest ?? fallbackRequest
+
+    if (!nextTargetRequest) {
       return
     }
 
     const resolvedRequest =
-      items.find((item) => item.id === targetRequest.id) ?? targetRequest
+      items.find((item) => item.id === nextTargetRequest.id) ?? nextTargetRequest
+    const isSelectedRequest = selectedItem?.id === resolvedRequest.id
     const isPendingRfpActivation =
-      selectedItem?.id === resolvedRequest.id &&
+      isSelectedRequest &&
       resolvedRequest.currentStage === 'Approval' &&
       Boolean(actionForm.skipToRfp)
+    const hasImmediateRfpAccess =
+      canAccessRequestForPayment(resolvedRequest) ||
+      canAccessRequestForPayment(nextTargetRequest) ||
+      (isSelectedRequest && canAccessRequestForPayment(selectedItem)) ||
+      isPendingRfpActivation
 
-    if (!canAccessRequestForPayment(resolvedRequest) && !isPendingRfpActivation) {
+    if (!hasImmediateRfpAccess) {
       pushToast({
         title: 'Request for Payment unavailable',
         message:
@@ -2884,6 +2943,8 @@ export default function App() {
 
     setActionError('')
     setIsSubmitting(true)
+    const shouldOpenRfpAfterAdvance =
+      selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
 
     try {
       const stageComment =
@@ -2934,11 +2995,15 @@ export default function App() {
       pushToast({
         title: 'Stage advanced',
         message:
-          selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
+          shouldOpenRfpAfterAdvance
             ? `${data.requestNumber} moved to ${data.currentStage}. Request for Payment is now active.`
             : `${data.requestNumber} moved to ${data.currentStage}.`,
         variant: 'success',
       })
+
+      if (shouldOpenRfpAfterAdvance) {
+        openRequestForPaymentPage(data)
+      }
     } catch (error) {
       setActionError(error.message)
       pushToast({

@@ -311,6 +311,33 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
   return res.json(serializePurchaseRequest(request));
 });
 
+router.patch("/purchase-requests/:id/rfp-access", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
+  }
+
+  if (request.currentStage !== "Approval") {
+    return res.status(400).json({ message: "RFP access can only be changed during Approval stage." });
+  }
+
+  const allowedRoles = getAllowedRoles(request.currentStage);
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      message: `Role ${req.user.role} cannot update RFP access during the ${request.currentStage} stage.`
+    });
+  }
+
+  request.requestForPaymentEnabled = Boolean(req.body.enabled);
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
 router.patch("/purchase-requests/:id/advance", async (req, res) => {
   const request = await PurchaseRequest.findById(req.params.id);
 
