@@ -110,17 +110,6 @@ export default function CreateRequestForm({
       </label>
 
       <label>
-        Business justification
-        <textarea
-          name="notes"
-          value={form.notes}
-          onChange={onChange}
-          rows="4"
-          placeholder="Why the purchase is needed"
-        />
-      </label>
-
-      <label>
         Approved Quotation or Request
         <input
           type="file"

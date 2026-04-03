@@ -330,6 +330,20 @@ function getInitialRequestForPaymentForm() {
   }
 }
 
+function getRequestForPaymentFormFromItem(item) {
+  const savedRfpDraft = item?.rfpDraft ?? {}
+
+  return {
+    payee: savedRfpDraft.payee || '',
+    tinNumber: savedRfpDraft.tinNumber || '',
+    invoiceNumber: savedRfpDraft.invoiceNumber || '',
+    paymentReference: savedRfpDraft.paymentReference || '',
+    amountRequested: savedRfpDraft.amountRequested || '',
+    dueDate: savedRfpDraft.dueDate || '',
+    notes: savedRfpDraft.notes || item?.description || '',
+  }
+}
+
 function canUserEditRequest(user, item) {
   if (!user || !item) {
     return false
@@ -436,7 +450,8 @@ function getRequestAdminForm(
     amount: String(item.amount ?? ''),
     dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
     status: item.status ?? 'open',
-    currentStage: item.currentStage ?? '',
+    currentStage:
+      item.status === 'completed' ? 'Completed' : item.currentStage ?? '',
     inspectionStatus: item.inspectionStatus ?? 'pending',
     supplier:
       item.supplier === 'Pending selection' ? '' : (item.supplier ?? ''),
@@ -2249,7 +2264,14 @@ export default function App() {
   function openRequestForPaymentPage(targetRequest = selectedItem) {
     const fallbackRequest =
       items.find((item) => canAccessRequestForPayment(item)) ?? null
-    const nextTargetRequest = targetRequest ?? fallbackRequest
+    const requestedIsImmediatelyAccessible =
+      Boolean(targetRequest) &&
+      (canAccessRequestForPayment(targetRequest) ||
+        (selectedItem?.id === targetRequest?.id &&
+          targetRequest?.currentStage === 'Approval' &&
+          Boolean(actionForm.skipToRfp)))
+    const nextTargetRequest =
+      requestedIsImmediatelyAccessible ? targetRequest : fallbackRequest
 
     if (!nextTargetRequest) {
       return
@@ -2297,6 +2319,7 @@ export default function App() {
       savedRfpDraft.payee ||
       savedRfpDraft.tinNumber ||
       savedRfpDraft.invoiceNumber ||
+      savedRfpDraft.paymentReference ||
       savedRfpDraft.amountRequested ||
       savedRfpDraft.dueDate ||
       savedRfpDraft.notes,
@@ -2307,29 +2330,7 @@ export default function App() {
     setIsPurchaseOrderPageOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
 
-    setRequestForPaymentForm((current) => ({
-      ...current,
-      payee: savedRfpDraft.payee || savedSupplier,
-      tinNumber:
-        savedRfpDraft.tinNumber ||
-        current.tinNumber ||
-        matchedSupplier?.tinNumber ||
-        '',
-      invoiceNumber:
-        savedRfpDraft.invoiceNumber ||
-        current.invoiceNumber ||
-        actionForm.invoiceNumber ||
-        resolvedRequest.invoiceNumber ||
-        '',
-      amountRequested:
-        savedRfpDraft.amountRequested || String(resolvedRequest.amount || ''),
-      dueDate:
-        savedRfpDraft.dueDate ||
-        (resolvedRequest.dateNeeded
-          ? resolvedRequest.dateNeeded.slice(0, 10)
-          : ''),
-      notes: savedRfpDraft.notes || resolvedRequest.description || '',
-    }))
+    setRequestForPaymentForm(getRequestForPaymentFormFromItem(resolvedRequest))
     setIsRequestForPaymentEditing(!hasSavedRfpDraft)
     setIsRequestForPaymentPageOpen(true)
   }
@@ -2372,6 +2373,36 @@ export default function App() {
   function closeRequestForPaymentPage() {
     setIsRequestForPaymentPageOpen(false)
     setIsRequestForPaymentEditing(true)
+  }
+
+  function handleCancelRequestForPaymentEdit() {
+    const latestItem =
+      items.find((item) => item.id === selectedId) ?? selectedItem ?? null
+
+    if (!latestItem) {
+      closeRequestForPaymentPage()
+      return
+    }
+
+    const savedRfpDraft = latestItem.rfpDraft ?? {}
+    const hasSavedRfpDraft = Boolean(
+      savedRfpDraft.payee ||
+        savedRfpDraft.tinNumber ||
+        savedRfpDraft.invoiceNumber ||
+        savedRfpDraft.paymentReference ||
+        savedRfpDraft.amountRequested ||
+        savedRfpDraft.dueDate ||
+        savedRfpDraft.notes,
+    )
+
+    setRequestForPaymentForm(getRequestForPaymentFormFromItem(latestItem))
+
+    if (hasSavedRfpDraft) {
+      setIsRequestForPaymentEditing(false)
+      return
+    }
+
+    closeRequestForPaymentPage()
   }
 
   function closePurchaseOrderPage() {
@@ -2418,6 +2449,7 @@ export default function App() {
         payee: data.rfpDraft?.payee ?? '',
         tinNumber: data.rfpDraft?.tinNumber ?? '',
         invoiceNumber: data.rfpDraft?.invoiceNumber ?? '',
+        paymentReference: data.rfpDraft?.paymentReference ?? '',
         amountRequested: data.rfpDraft?.amountRequested ?? '',
         dueDate: data.rfpDraft?.dueDate ?? '',
         notes: data.rfpDraft?.notes ?? '',
@@ -4651,6 +4683,7 @@ export default function App() {
           onChange={handleRequestForPaymentFormChange}
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
           onEdit={() => setIsRequestForPaymentEditing(true)}
+          onCancel={handleCancelRequestForPaymentEdit}
           onPrint={() => handlePrintRequestForPaymentRecord(selectedItem)}
           onSave={handleSaveRequestForPaymentPage}
           onClose={closeRequestForPaymentPage}
@@ -5157,14 +5190,6 @@ export default function App() {
                     New purchase request
                   </button>
                 ) : null}
-                <button
-                  className='hero-secondary-action'
-                  type='button'
-                  onClick={openRequestForPaymentPage}
-                  disabled={!canOpenSelectedRequestForPayment}
-                >
-                  Request for Payment
-                </button>
               </div>
             </div>
           </div>
@@ -5221,6 +5246,7 @@ export default function App() {
             onSelect={handleSelect}
             onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
+            onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
             onExportCsv={handleExportCsv}
@@ -5240,6 +5266,7 @@ export default function App() {
             onSelect={handleSelect}
             onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
+            onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
             onExportCsv={handleExportCsv}
@@ -5308,6 +5335,7 @@ export default function App() {
               onSelect={handleSelect}
               onOpenWorkflow={handleOpenWorkflowPreview}
               onOpenDetails={handleOpenRequestDetails}
+              onOpenRequestForPayment={openRequestForPaymentPage}
               onEdit={openEditRequestModalForItem}
               canEditItem={(item) => canUserEditRequest(session?.user, item)}
               onExportCsv={handleExportCsv}

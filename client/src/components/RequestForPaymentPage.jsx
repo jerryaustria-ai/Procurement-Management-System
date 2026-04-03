@@ -28,6 +28,7 @@ export default function RequestForPaymentPage({
   onChange,
   onSelectSupplier,
   onEdit,
+  onCancel,
   onPrint,
   onSave,
   onClose,
@@ -75,29 +76,6 @@ export default function RequestForPaymentPage({
       }
     });
   }, [form.payee, form.tinNumber, onChange, suppliers]);
-
-  useEffect(() => {
-    const nextDueDate =
-      item?.dateNeeded && String(item.dateNeeded).slice(0, 10);
-
-    if (!form.dueDate && nextDueDate) {
-      onChange({
-        target: {
-          name: "dueDate",
-          value: nextDueDate
-        }
-      });
-    }
-
-    if (!form.notes && item?.description) {
-      onChange({
-        target: {
-          name: "notes",
-          value: item.description
-        }
-      });
-    }
-  }, [form.dueDate, form.notes, item?.dateNeeded, item?.description, onChange]);
 
   function handleFieldChange(name, value) {
     onChange({
@@ -264,17 +242,32 @@ export default function RequestForPaymentPage({
               />
             </label>
           </div>
-          <div className="panel-form-actions panel-form-actions-right">
+          <div className="panel-form-actions panel-form-actions-right rfp-action-row">
             {isEditing ? (
-              <button type="button" onClick={onSave} disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save"}
-              </button>
+              <>
+                <button
+                  className="ghost-button rfp-action-button"
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="rfp-action-button"
+                  type="button"
+                  onClick={onSave}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Saving..." : "Save"}
+                </button>
+              </>
             ) : (
               <>
-                <button className="ghost-button" type="button" onClick={onPrint}>
+                <button className="ghost-button rfp-action-button" type="button" onClick={onPrint}>
                   Print
                 </button>
-                <button type="button" onClick={onEdit}>
+                <button className="rfp-action-button" type="button" onClick={onEdit}>
                   Edit
                 </button>
               </>

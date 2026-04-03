@@ -205,8 +205,15 @@ router.patch("/purchase-requests/:id", async (req, res) => {
         ]
       : ["title", "description", "branch", "department", "notes"];
 
+  const isCompletedStageSelection =
+    req.user.role === "admin" && req.body.currentStage === "Completed";
+
   for (const field of editableFields) {
     if (typeof req.body[field] === "string") {
+      if (field === "currentStage" && isCompletedStageSelection) {
+        request.currentStage = "Filing";
+        continue;
+      }
       request[field] = req.body[field];
     }
   }
@@ -225,6 +232,15 @@ router.patch("/purchase-requests/:id", async (req, res) => {
 
   if (req.user.role === "admin" && typeof req.body.deliveryDate !== "undefined") {
     request.deliveryDate = req.body.deliveryDate || null;
+  }
+
+  if (req.user.role === "admin") {
+    if (isCompletedStageSelection) {
+      request.status = "completed";
+      request.filingCompleted = true;
+    } else if (req.body.status === "open") {
+      request.filingCompleted = false;
+    }
   }
 
   await request.save();

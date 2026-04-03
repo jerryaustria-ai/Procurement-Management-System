@@ -16,6 +16,14 @@ function hasActiveRfp(item) {
   return Boolean(item.requestForPaymentEnabled);
 }
 
+function handleRfpBadgeKeyDown(event, item, onOpenRequestForPayment) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenRequestForPayment?.(item);
+  }
+}
+
 export default function RequestList({
   items,
   selectedId,
@@ -24,6 +32,7 @@ export default function RequestList({
   onSelect,
   onOpenWorkflow,
   onOpenDetails,
+  onOpenRequestForPayment,
   onEdit,
   canEditItem,
   onExportCsv,
@@ -165,7 +174,19 @@ export default function RequestList({
               <div className="request-list-topline">
                 <strong>{item.requestNumber}</strong>
                 {hasActiveRfp(item) ? (
-                  <span className="rfp-badge" aria-label="Request for Payment enabled">
+                  <span
+                    className="rfp-badge rfp-badge-link"
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Open Request for Payment"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenRequestForPayment?.(item);
+                    }}
+                    onKeyDown={(event) =>
+                      handleRfpBadgeKeyDown(event, item, onOpenRequestForPayment)
+                    }
+                  >
                     RFP Enabled
                   </span>
                 ) : null}

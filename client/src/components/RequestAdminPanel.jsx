@@ -15,6 +15,8 @@ export default function RequestAdminPanel({
     return null;
   }
 
+  const stageOptions = Array.from(new Set([...stages, "Completed"]));
+
   return (
     <section className="panel action-panel">
       <div className="form-grid two-column">
@@ -62,7 +64,7 @@ export default function RequestAdminPanel({
             <label>
               Current stage
               <select name="currentStage" value={form.currentStage} onChange={onChange}>
-                {stages.map((stage) => (
+                {stageOptions.map((stage) => (
                   <option key={stage} value={stage}>
                     {stage}
                   </option>

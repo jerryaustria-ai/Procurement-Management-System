@@ -704,6 +704,22 @@ label,
   white-space: nowrap;
 }
 
+.rfp-badge-link {
+  cursor: pointer;
+  appearance: none;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.rfp-badge-link:hover {
+  background: rgba(114, 197, 154, 0.18);
+  border-color: rgba(114, 197, 154, 0.38);
+  color: #317251;
+}
+
 .summary-title {
   margin: 12px 0 0;
   color: var(--text-soft);
@@ -1771,6 +1787,20 @@ label,
 
 .panel-form-actions-right {
   justify-content: flex-end;
+}
+
+.rfp-action-row {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rfp-action-button {
+  min-width: 112px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-weight: 700;
+  box-shadow: none !important;
 }
 
 .request-workspace-stack {
