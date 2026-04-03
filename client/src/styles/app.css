@@ -214,6 +214,35 @@ textarea {
   gap: 12px;
 }
 
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--pill-border);
+  background: var(--pill-bg);
+}
+
+.theme-toggle-button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.theme-toggle-button:hover {
+  color: var(--heading-color);
+}
+
+.theme-toggle-button.is-active {
+  background: var(--accent);
+  color: #0f1b28;
+}
+
 .header-request-search {
   width: min(100%, 320px);
   min-width: 220px;

@@ -570,6 +570,8 @@ function CompanyHeader({
   isAuthenticated,
   user,
   showRequestSearch = true,
+  theme = 'light',
+  onThemeChange,
   onLogout,
   requestSearchQuery = '',
   onRequestSearchChange,
@@ -649,6 +651,26 @@ function CompanyHeader({
         </div>
 
         <div className='header-meta'>
+          {user ? (
+            <div className='theme-toggle' role='group' aria-label='Theme toggle'>
+              <button
+                className={`theme-toggle-button ${theme === 'light' ? 'is-active' : ''}`}
+                type='button'
+                onClick={() => onThemeChange?.('light')}
+                aria-pressed={theme === 'light'}
+              >
+                Light
+              </button>
+              <button
+                className={`theme-toggle-button ${theme === 'dark' ? 'is-active' : ''}`}
+                type='button'
+                onClick={() => onThemeChange?.('dark')}
+                aria-pressed={theme === 'dark'}
+              >
+                Dark
+              </button>
+            </div>
+          ) : null}
           {user && showRequestSearch ? (
             <input
               className='header-request-search'
