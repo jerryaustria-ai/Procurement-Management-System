@@ -5348,7 +5348,7 @@ export default function App() {
               Boolean(
                 session?.user?.role === 'requester' &&
                   item.requesterEmail === session.user.email &&
-                  item.currentStage === 'Purchase Request' &&
+                  ['Purchase Request', 'Review'].includes(item.currentStage) &&
                   item.status !== 'completed',
               )
             }
@@ -5379,7 +5379,7 @@ export default function App() {
               Boolean(
                 session?.user?.role === 'requester' &&
                   item.requesterEmail === session.user.email &&
-                  item.currentStage === 'Purchase Request' &&
+                  ['Purchase Request', 'Review'].includes(item.currentStage) &&
                   item.status !== 'completed',
               )
             }
@@ -5459,7 +5459,7 @@ export default function App() {
                 Boolean(
                   session?.user?.role === 'requester' &&
                     item.requesterEmail === session.user.email &&
-                    item.currentStage === 'Purchase Request' &&
+                    ['Purchase Request', 'Review'].includes(item.currentStage) &&
                     item.status !== 'completed',
                 )
               }

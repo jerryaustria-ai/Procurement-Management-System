@@ -63,7 +63,7 @@ function canDeleteRequest(req, request) {
 
   return (
     request.requesterEmail === req.user.email &&
-    request.currentStage === "Purchase Request" &&
+    ["Purchase Request", "Review"].includes(request.currentStage) &&
     request.status !== "completed"
   );
 }
