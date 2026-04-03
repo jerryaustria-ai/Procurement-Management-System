@@ -16,6 +16,7 @@ import {
   isCloudinaryConfigured,
   uploadDocumentToCloudinary
 } from "../utils/cloudinary.js";
+import { sendNewRequestCreatedEmail } from "../utils/email.js";
 import { serializePurchaseRequest } from "../utils/serializers.js";
 
 const router = Router();
@@ -155,6 +156,24 @@ router.post("/purchase-requests", async (req, res) => {
           comment: notes || "Purchase request created."
         }
       ]
+    });
+
+    const notificationRecipients = await User.find({
+      role: { $in: ["reviewer", "admin"] }
+    }).select("email");
+
+    const recipientEmails = [
+      requester.email,
+      ...notificationRecipients.map((user) => user.email)
+    ];
+
+    sendNewRequestCreatedEmail({
+      request: created,
+      requesterName: requester.name,
+      requesterEmail: requester.email,
+      recipients: recipientEmails
+    }).catch((error) => {
+      console.error("Failed to send new request email notification.", error);
     });
 
     return res.status(201).json(serializePurchaseRequest(created));

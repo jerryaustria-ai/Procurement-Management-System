@@ -365,6 +365,10 @@ function canAccessRequestForPayment(item) {
     return false
   }
 
+  if (item.status === 'completed' || item.filingCompleted) {
+    return false
+  }
+
   const requestForPaymentStages = new Set([
     'Send PO',
     'Delivery',

@@ -60,15 +60,9 @@ export default function PurchaseOrderPage({
             actions when you are ready.
           </p>
         </div>
-        <div className="po-page-actions">
-          <button className="ghost-button" type="button" onClick={onClose}>
+        <div className="po-page-header-actions">
+          <button className="po-secondary-action" type="button" onClick={onClose}>
             Back to workflow
-          </button>
-          <button className="ghost-button" type="button" onClick={onPrint}>
-            Print PO
-          </button>
-          <button type="button" onClick={onSave} disabled={isSubmitting}>
-            Save purchase order
           </button>
         </div>
       </div>
@@ -261,6 +255,20 @@ export default function PurchaseOrderPage({
           </label>
         </div>
       </section>
+
+      <div className="po-page-footer-actions">
+        <button className="po-secondary-action" type="button" onClick={onPrint}>
+          Print PO
+        </button>
+        <button
+          className="po-primary-action"
+          type="button"
+          onClick={onSave}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Saving..." : "Save PO"}
+        </button>
+      </div>
     </section>
   );
 }

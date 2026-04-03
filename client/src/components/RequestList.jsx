@@ -13,7 +13,7 @@ function getProcurementStatus(item) {
 }
 
 function hasActiveRfp(item) {
-  return Boolean(item.requestForPaymentEnabled);
+  return Boolean(item.requestForPaymentEnabled) && item.status !== "completed" && !item.filingCompleted;
 }
 
 function handleRfpBadgeKeyDown(event, item, onOpenRequestForPayment) {

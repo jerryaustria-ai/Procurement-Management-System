@@ -40,7 +40,7 @@ function getProcurementStatusLabel(item) {
 }
 
 function hasActiveRfp(item) {
-  return Boolean(item.requestForPaymentEnabled);
+  return Boolean(item.requestForPaymentEnabled) && item.status !== "completed" && !item.filingCompleted;
 }
 
 export default function RequestSummary({
