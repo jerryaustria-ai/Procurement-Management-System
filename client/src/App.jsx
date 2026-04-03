@@ -3347,6 +3347,64 @@ export default function App() {
     })
   }
 
+  async function handleDeleteRequestById(requestId) {
+    const targetRequest = items.find((item) => item.id === requestId)
+
+    if (!targetRequest || !session?.token) {
+      return
+    }
+
+    openConfirmDialog({
+      title: 'Delete purchase request',
+      message: `This will permanently remove ${targetRequest.requestNumber} from the registry.`,
+      confirmLabel: 'Delete request',
+      onConfirm: async () => {
+        setActionError('')
+        setIsSubmitting(true)
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/workflows/purchase-requests/${targetRequest.id}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${session.token}`,
+              },
+            },
+          )
+
+          if (!response.ok) {
+            const data = await response.json()
+            throw new Error(data.message || 'Failed to delete request.')
+          }
+
+          setItems((current) =>
+            current.filter((item) => item.id !== targetRequest.id),
+          )
+          if (selectedId === targetRequest.id) {
+            setSelectedId('')
+          }
+          setConfirmDialog(null)
+          pushToast({
+            title: 'Request deleted',
+            message: `${targetRequest.requestNumber} was removed from the registry.`,
+            variant: 'success',
+          })
+        } catch (error) {
+          setActionError(error.message)
+          pushToast({
+            title: 'Delete failed',
+            message: error.message,
+            variant: 'error',
+            duration: 4200,
+          })
+        } finally {
+          setIsSubmitting(false)
+        }
+      },
+    })
+  }
+
   async function handleCreateUser() {
     if (!session?.token || !isAdmin) {
       return
@@ -5252,7 +5310,16 @@ export default function App() {
             onOpenDetails={handleOpenRequestDetails}
             onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
+            onDelete={handleDeleteRequestById}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
+            canDeleteItem={(item) =>
+              Boolean(
+                session?.user?.role === 'requester' &&
+                  item.requesterEmail === session.user.email &&
+                  item.currentStage === 'Purchase Request' &&
+                  item.status !== 'completed',
+              )
+            }
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
@@ -5272,7 +5339,16 @@ export default function App() {
             onOpenDetails={handleOpenRequestDetails}
             onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
+            onDelete={handleDeleteRequestById}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
+            canDeleteItem={(item) =>
+              Boolean(
+                session?.user?.role === 'requester' &&
+                  item.requesterEmail === session.user.email &&
+                  item.currentStage === 'Purchase Request' &&
+                  item.status !== 'completed',
+              )
+            }
             onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
@@ -5341,7 +5417,16 @@ export default function App() {
               onOpenDetails={handleOpenRequestDetails}
               onOpenRequestForPayment={openRequestForPaymentPage}
               onEdit={openEditRequestModalForItem}
+              onDelete={handleDeleteRequestById}
               canEditItem={(item) => canUserEditRequest(session?.user, item)}
+              canDeleteItem={(item) =>
+                Boolean(
+                  session?.user?.role === 'requester' &&
+                    item.requesterEmail === session.user.email &&
+                    item.currentStage === 'Purchase Request' &&
+                    item.status !== 'completed',
+                )
+              }
               onExportCsv={handleExportCsv}
               onExportPdf={handleExportPdf}
               showExpand={false}

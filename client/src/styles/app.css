@@ -1144,6 +1144,35 @@ label,
   color: var(--accent-strong);
 }
 
+.request-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.request-icon-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.request-icon-link:hover {
+  color: #d25b52;
+  background: rgba(210, 91, 82, 0.08);
+  transform: translateY(-1px);
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;

@@ -52,6 +52,22 @@ function canEditRequest(req, request) {
   return !request.approvalCompleted && request.status !== "completed";
 }
 
+function canDeleteRequest(req, request) {
+  if (req.user.role === "admin") {
+    return true;
+  }
+
+  if (req.user.role !== "requester") {
+    return false;
+  }
+
+  return (
+    request.requesterEmail === req.user.email &&
+    request.currentStage === "Purchase Request" &&
+    request.status !== "completed"
+  );
+}
+
 function canManageRequestDrafts(req, request) {
   return (
     req.user.role === "admin" ||
@@ -717,11 +733,17 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
   return res.status(204).send();
 });
 
-router.delete("/purchase-requests/:id", requireRole("admin"), async (req, res) => {
+router.delete("/purchase-requests/:id", async (req, res) => {
   const request = await PurchaseRequest.findById(req.params.id);
 
   if (!request) {
     return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!canDeleteRequest(req, request)) {
+    return res.status(403).json({
+      message: "Only admins or the requester can delete a request that is still in Purchase Request."
+    });
   }
 
   const documents = [...(request.documents ?? [])];
