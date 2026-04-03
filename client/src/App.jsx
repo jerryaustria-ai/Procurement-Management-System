@@ -35,9 +35,9 @@ const DEFAULT_COMPANY_SETTINGS = {
 
 function getStoredTheme() {
   try {
-    return localStorage.getItem('procurement-theme') || 'dark'
+    return localStorage.getItem('procurement-theme') || 'light'
   } catch {
-    return 'dark'
+    return 'light'
   }
 }
 
@@ -569,6 +569,7 @@ function formatCurrencyValue(value, currency = 'PHP') {
 function CompanyHeader({
   isAuthenticated,
   user,
+  showRequestSearch = true,
   onLogout,
   requestSearchQuery = '',
   onRequestSearchChange,
@@ -648,14 +649,19 @@ function CompanyHeader({
         </div>
 
         <div className='header-meta'>
-          {user ? (
+          {user && showRequestSearch ? (
             <input
               className='header-request-search'
               type='search'
+              name='request-search'
               value={requestSearchQuery}
               onChange={(event) => onRequestSearchChange?.(event.target.value)}
               placeholder='Search all requests'
               aria-label='Search all requests'
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='none'
+              spellCheck={false}
             />
           ) : null}
           {user ? (
@@ -4720,6 +4726,7 @@ export default function App() {
         <CompanyHeader
           isAuthenticated
           user={session.user}
+          showRequestSearch={false}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
