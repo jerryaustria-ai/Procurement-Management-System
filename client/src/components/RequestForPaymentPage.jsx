@@ -27,6 +27,8 @@ export default function RequestForPaymentPage({
   isEditing = true,
   onChange,
   onSelectSupplier,
+  onCreateSupplier,
+  canCreateSupplier = false,
   onEdit,
   onCancel,
   onPrint,
@@ -281,6 +283,27 @@ export default function RequestForPaymentPage({
           eyebrow="Request for Payment"
           title="Select Supplier"
           onClose={() => setIsSupplierModalOpen(false)}
+          actions={
+            canCreateSupplier ? (
+              <button
+                className="modal-icon-action"
+                type="button"
+                onClick={onCreateSupplier}
+                aria-label="Add supplier"
+                title="Add supplier"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 5v14M5 12h14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2.2"
+                  />
+                </svg>
+              </button>
+            ) : null
+          }
         >
           <div className="supplier-picker-modal">
             <label>

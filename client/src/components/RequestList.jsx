@@ -29,6 +29,8 @@ export default function RequestList({
   selectedId,
   activeFilter = "all",
   onFilterChange,
+  onCreateNew,
+  canCreateNew = false,
   onSelect,
   onOpenWorkflow,
   onOpenDetails,
@@ -87,6 +89,15 @@ export default function RequestList({
       <div className="panel-top-actions" ref={menuRef}>
         <div className="request-list-tools request-list-tools-top">
           <span className="panel-counter">{items.length} total</span>
+          {canCreateNew ? (
+            <button
+              className="request-list-create-button"
+              type="button"
+              onClick={onCreateNew}
+            >
+              New purchase request
+            </button>
+          ) : null}
           <label className="request-list-filter-select">
             <span className="sr-only">Filter requests</span>
             <select

@@ -4744,6 +4744,8 @@ export default function App() {
           isEditing={isRequestForPaymentEditing}
           onChange={handleRequestForPaymentFormChange}
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
+          onCreateSupplier={openCreateSupplierModal}
+          canCreateSupplier={session.user.role === 'admin'}
           onEdit={() => setIsRequestForPaymentEditing(true)}
           onCancel={handleCancelRequestForPaymentEdit}
           onPrint={() => handlePrintRequestForPaymentRecord(selectedItem)}
@@ -4751,6 +4753,21 @@ export default function App() {
           onClose={closeRequestForPaymentPage}
           isSubmitting={isSubmitting}
         />
+        {isSupplierModalOpen ? (
+          <Modal
+            eyebrow='Create Supplier'
+            title='Create supplier'
+            onClose={() => setIsSupplierModalOpen(false)}
+          >
+            <SupplierForm
+              form={supplierForm}
+              onChange={handleSupplierFormChange}
+              onSubmit={handleCreateSupplier}
+              isSubmitting={isSubmitting}
+              error={supplierError}
+            />
+          </Modal>
+        ) : null}
       </main>
     )
   }
@@ -5239,22 +5256,6 @@ export default function App() {
               PO, delivery, invoice, matching, payment, and filing.
             </p>
           </div>
-          <div className='toolbar-actions left hero-actions hero-actions-side'>
-            <div className='hero-action-card'>
-              <p className='eyebrow'>Quick Actions</p>
-              <div className='hero-action-stack'>
-                {canCreateRequest ? (
-                  <button
-                    className='hero-primary-action'
-                    type='button'
-                    onClick={openCreateRequestModal}
-                  >
-                    New purchase request
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -5303,6 +5304,8 @@ export default function App() {
             selectedId={selectedId}
             activeFilter={requestRegistryFilter}
             onFilterChange={setRequestRegistryFilter}
+            onCreateNew={openCreateRequestModal}
+            canCreateNew={canCreateRequest}
             searchQuery={requestSearchQuery}
             onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
@@ -5332,6 +5335,8 @@ export default function App() {
             selectedId={selectedId}
             activeFilter={requestRegistryFilter}
             onFilterChange={setRequestRegistryFilter}
+            onCreateNew={openCreateRequestModal}
+            canCreateNew={canCreateRequest}
             searchQuery={requestSearchQuery}
             onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
@@ -5410,6 +5415,8 @@ export default function App() {
               selectedId={selectedId}
               activeFilter={requestRegistryFilter}
               onFilterChange={setRequestRegistryFilter}
+              onCreateNew={openCreateRequestModal}
+              canCreateNew={canCreateRequest}
               searchQuery={requestSearchQuery}
               onSearchChange={setRequestSearchQuery}
               onSelect={handleSelect}

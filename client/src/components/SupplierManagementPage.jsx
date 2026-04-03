@@ -17,14 +17,23 @@ export default function SupplierManagementPage({
           <p className="hero-copy">View all suppliers in one place and manage supplier records.</p>
         </div>
         <div className="po-page-actions">
-          <button className="ghost-button" type="button" onClick={onClose}>
+          <button
+            className="po-secondary-action request-workspace-back-button"
+            type="button"
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M10 6 4 12l6 6M4 12h16"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+              />
+            </svg>
             Back to dashboard
           </button>
-          {canManage ? (
-            <button type="button" onClick={onCreateNew}>
-              New supplier
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -34,7 +43,29 @@ export default function SupplierManagementPage({
             <p className="eyebrow">Records</p>
             <h2>All suppliers</h2>
           </div>
-          <span className="panel-counter">{suppliers.length} suppliers</span>
+          <div className="supplier-heading-actions">
+            <span className="panel-counter">{suppliers.length} suppliers</span>
+            {canManage ? (
+              <button
+                className="modal-icon-action supplier-heading-add"
+                type="button"
+                aria-label="Add supplier"
+                title="Add supplier"
+                onClick={onCreateNew}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 5v14M5 12h14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="supplier-directory-list">

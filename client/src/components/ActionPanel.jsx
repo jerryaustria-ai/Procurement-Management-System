@@ -548,8 +548,22 @@ export default function ActionPanel({
           onClose={() => setIsSupplierModalOpen(false)}
           actions={
             user.role === "admin" ? (
-              <button className="ghost-button" type="button" onClick={onCreateSupplier}>
-                Create New Supplier
+              <button
+                className="modal-icon-action"
+                type="button"
+                onClick={onCreateSupplier}
+                aria-label="Add supplier"
+                title="Add supplier"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 5v14M5 12h14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2.2"
+                  />
+                </svg>
               </button>
             ) : null
           }
