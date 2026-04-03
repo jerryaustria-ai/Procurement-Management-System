@@ -380,11 +380,6 @@ textarea {
   background: rgba(16, 23, 34, 0.9);
 }
 
-.loading-overlay-logo {
-  width: min(120px, 32vw);
-  height: auto;
-}
-
 .loading-overlay-spinner {
   width: 46px;
   height: 46px;
