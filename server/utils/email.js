@@ -1,15 +1,7 @@
-import nodemailer from "nodemailer";
 import { Setting } from "../models/Setting.js";
 
-let transporterPromise = null;
-
-const REQUIRED_EMAIL_ENV_KEYS = [
-  "MAIL_HOST",
-  "MAIL_PORT",
-  "MAIL_USER",
-  "MAIL_PASSWORD",
-  "MAIL_FROM"
-];
+const REQUIRED_EMAIL_ENV_KEYS = ["BREVO_API_KEY", "MAIL_FROM"];
+const BREVO_SEND_EMAIL_URL = "https://api.brevo.com/v3/smtp/email";
 
 export function getEmailConfigurationStatus() {
   const missingKeys = REQUIRED_EMAIL_ENV_KEYS.filter(
@@ -18,34 +10,9 @@ export function getEmailConfigurationStatus() {
 
   return {
     configured: missingKeys.length === 0,
+    provider: "brevo-api",
     missingKeys
   };
-}
-
-function isEmailConfigured() {
-  return getEmailConfigurationStatus().configured;
-}
-
-function getTransporter() {
-  if (!isEmailConfigured()) {
-    return null;
-  }
-
-  if (!transporterPromise) {
-    transporterPromise = Promise.resolve(
-      nodemailer.createTransport({
-        host: process.env.MAIL_HOST,
-        port: Number(process.env.MAIL_PORT),
-        secure: String(process.env.MAIL_SECURE || "false").toLowerCase() === "true",
-        auth: {
-          user: process.env.MAIL_USER,
-          pass: process.env.MAIL_PASSWORD
-        }
-      })
-    );
-  }
-
-  return transporterPromise;
 }
 
 async function getCompanyName() {
@@ -57,13 +24,27 @@ async function getCompanyName() {
   }
 }
 
-export async function sendNewRequestCreatedEmail({
-  request,
-  requesterName,
-  requesterEmail,
-  recipients = []
-}) {
-  const transporter = getTransporter();
+function parseSender(rawFrom) {
+  const value = String(rawFrom || "").trim();
+  const match = value.match(/^(.*)<([^>]+)>$/);
+
+  if (!match) {
+    return {
+      email: value,
+      name: undefined
+    };
+  }
+
+  const name = match[1].trim().replace(/^"|"$/g, "");
+  const email = match[2].trim();
+
+  return {
+    email,
+    name: name || undefined
+  };
+}
+
+async function sendMail({ to, subject, text, html }) {
   const configurationStatus = getEmailConfigurationStatus();
 
   if (!configurationStatus.configured) {
@@ -73,15 +54,73 @@ export async function sendNewRequestCreatedEmail({
     };
   }
 
-  if (!transporter) {
-    return { skipped: true, reason: "Email transporter is unavailable." };
+  const sender = parseSender(process.env.MAIL_FROM);
+  if (!sender.email) {
+    return {
+      skipped: true,
+      reason: "MAIL_FROM must contain a valid sender email."
+    };
   }
 
+  const recipients = (Array.isArray(to) ? to : [to])
+    .map((recipient) => String(recipient || "").trim())
+    .filter(Boolean)
+    .map((email) => ({ email }));
+
+  if (recipients.length === 0) {
+    return {
+      skipped: true,
+      reason: "Recipient list is empty."
+    };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_EMAIL_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender,
+        to: recipients,
+        subject,
+        textContent: text,
+        htmlContent: html
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        skipped: true,
+        reason: `Brevo API send failed (${response.status}): ${errorText || response.statusText}`
+      };
+    }
+
+    return {
+      skipped: false,
+      provider: "brevo-api"
+    };
+  } catch (error) {
+    return {
+      skipped: true,
+      reason: `Brevo API send failed: ${error.message}`
+    };
+  }
+}
+
+export async function sendNewRequestCreatedEmail({
+  request,
+  requesterName,
+  requesterEmail,
+  recipients = []
+}) {
   if (recipients.length === 0) {
     return { skipped: true, reason: "No recipients were provided." };
   }
 
-  const companyName = await getCompanyName();
   const uniqueRecipients = Array.from(
     new Set(
       recipients
@@ -94,7 +133,7 @@ export async function sendNewRequestCreatedEmail({
     return { skipped: true, reason: "Recipient list is empty after normalization." };
   }
 
-  const resolvedTransporter = await transporter;
+  const companyName = await getCompanyName();
   const requestUrl = process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "";
   const title = request.title || "Untitled request";
   const description = request.description || "No description provided.";
@@ -127,8 +166,8 @@ export async function sendNewRequestCreatedEmail({
   `;
 
   const text = [
-    `New Purchase Request Submitted`,
-    ``,
+    "New Purchase Request Submitted",
+    "",
     `Request Number: ${request.requestNumber}`,
     `Title: ${title}`,
     `Requester: ${requesterName} (${requesterEmail})`,
@@ -141,39 +180,27 @@ export async function sendNewRequestCreatedEmail({
     .filter(Boolean)
     .join("\n");
 
-  await resolvedTransporter.sendMail({
-    from: process.env.MAIL_FROM,
+  const result = await sendMail({
     to: uniqueRecipients,
     subject: `[${companyName}] New Purchase Request ${request.requestNumber}`,
     text,
     html
   });
 
-  return { skipped: false, recipients: uniqueRecipients };
+  return result.skipped
+    ? result
+    : {
+        skipped: false,
+        provider: "brevo-api",
+        recipients: uniqueRecipients
+      };
 }
 
 export async function sendTestEmail({ recipientEmail, requestedByName = "System Admin" }) {
-  const configurationStatus = getEmailConfigurationStatus();
-
-  if (!configurationStatus.configured) {
-    return {
-      skipped: true,
-      reason: `Missing email configuration: ${configurationStatus.missingKeys.join(", ")}`
-    };
-  }
-
-  const transporter = getTransporter();
-
-  if (!transporter) {
-    return { skipped: true, reason: "Email transporter is unavailable." };
-  }
-
   const companyName = await getCompanyName();
-  const resolvedTransporter = await transporter;
   const requestUrl = process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "";
 
-  await resolvedTransporter.sendMail({
-    from: process.env.MAIL_FROM,
+  const result = await sendMail({
     to: recipientEmail,
     subject: `[${companyName}] Test Email`,
     text: [
@@ -186,12 +213,18 @@ export async function sendTestEmail({ recipientEmail, requestedByName = "System 
     html: `
       <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
         <h2 style="margin-bottom: 8px;">Procurement System Test Email</h2>
-        <p style="margin-top: 0;">This confirms that your SMTP configuration is working.</p>
+        <p style="margin-top: 0;">This confirms that your Brevo API configuration is working.</p>
         <p><strong>Requested by:</strong> ${requestedByName}</p>
         ${requestUrl ? `<p><a href="${requestUrl}" style="color: #1d4ed8;">Open Procurement System</a></p>` : ""}
       </div>
     `
   });
 
-  return { skipped: false, recipient: recipientEmail };
+  return result.skipped
+    ? result
+    : {
+        skipped: false,
+        provider: "brevo-api",
+        recipient: recipientEmail
+      };
 }
