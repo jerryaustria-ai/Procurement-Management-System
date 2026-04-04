@@ -16,7 +16,11 @@ import {
   isCloudinaryConfigured,
   uploadDocumentToCloudinary
 } from "../utils/cloudinary.js";
-import { sendNewRequestCreatedEmail } from "../utils/email.js";
+import {
+  getEmailConfigurationStatus,
+  sendNewRequestCreatedEmail,
+  sendTestEmail
+} from "../utils/email.js";
 import { serializePurchaseRequest } from "../utils/serializers.js";
 
 const router = Router();
@@ -175,7 +179,7 @@ router.post("/purchase-requests", async (req, res) => {
     });
 
     const notificationRecipients = await User.find({
-      role: { $in: ["reviewer", "admin"] }
+      role: "admin"
     }).select("email");
 
     const recipientEmails = [
@@ -188,8 +192,14 @@ router.post("/purchase-requests", async (req, res) => {
       requesterName: requester.name,
       requesterEmail: requester.email,
       recipients: recipientEmails
-    }).catch((error) => {
-      console.error("Failed to send new request email notification.", error);
+    })
+      .then((result) => {
+        if (result?.skipped) {
+          console.warn("Skipped new request email notification.", result.reason || "Unknown reason.");
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to send new request email notification.", error);
     });
 
     return res.status(201).json(serializePurchaseRequest(created));
@@ -203,6 +213,45 @@ router.post("/purchase-requests", async (req, res) => {
     }
 
     return res.status(500).json({ message: "Failed to create purchase request." });
+  }
+});
+
+router.get("/notifications/email-status", requireRole("admin"), async (_req, res) => {
+  const status = getEmailConfigurationStatus();
+
+  return res.json({
+    configured: status.configured,
+    missingKeys: status.missingKeys
+  });
+});
+
+router.post("/notifications/test-email", requireRole("admin"), async (req, res) => {
+  try {
+    const recipientEmail = String(req.body?.recipientEmail || req.user.email || "")
+      .trim()
+      .toLowerCase();
+
+    if (!recipientEmail) {
+      return res.status(400).json({ message: "Recipient email is required." });
+    }
+
+    const result = await sendTestEmail({
+      recipientEmail,
+      requestedByName: req.user.name
+    });
+
+    if (result?.skipped) {
+      return res.status(400).json({
+        message: result.reason || "Test email was skipped."
+      });
+    }
+
+    return res.json({
+      message: `Test email sent to ${recipientEmail}.`
+    });
+  } catch (error) {
+    console.error("Failed to send test email.", error);
+    return res.status(500).json({ message: "Failed to send test email." });
   }
 });
 

@@ -3,14 +3,27 @@ import { Setting } from "../models/Setting.js";
 
 let transporterPromise = null;
 
-function isEmailConfigured() {
-  return Boolean(
-    process.env.MAIL_HOST &&
-      process.env.MAIL_PORT &&
-      process.env.MAIL_USER &&
-      process.env.MAIL_PASSWORD &&
-      process.env.MAIL_FROM
+const REQUIRED_EMAIL_ENV_KEYS = [
+  "MAIL_HOST",
+  "MAIL_PORT",
+  "MAIL_USER",
+  "MAIL_PASSWORD",
+  "MAIL_FROM"
+];
+
+export function getEmailConfigurationStatus() {
+  const missingKeys = REQUIRED_EMAIL_ENV_KEYS.filter(
+    (key) => !String(process.env[key] || "").trim()
   );
+
+  return {
+    configured: missingKeys.length === 0,
+    missingKeys
+  };
+}
+
+function isEmailConfigured() {
+  return getEmailConfigurationStatus().configured;
 }
 
 function getTransporter() {
@@ -51,9 +64,21 @@ export async function sendNewRequestCreatedEmail({
   recipients = []
 }) {
   const transporter = getTransporter();
+  const configurationStatus = getEmailConfigurationStatus();
 
-  if (!transporter || recipients.length === 0) {
-    return { skipped: true };
+  if (!configurationStatus.configured) {
+    return {
+      skipped: true,
+      reason: `Missing email configuration: ${configurationStatus.missingKeys.join(", ")}`
+    };
+  }
+
+  if (!transporter) {
+    return { skipped: true, reason: "Email transporter is unavailable." };
+  }
+
+  if (recipients.length === 0) {
+    return { skipped: true, reason: "No recipients were provided." };
   }
 
   const companyName = await getCompanyName();
@@ -66,7 +91,7 @@ export async function sendNewRequestCreatedEmail({
   );
 
   if (uniqueRecipients.length === 0) {
-    return { skipped: true };
+    return { skipped: true, reason: "Recipient list is empty after normalization." };
   }
 
   const resolvedTransporter = await transporter;
@@ -125,4 +150,48 @@ export async function sendNewRequestCreatedEmail({
   });
 
   return { skipped: false, recipients: uniqueRecipients };
+}
+
+export async function sendTestEmail({ recipientEmail, requestedByName = "System Admin" }) {
+  const configurationStatus = getEmailConfigurationStatus();
+
+  if (!configurationStatus.configured) {
+    return {
+      skipped: true,
+      reason: `Missing email configuration: ${configurationStatus.missingKeys.join(", ")}`
+    };
+  }
+
+  const transporter = getTransporter();
+
+  if (!transporter) {
+    return { skipped: true, reason: "Email transporter is unavailable." };
+  }
+
+  const companyName = await getCompanyName();
+  const resolvedTransporter = await transporter;
+  const requestUrl = process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "";
+
+  await resolvedTransporter.sendMail({
+    from: process.env.MAIL_FROM,
+    to: recipientEmail,
+    subject: `[${companyName}] Test Email`,
+    text: [
+      "This is a test email from the Januarius Procurement System.",
+      `Requested by: ${requestedByName}`,
+      requestUrl ? `Portal: ${requestUrl}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+        <h2 style="margin-bottom: 8px;">Procurement System Test Email</h2>
+        <p style="margin-top: 0;">This confirms that your SMTP configuration is working.</p>
+        <p><strong>Requested by:</strong> ${requestedByName}</p>
+        ${requestUrl ? `<p><a href="${requestUrl}" style="color: #1d4ed8;">Open Procurement System</a></p>` : ""}
+      </div>
+    `
+  });
+
+  return { skipped: false, recipient: recipientEmail };
 }
