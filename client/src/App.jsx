@@ -455,7 +455,7 @@ function getRequestAdminForm(
     dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
     status: item.status ?? 'open',
     currentStage:
-      item.status === 'completed' ? 'Completed' : item.currentStage ?? '',
+      item.status === 'completed' ? 'Completed' : (item.currentStage ?? ''),
     inspectionStatus: item.inspectionStatus ?? 'pending',
     supplier:
       item.supplier === 'Pending selection' ? '' : (item.supplier ?? ''),
@@ -652,7 +652,11 @@ function CompanyHeader({
 
         <div className='header-meta'>
           {user ? (
-            <div className='theme-toggle' role='group' aria-label='Theme toggle'>
+            <div
+              className='theme-toggle'
+              role='group'
+              aria-label='Theme toggle'
+            >
               <button
                 className={`theme-toggle-button ${theme === 'light' ? 'is-active' : ''}`}
                 type='button'
@@ -786,7 +790,8 @@ function CompanyHeader({
               <div>
                 <strong>Request for Payment list</strong>
                 <div className='audit-trail-cell-subtext'>
-                  Open any request with active RFP access or continue a saved RFP draft.
+                  Open any request with active RFP access or continue a saved
+                  RFP draft.
                 </div>
               </div>
               <span className='panel-counter'>
@@ -812,47 +817,47 @@ function CompanyHeader({
                     {rfpItems.map((record) => {
                       const hasSavedRfpDraft = Boolean(
                         record.rfpDraft?.payee ||
-                          record.rfpDraft?.tinNumber ||
-                          record.rfpDraft?.invoiceNumber ||
-                          record.rfpDraft?.amountRequested ||
-                          record.rfpDraft?.dueDate ||
-                          record.rfpDraft?.notes,
+                        record.rfpDraft?.tinNumber ||
+                        record.rfpDraft?.invoiceNumber ||
+                        record.rfpDraft?.amountRequested ||
+                        record.rfpDraft?.dueDate ||
+                        record.rfpDraft?.notes,
                       )
 
                       return (
-                      <tr
-                        key={record.id}
-                        className='supplier-row audit-trail-row'
-                      >
-                        <td>
-                          <strong>{record.requestNumber}</strong>
-                          <div className='audit-trail-cell-subtext'>
-                            {record.title}
-                          </div>
-                        </td>
-                        <td>{record.rfpDraft?.payee || 'Not set'}</td>
-                        <td>{record.rfpDraft?.invoiceNumber || 'Not set'}</td>
-                        <td>{record.rfpDraft?.dueDate || 'Not set'}</td>
-                        <td>
-                          <div className='table-action-row'>
-                            <button
-                              className='ghost-button'
-                              type='button'
-                              onClick={() => handleOpenRfpRecord(record)}
-                            >
-                              Open
-                            </button>
-                            <button
-                              className='ghost-button'
-                              type='button'
-                              onClick={() => handlePrintRfpRecord(record)}
-                              disabled={!hasSavedRfpDraft}
-                            >
-                              Print
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        <tr
+                          key={record.id}
+                          className='supplier-row audit-trail-row'
+                        >
+                          <td>
+                            <strong>{record.requestNumber}</strong>
+                            <div className='audit-trail-cell-subtext'>
+                              {record.title}
+                            </div>
+                          </td>
+                          <td>{record.rfpDraft?.payee || 'Not set'}</td>
+                          <td>{record.rfpDraft?.invoiceNumber || 'Not set'}</td>
+                          <td>{record.rfpDraft?.dueDate || 'Not set'}</td>
+                          <td>
+                            <div className='table-action-row'>
+                              <button
+                                className='ghost-button'
+                                type='button'
+                                onClick={() => handleOpenRfpRecord(record)}
+                              >
+                                Open
+                              </button>
+                              <button
+                                className='ghost-button'
+                                type='button'
+                                onClick={() => handlePrintRfpRecord(record)}
+                                disabled={!hasSavedRfpDraft}
+                              >
+                                Print
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
                       )
                     })}
                   </tbody>
@@ -1050,7 +1055,7 @@ export default function App() {
       (canAccessRequestForPayment(selectedItem) ||
         (selectedItem.currentStage === 'Approval' &&
           Boolean(actionForm.skipToRfp)))) ||
-      canOpenRequestForPaymentMenu,
+    canOpenRequestForPaymentMenu,
   )
   const canEditSelectedRequest = Boolean(
     canUserEditRequest(session?.user, selectedItem),
@@ -1621,7 +1626,9 @@ export default function App() {
 
       const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to update Request for Payment access.')
+        throw new Error(
+          data.message || 'Failed to update Request for Payment access.',
+        )
       }
 
       setItems((current) =>
@@ -2302,15 +2309,17 @@ export default function App() {
         (selectedItem?.id === targetRequest?.id &&
           targetRequest?.currentStage === 'Approval' &&
           Boolean(actionForm.skipToRfp)))
-    const nextTargetRequest =
-      requestedIsImmediatelyAccessible ? targetRequest : fallbackRequest
+    const nextTargetRequest = requestedIsImmediatelyAccessible
+      ? targetRequest
+      : fallbackRequest
 
     if (!nextTargetRequest) {
       return
     }
 
     const resolvedRequest =
-      items.find((item) => item.id === nextTargetRequest.id) ?? nextTargetRequest
+      items.find((item) => item.id === nextTargetRequest.id) ??
+      nextTargetRequest
     const isSelectedRequest = selectedItem?.id === resolvedRequest.id
     const isPendingRfpActivation =
       isSelectedRequest &&
@@ -2419,12 +2428,12 @@ export default function App() {
     const savedRfpDraft = latestItem.rfpDraft ?? {}
     const hasSavedRfpDraft = Boolean(
       savedRfpDraft.payee ||
-        savedRfpDraft.tinNumber ||
-        savedRfpDraft.invoiceNumber ||
-        savedRfpDraft.paymentReference ||
-        savedRfpDraft.amountRequested ||
-        savedRfpDraft.dueDate ||
-        savedRfpDraft.notes,
+      savedRfpDraft.tinNumber ||
+      savedRfpDraft.invoiceNumber ||
+      savedRfpDraft.paymentReference ||
+      savedRfpDraft.amountRequested ||
+      savedRfpDraft.dueDate ||
+      savedRfpDraft.notes,
     )
 
     setRequestForPaymentForm(getRequestForPaymentFormFromItem(latestItem))
@@ -3058,10 +3067,9 @@ export default function App() {
       }))
       pushToast({
         title: 'Stage advanced',
-        message:
-          shouldOpenRfpAfterAdvance
-            ? `${data.requestNumber} moved to ${data.currentStage}. Request for Payment is now active.`
-            : `${data.requestNumber} moved to ${data.currentStage}.`,
+        message: shouldOpenRfpAfterAdvance
+          ? `${data.requestNumber} moved to ${data.currentStage}. Request for Payment is now active.`
+          : `${data.requestNumber} moved to ${data.currentStage}.`,
         variant: 'success',
       })
 
@@ -5347,9 +5355,9 @@ export default function App() {
             canDeleteItem={(item) =>
               Boolean(
                 session?.user?.role === 'requester' &&
-                  item.requesterEmail === session.user.email &&
-                  ['Purchase Request', 'Review'].includes(item.currentStage) &&
-                  item.status !== 'completed',
+                item.requesterEmail === session.user.email &&
+                ['Purchase Request', 'Review'].includes(item.currentStage) &&
+                item.status !== 'completed',
               )
             }
             onExportCsv={handleExportCsv}
@@ -5378,9 +5386,9 @@ export default function App() {
             canDeleteItem={(item) =>
               Boolean(
                 session?.user?.role === 'requester' &&
-                  item.requesterEmail === session.user.email &&
-                  ['Purchase Request', 'Review'].includes(item.currentStage) &&
-                  item.status !== 'completed',
+                item.requesterEmail === session.user.email &&
+                ['Purchase Request', 'Review'].includes(item.currentStage) &&
+                item.status !== 'completed',
               )
             }
             onExportCsv={handleExportCsv}
@@ -5458,9 +5466,9 @@ export default function App() {
               canDeleteItem={(item) =>
                 Boolean(
                   session?.user?.role === 'requester' &&
-                    item.requesterEmail === session.user.email &&
-                    ['Purchase Request', 'Review'].includes(item.currentStage) &&
-                    item.status !== 'completed',
+                  item.requesterEmail === session.user.email &&
+                  ['Purchase Request', 'Review'].includes(item.currentStage) &&
+                  item.status !== 'completed',
                 )
               }
               onExportCsv={handleExportCsv}

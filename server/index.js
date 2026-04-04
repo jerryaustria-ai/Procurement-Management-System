@@ -17,13 +17,39 @@ const allowedOrigins = (process.env.CLIENT_ORIGIN || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+function matchesWildcardOrigin(origin, allowedPattern) {
+  if (!allowedPattern.includes("*")) {
+    return false;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    const patternUrl = new URL(allowedPattern.replace("*.", ""));
+    const protocolMatches = originUrl.protocol === patternUrl.protocol;
+    const wildcardHost = allowedPattern.replace(`${patternUrl.protocol}//*.`, "");
+    const hostMatches =
+      originUrl.hostname === wildcardHost || originUrl.hostname.endsWith(`.${wildcardHost}`);
+
+    return protocolMatches && hostMatches;
+  } catch (_error) {
+    return false;
+  }
+}
+
 function isAllowedOrigin(origin) {
   if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
     return true;
   }
 
   // Allow local Vite/React dev servers without needing to update env on every port change.
-  if (/^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+  if (
+    /^https?:\/\/localhost:\d+$/.test(origin) ||
+    /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin)
+  ) {
+    return true;
+  }
+
+  if (allowedOrigins.some((allowedOrigin) => matchesWildcardOrigin(origin, allowedOrigin))) {
     return true;
   }
 
@@ -37,7 +63,12 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error("Origin not allowed by CORS."));
+      const error = new Error(
+        `Origin not allowed by CORS. Received: ${origin || "unknown"}. Allowed: ${
+          allowedOrigins.join(", ") || "(none configured)"
+        }`
+      );
+      return callback(error);
     }
   })
 );
