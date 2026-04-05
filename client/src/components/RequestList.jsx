@@ -29,6 +29,8 @@ export default function RequestList({
   selectedId,
   activeFilter = "all",
   onFilterChange,
+  searchQuery = "",
+  onSearchChange,
   onCreateNew,
   canCreateNew = false,
   onSelect,
@@ -39,10 +41,6 @@ export default function RequestList({
   onDelete,
   canEditItem,
   canDeleteItem,
-  onExportCsv,
-  onExportPdf,
-  onExpand,
-  showExpand = true
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pageSize, setPageSize] = useState(5);
@@ -132,38 +130,42 @@ export default function RequestList({
           </button>
           {isMenuOpen ? (
             <div className="panel-kebab-menu" role="menu" aria-label="Request registry actions">
-              {showExpand && onExpand ? (
+              <div className="panel-kebab-menu-group mobile-only-request-filter">
+                <span className="panel-kebab-menu-label">Filter requests</span>
                 <button
                   type="button"
                   role="menuitem"
+                  className={activeFilter === "all" ? "is-active" : ""}
                   onClick={() => {
                     setIsMenuOpen(false);
-                    onExpand();
+                    onFilterChange?.("all");
                   }}
                 >
-                  Expand view
+                  All
                 </button>
-              ) : null}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onExportCsv?.();
-                }}
-              >
-                Export CSV
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onExportPdf?.();
-                }}
-              >
-                Export PDF
-              </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={activeFilter === "open" ? "is-active" : ""}
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onFilterChange?.("open");
+                  }}
+                >
+                  Open
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={activeFilter === "completed" ? "is-active" : ""}
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onFilterChange?.("completed");
+                  }}
+                >
+                  Completed
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -173,6 +175,19 @@ export default function RequestList({
           <p className="eyebrow">Requests</p>
           <h2>Request Registry</h2>
         </div>
+      </div>
+      <div className="request-list-search-row">
+        <span className="panel-counter">{items.length} total</span>
+        <label className="request-list-search">
+          <span className="sr-only">Search requests</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange?.(event.target.value)}
+            placeholder="Search requests"
+            aria-label="Search requests"
+          />
+        </label>
       </div>
 
       <div className="request-list">

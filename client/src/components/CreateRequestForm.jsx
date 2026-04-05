@@ -7,6 +7,8 @@ export default function CreateRequestForm({
   onQuotationFileChange,
   quotationFileName,
   onSubmit,
+  onCancel,
+  errors = {},
   isSubmitting,
   canCreate,
   error
@@ -32,9 +34,10 @@ export default function CreateRequestForm({
           </label>
         ) : null}
 
-        <label>
+        <label className={errors.title ? 'field-invalid' : ''}>
           Request title
           <input
+            className={errors.title ? 'field-input-invalid' : ''}
             name="title"
             value={form.title}
             onChange={onChange}
@@ -64,13 +67,13 @@ export default function CreateRequestForm({
           </select>
         </label>
 
-        <label>
+        <label className={errors.amount ? 'field-invalid' : ''}>
           Amount
           <input
+            className={errors.amount ? 'field-input-invalid' : ''}
             name="amount"
             value={form.amount}
             onChange={onChange}
-            placeholder="50000"
             inputMode="decimal"
           />
         </label>
@@ -98,14 +101,16 @@ export default function CreateRequestForm({
 
       </div>
 
-      <label>
+      <label className={errors.description ? 'field-invalid' : ''}>
         Description
         <textarea
+          className={errors.description ? 'field-input-invalid' : ''}
           name="description"
           value={form.description}
           onChange={onChange}
           rows="4"
           placeholder="Item specifications or service scope"
+          required
         />
       </label>
 
@@ -120,9 +125,14 @@ export default function CreateRequestForm({
         {quotationFileName ? <small>{quotationFileName}</small> : null}
       </label>
 
-      <button disabled={!canCreate || isSubmitting} onClick={onSubmit} type="button">
-        {isSubmitting ? "Saving..." : "Create request"}
-      </button>
+      <div className="button-row create-request-actions">
+        <button className="ghost-button" onClick={onCancel} type="button">
+          Cancel
+        </button>
+        <button disabled={!canCreate || isSubmitting} onClick={onSubmit} type="button">
+          {isSubmitting ? "Saving..." : "Create request"}
+        </button>
+      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
     </section>

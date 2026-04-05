@@ -559,6 +559,32 @@ function parseAmountValue(value) {
   return Number(normalized)
 }
 
+function formatAmountInput(value) {
+  const stringValue = String(value ?? '')
+  const sanitized = stringValue.replace(/[^\d.]/g, '')
+
+  if (!sanitized) {
+    return ''
+  }
+
+  const [rawIntegerPart = '', ...decimalParts] = sanitized.split('.')
+  const hasDecimalPoint = sanitized.includes('.')
+  const normalizedIntegerPart = rawIntegerPart.replace(/^0+(?=\d)/, '')
+  const integerPart = normalizedIntegerPart || (hasDecimalPoint ? '0' : '')
+  const formattedIntegerPart = integerPart
+    ? new Intl.NumberFormat('en-US', {
+        maximumFractionDigits: 0,
+      }).format(Number(integerPart))
+    : ''
+  const decimalPart = decimalParts.join('').slice(0, 2)
+
+  if (hasDecimalPoint) {
+    return `${formattedIntegerPart || '0'}.${decimalPart}`
+  }
+
+  return formattedIntegerPart
+}
+
 function formatCurrencyValue(value, currency = 'PHP') {
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
@@ -639,12 +665,32 @@ function CompanyHeader({
 
   return (
     <>
-      <header className='company-header'>
+      <header className='company-header' ref={menuRef}>
         <div className='brand-lockup'>
+          {user ? (
+            <button
+              className='mobile-header-menu-button'
+              type='button'
+              onClick={() => setIsMenuOpen((current) => !current)}
+              aria-haspopup='menu'
+              aria-expanded={isMenuOpen}
+              aria-label='Open menu'
+            >
+              <svg viewBox='0 0 20 20' aria-hidden='true'>
+                <path
+                  d='M3 5.5h14M3 10h14M3 14.5h14'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeLinecap='round'
+                  strokeWidth='1.8'
+                />
+              </svg>
+            </button>
+          ) : null}
           <div className='brand-mark' aria-hidden='true'>
             <img src={companySettings.logoUrl} alt='' />
           </div>
-          <div>
+          <div className='brand-copy'>
             <p className='brand-kicker'>{companySettings.companyName}</p>
             <strong>Procurement Management System</strong>
           </div>
@@ -691,7 +737,7 @@ function CompanyHeader({
             />
           ) : null}
           {user ? (
-            <div className='header-menu-wrap' ref={menuRef}>
+            <div className='header-menu-wrap'>
               <button
                 className='header-menu-trigger'
                 type='button'
@@ -704,79 +750,101 @@ function CompanyHeader({
                   ▾
                 </span>
               </button>
-              {isMenuOpen ? (
-                <div
-                  className='header-menu-dropdown'
-                  role='menu'
-                  aria-label='Account menu'
-                >
-                  {user.role !== 'requester' ? (
-                    <>
-                      <button
-                        type='button'
-                        role='menuitem'
-                        onClick={() => handleMenuAction(onOpenSuppliers)}
-                      >
-                        Suppliers
-                      </button>
-                      <button
-                        type='button'
-                        role='menuitem'
-                        onClick={() => handleMenuAction(onOpenUsers)}
-                      >
-                        Users
-                      </button>
-                      <button
-                        type='button'
-                        role='menuitem'
-                        onClick={() => handleMenuAction(onOpenPurchaseOrder)}
-                      >
-                        Purchase Order
-                      </button>
-                      <button
-                        type='button'
-                        role='menuitem'
-                        onClick={handleOpenRfpModal}
-                      >
-                        RFP
-                      </button>
-                      <button
-                        type='button'
-                        role='menuitem'
-                        onClick={() => handleMenuAction(onOpenAuditTrail)}
-                      >
-                        Audit Trail
-                      </button>
-                    </>
-                  ) : null}
-                  {user.role === 'requester' && canOpenRfp ? (
-                    <button
-                      type='button'
-                      role='menuitem'
-                      onClick={handleOpenRfpModal}
-                    >
-                      RFP
-                    </button>
-                  ) : null}
-                  <button
-                    type='button'
-                    role='menuitem'
-                    onClick={() => handleMenuAction(onOpenSettings)}
-                  >
-                    Settings
-                  </button>
-                  <button
-                    type='button'
-                    role='menuitem'
-                    onClick={() => handleMenuAction(onLogout)}
-                  >
-                    Logout
-                  </button>
-                </div>
-              ) : null}
             </div>
           ) : null}
         </div>
+        {user && isMenuOpen ? (
+          <div
+            className='header-menu-dropdown'
+            role='menu'
+            aria-label='Account menu'
+          >
+            <div className='header-menu-user mobile-only'>
+              <strong>{user.name}</strong>
+              <span>{user.email}</span>
+            </div>
+            <div className='theme-toggle header-menu-theme-toggle mobile-only'>
+              <button
+                className={`theme-toggle-button ${theme === 'light' ? 'is-active' : ''}`}
+                type='button'
+                onClick={() => onThemeChange?.('light')}
+                aria-pressed={theme === 'light'}
+              >
+                Light
+              </button>
+              <button
+                className={`theme-toggle-button ${theme === 'dark' ? 'is-active' : ''}`}
+                type='button'
+                onClick={() => onThemeChange?.('dark')}
+                aria-pressed={theme === 'dark'}
+              >
+                Dark
+              </button>
+            </div>
+            {user.role !== 'requester' ? (
+              <>
+                <button
+                  type='button'
+                  role='menuitem'
+                  onClick={() => handleMenuAction(onOpenSuppliers)}
+                >
+                  Suppliers
+                </button>
+                <button
+                  type='button'
+                  role='menuitem'
+                  onClick={() => handleMenuAction(onOpenUsers)}
+                >
+                  Users
+                </button>
+                <button
+                  type='button'
+                  role='menuitem'
+                  onClick={() => handleMenuAction(onOpenPurchaseOrder)}
+                >
+                  Purchase Order
+                </button>
+                <button
+                  type='button'
+                  role='menuitem'
+                  onClick={handleOpenRfpModal}
+                >
+                  RFP
+                </button>
+                <button
+                  type='button'
+                  role='menuitem'
+                  onClick={() => handleMenuAction(onOpenAuditTrail)}
+                >
+                  Audit Trail
+                </button>
+              </>
+            ) : null}
+            {user.role === 'requester' && canOpenRfp ? (
+              <button
+                type='button'
+                role='menuitem'
+                onClick={handleOpenRfpModal}
+              >
+                RFP
+              </button>
+            ) : null}
+            <button
+              type='button'
+              role='menuitem'
+              onClick={() => handleMenuAction(onOpenSettings)}
+            >
+              Settings
+            </button>
+            <button
+              type='button'
+              role='menuitem'
+              onClick={() => handleMenuAction(onLogout)}
+            >
+              Logout
+            </button>
+          </div>
+        ) : null}
       </header>
 
       {isRfpModalOpen ? (
@@ -923,6 +991,11 @@ export default function App() {
     ),
   )
   const [requestQuotationFile, setRequestQuotationFile] = useState(null)
+  const [requestFormErrors, setRequestFormErrors] = useState({
+    title: false,
+    description: false,
+    amount: false,
+  })
   const [uploadForm, setUploadForm] = useState({
     type: 'po',
     label: '',
@@ -1568,6 +1641,17 @@ export default function App() {
     const { name, value } = event.target
 
     setRequestForm((current) => {
+      if (name === 'amount') {
+        setRequestFormErrors((currentErrors) => ({
+          ...currentErrors,
+          amount: false,
+        }))
+        return {
+          ...current,
+          amount: formatAmountInput(value),
+        }
+      }
+
       if (name === 'branch') {
         return {
           ...current,
@@ -1580,11 +1664,40 @@ export default function App() {
         }
       }
 
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        [name]: false,
+      }))
+
       return {
         ...current,
         [name]: value,
       }
     })
+  }
+
+  function handleCloseCreateRequestModal() {
+    setRequestForm(
+      getInitialRequestForm(
+        session?.user?.department || '',
+        session?.user?.role === 'admin' ? '' : session?.user?.name || '',
+        session?.user?.role === 'admin' ? '' : session?.user?.email || '',
+        companySettings.companyName,
+        getBranchDeliveryAddress(
+          companySettings.companyName,
+          companySettings,
+          companyIdentities,
+        ),
+      ),
+    )
+    setRequestQuotationFile(null)
+    setRequestFormErrors({
+      title: false,
+      description: false,
+      amount: false,
+    })
+    setActionError('')
+    setIsCreateRequestModalOpen(false)
   }
 
   function handleRequestQuotationFileChange(event) {
@@ -2875,6 +2988,26 @@ export default function App() {
 
     if (!requestForm.title.trim()) {
       const message = 'Request title is required.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        title: true,
+      }))
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (!requestForm.description.trim()) {
+      const message = 'Description is required.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        description: true,
+      }))
       setActionError(message)
       pushToast({
         title: 'Missing required fields',
@@ -2905,6 +3038,10 @@ export default function App() {
     ) {
       const message =
         'Amount must be a valid number greater than zero if provided.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        amount: true,
+      }))
       setActionError(message)
       pushToast({
         title: 'Invalid amount',
@@ -5336,6 +5473,17 @@ export default function App() {
 
       {session.user.role === 'requester' ? (
         <div>
+          {canCreateRequest ? (
+            <div className='mobile-request-list-create'>
+              <button
+                className='request-list-create-button'
+                type='button'
+                onClick={openCreateRequestModal}
+              >
+                New purchase request
+              </button>
+            </div>
+          ) : null}
           <RequestList
             items={filteredItems}
             selectedId={selectedId}
@@ -5367,6 +5515,17 @@ export default function App() {
         </div>
       ) : (
         <div>
+          {canCreateRequest ? (
+            <div className='mobile-request-list-create'>
+              <button
+                className='request-list-create-button'
+                type='button'
+                onClick={openCreateRequestModal}
+              >
+                New purchase request
+              </button>
+            </div>
+          ) : null}
           <RequestList
             items={filteredItems}
             selectedId={selectedId}
@@ -5401,8 +5560,8 @@ export default function App() {
       {isCreateRequestModalOpen ? (
         <Modal
           eyebrow='New Request'
-          title='Create purchase request'
-          onClose={() => setIsCreateRequestModalOpen(false)}
+          title=''
+          onClose={handleCloseCreateRequestModal}
         >
           <CreateRequestForm
             form={requestForm}
@@ -5413,6 +5572,8 @@ export default function App() {
             onQuotationFileChange={handleRequestQuotationFileChange}
             quotationFileName={requestQuotationFile?.name ?? ''}
             onSubmit={handleCreateRequest}
+            onCancel={handleCloseCreateRequestModal}
+            errors={requestFormErrors}
             isSubmitting={isSubmitting}
             canCreate={canCreateRequest}
             error={actionError}
