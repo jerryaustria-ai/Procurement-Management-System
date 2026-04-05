@@ -4862,24 +4862,28 @@ export default function App() {
           }
         />
         <section className='auth-landing'>
-          <div className='auth-copy'>
+          <div className='auth-content'>
+            <LoginForm
+              credentials={credentials}
+              onChange={handleCredentialChange}
+              onSubmit={handleLogin}
+              isSubmitting={isSubmitting}
+              error={authError}
+            />
+          </div>
+          <div className='auth-brandmark' aria-hidden='true'>
             <img
               className='auth-logo'
               src='/JANUARIUS2020_JULY_LOGO_final1-02-1.png'
               alt='Januarius Holdings Inc.'
             />
-            <h1>Januarius Procurement Hub</h1>
-            <p className='hero-copy'>
-              From purchase request to filing, in one workflow.
-            </p>
+            <div className='auth-copy'>
+              <h1>Januarius Procurement Hub</h1>
+              <p className='hero-copy'>
+                From purchase request to filing, in one workflow.
+              </p>
+            </div>
           </div>
-          <LoginForm
-            credentials={credentials}
-            onChange={handleCredentialChange}
-            onSubmit={handleLogin}
-            isSubmitting={isSubmitting}
-            error={authError}
-          />
         </section>
       </main>
     )
