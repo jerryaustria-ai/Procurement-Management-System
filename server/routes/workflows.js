@@ -53,7 +53,7 @@ function canEditRequest(req, request) {
     return false;
   }
 
-  return !request.approvalCompleted && request.status !== "completed";
+  return !request.approvalCompleted && !["completed", "rejected"].includes(request.status);
 }
 
 function canDeleteRequest(req, request) {
@@ -68,7 +68,7 @@ function canDeleteRequest(req, request) {
   return (
     request.requesterEmail === req.user.email &&
     ["Purchase Request", "Review"].includes(request.currentStage) &&
-    request.status !== "completed"
+    !["completed", "rejected"].includes(request.status)
   );
 }
 
@@ -449,6 +449,10 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     return res.status(403).json({ message: "You can only access your own purchase requests." });
   }
 
+  if (request.status === "rejected") {
+    return res.status(400).json({ message: "Rejected requests can no longer move through the workflow." });
+  }
+
   const allowedRoles = getAllowedRoles(request.currentStage);
   if (!allowedRoles.includes(req.user.role)) {
     return res.status(403).json({
@@ -558,6 +562,54 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
       actorRole: req.user.role,
       comment: req.body.comment || req.body.notes || `Moved to ${nextStage}`
     });
+  }
+
+  await request.save();
+  return res.json(serializePurchaseRequest(request));
+});
+
+router.patch("/purchase-requests/:id/reject", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!isRequesterAccessingOwnRequest(req, request)) {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
+  }
+
+  if (!["Review", "Approval"].includes(request.currentStage)) {
+    return res.status(400).json({ message: "Only Review or Approval stage can be declined." });
+  }
+
+  const allowedRoles = getAllowedRoles(request.currentStage);
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      message: `Role ${req.user.role} cannot decline the ${request.currentStage} stage.`
+    });
+  }
+
+  request.status = "rejected";
+  request.approvalCompleted = false;
+  request.requestForPaymentEnabled = false;
+  request.filingCompleted = false;
+
+  request.history = request.history.map((entry) =>
+    entry.stage === request.currentStage && entry.status === "current"
+      ? {
+          ...entry.toObject(),
+          status: "rejected",
+          updatedAt: new Date(),
+          actor: req.user.name,
+          actorRole: req.user.role,
+          comment: req.body.comment || req.body.notes || `${request.currentStage} declined.`
+        }
+      : entry
+  );
+
+  if (typeof req.body.notes === "string") {
+    request.notes = req.body.notes;
   }
 
   await request.save();

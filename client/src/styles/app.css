@@ -1063,11 +1063,18 @@ label,
   }
 
   .auth-logo {
-    width: min(180px, 42vw);
+    width: min(132px, 30vw);
+  }
+
+  .auth-copy h1 {
+    font-size: clamp(2rem, 6vw, 2.6rem);
+    line-height: 1;
   }
 
   .hero-copy {
     white-space: normal;
+    font-size: 0.96rem;
+    max-width: 24ch;
   }
 }
 

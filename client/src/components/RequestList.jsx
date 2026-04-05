@@ -5,6 +5,10 @@ function getProcurementStatus(item) {
     return "Current stage: Complete";
   }
 
+  if (item.status === "rejected") {
+    return "Current stage: Rejected";
+  }
+
   if (!item.currentStage) {
     return "Current stage: Not set";
   }
@@ -13,7 +17,11 @@ function getProcurementStatus(item) {
 }
 
 function hasActiveRfp(item) {
-  return Boolean(item.requestForPaymentEnabled) && item.status !== "completed" && !item.filingCompleted;
+  return (
+    Boolean(item.requestForPaymentEnabled) &&
+    !["completed", "rejected"].includes(item.status) &&
+    !item.filingCompleted
+  );
 }
 
 function handleRfpBadgeKeyDown(event, item, onOpenRequestForPayment) {
@@ -196,6 +204,7 @@ export default function RequestList({
             key={item.id}
             className={`request-list-item ${selectedId === item.id ? "selected" : ""} ${
               item.status === "completed" ? "completed" : ""
+            } ${item.status === "rejected" ? "completed" : ""
             }`}
           >
             <button className="request-card-select" type="button" onClick={() => onSelect(item.id)}>

@@ -22,6 +22,7 @@ export default function RequestWorkspacePage({
   onUpload,
   onCreateSupplier,
   onAdvance,
+  onReject,
   onBack,
   isSubmitting,
   actionError,
@@ -135,6 +136,7 @@ export default function RequestWorkspacePage({
               onUpload={onUpload}
               onCreateSupplier={onCreateSupplier}
               onAdvance={onAdvance}
+              onReject={onReject}
               onBack={onBack}
               isSubmitting={isSubmitting}
               error={actionError}

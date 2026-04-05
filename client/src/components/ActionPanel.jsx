@@ -46,6 +46,10 @@ function getAdvanceButtonLabel(currentStage, nextStage, isComplete, workflowFini
   return `Move to ${nextStage}`;
 }
 
+function isRejected(item) {
+  return item.status === "rejected";
+}
+
 const STAGE_ROLE_LABELS = {
   "Purchase Request": "Requester, System Admin",
   Review: "Reviewer, System Admin",
@@ -81,6 +85,10 @@ function getDisplayStageLabel(item, fallbackStage) {
     return "Complete";
   }
 
+  if (isRejected(item)) {
+    return "Rejected";
+  }
+
   return fallbackStage;
 }
 
@@ -102,6 +110,7 @@ export default function ActionPanel({
   onUpload,
   onCreateSupplier = () => {},
   onAdvance,
+  onReject,
   onBack,
   isSubmitting,
   error,
@@ -113,10 +122,12 @@ export default function ActionPanel({
   const currentIndex = stages.indexOf(item.currentStage);
   const isFirstStage = currentIndex <= 0;
   const isComplete = item.currentStage === stages[stages.length - 1];
+  const isRejectedWorkflow = isRejected(item);
   const workflowFinished = isComplete && Boolean(item.filingCompleted);
   const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
   const previousStage = stages[Math.max(currentIndex - 1, 0)];
-  const showBackButton = !isFirstStage && previousStage !== "Purchase Request";
+  const showBackButton =
+    !isRejectedWorkflow && !isFirstStage && previousStage !== "Purchase Request";
   const baseDisplayStage =
     item.currentStage === "Purchase Request" && !isComplete ? nextStage : item.currentStage;
   const displayStage = getDisplayStageLabel(item, baseDisplayStage);
@@ -129,6 +140,8 @@ export default function ActionPanel({
       ? STAGE_DESCRIPTIONS[displayStage] ?? item.currentStageDescription
       : item.currentStageDescription;
   const canAdvance = item.allowedRoles.includes(user.role);
+  const canReject =
+    ["Review", "Approval"].includes(item.currentStage) && canAdvance && !isRejectedWorkflow;
   const showSupplierSearchField = item.currentStage === "Prepare PO";
   const showSupplierReadonlyField = ["Send PO"].includes(item.currentStage);
   const normalizedSupplier = supplierSearch.trim().toLowerCase();
@@ -174,7 +187,11 @@ export default function ActionPanel({
       <div className="approval-meta">
         <span>Current owner</span>
         <strong>{displayOwner}</strong>
-        <small>{displayDescription}</small>
+        <small>
+          {isRejectedWorkflow
+            ? "This request was declined and the workflow has been stopped."
+            : displayDescription}
+        </small>
       </div>
 
       <div className="form-grid">
@@ -447,6 +464,7 @@ export default function ActionPanel({
               type="file"
               accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
               onChange={onReviewAttachmentFileChange}
+              disabled={isRejectedWorkflow}
             />
           </label>
 
@@ -462,7 +480,7 @@ export default function ActionPanel({
 
           <button
             className="ghost-button"
-            disabled={isSubmitting || !uploadForm.file}
+            disabled={isSubmitting || !uploadForm.file || isRejectedWorkflow}
             type="button"
             onClick={onUpload}
           >
@@ -479,6 +497,7 @@ export default function ActionPanel({
           onChange={onChange}
           rows="4"
           placeholder="Add reviewer, approver, or finance notes"
+          disabled={isRejectedWorkflow}
         />
       </label>
 
@@ -493,8 +512,18 @@ export default function ActionPanel({
             {`Back to ${previousStage}`}
           </button>
         ) : null}
+        {canReject ? (
+          <button
+            className="danger-button"
+            disabled={isSubmitting}
+            onClick={onReject}
+            type="button"
+          >
+            Decline
+          </button>
+        ) : null}
         <button
-          disabled={isSubmitting || workflowFinished || !canAdvance}
+          disabled={isSubmitting || workflowFinished || !canAdvance || isRejectedWorkflow}
           onClick={onAdvance}
           type="button"
         >
@@ -538,6 +567,9 @@ export default function ActionPanel({
 
       {!canAdvance ? (
         <p className="error-text">Your role cannot advance the current stage.</p>
+      ) : null}
+      {isRejectedWorkflow ? (
+        <p className="error-text">This request has been rejected and can no longer continue.</p>
       ) : null}
       {error ? <p className="error-text">{error}</p> : null}
 

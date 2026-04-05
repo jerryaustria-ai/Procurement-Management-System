@@ -4,7 +4,11 @@ import { priorityLabels, workflowStages } from "../config/workflow.js";
 const historySchema = new mongoose.Schema(
   {
     stage: { type: String, required: true },
-    status: { type: String, enum: ["completed", "current", "ready", "reverted"], required: true },
+    status: {
+      type: String,
+      enum: ["completed", "current", "ready", "reverted", "rejected"],
+      required: true
+    },
     updatedAt: { type: Date, required: true, default: Date.now },
     actor: { type: String, required: true },
     actorRole: { type: String, required: true },
@@ -107,7 +111,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     approvalCompleted: { type: Boolean, default: false },
     requestForPaymentEnabled: { type: Boolean, default: false },
     filingCompleted: { type: Boolean, default: false },
-    status: { type: String, enum: ["open", "completed"], default: "open" },
+    status: { type: String, enum: ["open", "completed", "rejected"], default: "open" },
     notes: { type: String, default: "" },
     poDraft: { type: purchaseOrderDraftSchema, default: () => ({}) },
     rfpDraft: { type: requestForPaymentDraftSchema, default: () => ({}) },

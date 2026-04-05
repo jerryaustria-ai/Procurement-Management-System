@@ -24,12 +24,24 @@ function formatInspectionStatus(status) {
 }
 
 function getDisplayStageLabel(item) {
-  return item.status === "completed" || item.filingCompleted ? "Complete" : item.currentStage;
+  if (item.status === "completed" || item.filingCompleted) {
+    return "Complete";
+  }
+
+  if (item.status === "rejected") {
+    return "Rejected";
+  }
+
+  return item.currentStage;
 }
 
 function getProcurementStatusLabel(item) {
   if (item.status === "completed" || item.filingCompleted) {
     return "Current stage: Complete";
+  }
+
+  if (item.status === "rejected") {
+    return "Current stage: Rejected";
   }
 
   if (!item.currentStage) {
@@ -40,7 +52,11 @@ function getProcurementStatusLabel(item) {
 }
 
 function hasActiveRfp(item) {
-  return Boolean(item.requestForPaymentEnabled) && item.status !== "completed" && !item.filingCompleted;
+  return (
+    Boolean(item.requestForPaymentEnabled) &&
+    !["completed", "rejected"].includes(item.status) &&
+    !item.filingCompleted
+  );
 }
 
 export default function RequestSummary({

@@ -24,6 +24,7 @@ export default function WorkflowTimeline({
   stages,
   currentStage,
   history,
+  requestStatus = "open",
   onExpand,
   showExpand = true
 }) {
@@ -51,8 +52,11 @@ export default function WorkflowTimeline({
       <div className="timeline">
         {stages.map((stage, index) => {
           const entry = getEntry(history, stage);
+          const entryRejected = entry?.status === "rejected";
           const state =
-            entry?.status === "completed" || entry?.status === "ready"
+            entryRejected
+              ? "active"
+              : entry?.status === "completed" || entry?.status === "ready"
               ? "done"
               : index === currentIndex
                 ? "active"
@@ -69,7 +73,9 @@ export default function WorkflowTimeline({
                 <div>
                   <h3>{stage}</h3>
                   <p>
-                    {state === "done"
+                    {entryRejected || (requestStatus === "rejected" && index === currentIndex)
+                      ? "Rejected"
+                      : state === "done"
                       ? "Completed"
                       : state === "active"
                         ? "In progress"

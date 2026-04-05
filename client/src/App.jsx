@@ -357,7 +357,7 @@ function canUserEditRequest(user, item) {
     return false
   }
 
-  return !item.approvalCompleted && item.status !== 'completed'
+  return !item.approvalCompleted && !['completed', 'rejected'].includes(item.status)
 }
 
 function canAccessRequestForPayment(item) {
@@ -365,7 +365,7 @@ function canAccessRequestForPayment(item) {
     return false
   }
 
-  if (item.status === 'completed' || item.filingCompleted) {
+  if (['completed', 'rejected'].includes(item.status) || item.filingCompleted) {
     return false
   }
 
@@ -455,7 +455,11 @@ function getRequestAdminForm(
     dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
     status: item.status ?? 'open',
     currentStage:
-      item.status === 'completed' ? 'Completed' : (item.currentStage ?? ''),
+      item.status === 'completed'
+        ? 'Completed'
+        : item.status === 'rejected'
+          ? 'Rejected'
+          : (item.currentStage ?? ''),
     inspectionStatus: item.inspectionStatus ?? 'pending',
     supplier:
       item.supplier === 'Pending selection' ? '' : (item.supplier ?? ''),
@@ -3226,6 +3230,65 @@ export default function App() {
     }
   }
 
+  async function handleReject() {
+    if (!selectedItem || !session?.token) {
+      return
+    }
+
+    setActionError('')
+    setIsSubmitting(true)
+
+    try {
+      const stageComment =
+        actionForm.notes.trim() ||
+        `${session.user.name} declined ${selectedItem.requestNumber} during ${selectedItem.currentStage}.`
+
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/reject`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            notes: actionForm.notes,
+            comment: stageComment,
+          }),
+        },
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to reject request.')
+      }
+
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
+      setActionForm((current) => ({
+        ...current,
+        skipToRfp: false,
+        notes: '',
+      }))
+      pushToast({
+        title: 'Request declined',
+        message: `${data.requestNumber} has been marked as rejected.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      setActionError(error.message)
+      pushToast({
+        title: 'Decline failed',
+        message: error.message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function handleRevert() {
     if (!selectedItem || !session?.token) {
       return
@@ -5370,6 +5433,7 @@ export default function App() {
           onUpload={handleUploadDocument}
           onCreateSupplier={openCreateSupplierModal}
           onAdvance={handleAdvance}
+          onReject={handleReject}
           onBack={handleRevert}
           isSubmitting={isSubmitting}
           actionError={actionError}
@@ -5660,6 +5724,7 @@ export default function App() {
               onUpload={handleUploadDocument}
               onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
+              onReject={handleReject}
               onBack={handleRevert}
               isSubmitting={isSubmitting}
               error={actionError}
@@ -5677,6 +5742,7 @@ export default function App() {
             <WorkflowTimeline
               stages={stages}
               currentStage={selectedItem.currentStage}
+              requestStatus={selectedItem.status}
               history={selectedItem.history}
               onOpenRequestForPaymentPage={openRequestForPaymentPage}
               showExpand={false}
