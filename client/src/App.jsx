@@ -476,6 +476,9 @@ function getDashboardStats(items) {
   const completedCount = items.filter(
     (item) => item.status === 'completed',
   ).length
+  const rejectedCount = items.filter(
+    (item) => item.status === 'rejected',
+  ).length
   const totalAmount = items.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0,
@@ -484,7 +487,7 @@ function getDashboardStats(items) {
   return [
     { label: 'Open Requests', value: String(openCount).padStart(2, '0') },
     { label: 'Completed', value: String(completedCount).padStart(2, '0') },
-    { label: 'Active Users', value: String(items.length).padStart(2, '0') },
+    { label: 'Total Rejected', value: String(rejectedCount).padStart(2, '0') },
     {
       label: 'Tracked Value',
       value: new Intl.NumberFormat('en-PH', {
