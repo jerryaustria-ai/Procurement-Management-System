@@ -359,7 +359,9 @@ function canUserEditRequest(user, item) {
     return false
   }
 
-  return !item.approvalCompleted && !['completed', 'rejected'].includes(item.status)
+  return (
+    !item.approvalCompleted && !['completed', 'rejected'].includes(item.status)
+  )
 }
 
 function canAccessRequestForPayment(item) {
@@ -4314,7 +4316,7 @@ export default function App() {
               gap: 4px;
             }
             .line-fill {
-              min-height: 18px;
+              min-height: 8px;
               border-bottom: 1px solid #444;
               display: flex;
               align-items: flex-end;
@@ -4363,8 +4365,8 @@ export default function App() {
             .signature-grid {
               display: grid;
               grid-template-columns: 110px 1fr;
-              gap: 10px 18px;
-              margin-top: 18px;
+              gap: 20px 18px;
+              margin-top: 28px;
               max-width: 420px;
               font-size: 11px;
               align-items: start;
@@ -4387,8 +4389,8 @@ export default function App() {
               line-height: 0.95;
             }
             .accounting-block {
-              margin-top: 18px;
-              padding-top: 10px;
+              margin-top: 40px;
+              padding-top: 30px;
               border-top: 1px solid #444;
             }
             .accounting-only {
@@ -4416,7 +4418,7 @@ export default function App() {
               margin-top: 18px;
               display: grid;
               grid-template-columns: 110px 10px 1fr;
-              gap: 12px 4px;
+              gap: 30px 4px;
               align-items: center;
               font-size: 11px;
             }
@@ -4426,7 +4428,7 @@ export default function App() {
             }
             .approval-value {
               display: grid;
-              gap: 2px;
+              gap: 0;
               min-width: 0;
               justify-items: start;
             }
@@ -4435,7 +4437,8 @@ export default function App() {
               text-align: center;
               font-weight: 700;
               font-size: 10px;
-              line-height: 1.1;
+              line-height: 1;
+              margin-bottom: -6px;
             }
             .approval-value .line-fill {
               min-width: 170px;
@@ -4759,8 +4762,7 @@ export default function App() {
             address:
               settingsForm.address.trim() || DEFAULT_COMPANY_SETTINGS.address,
             logoUrl: settingsForm.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
-            generalAccountantName:
-              settingsForm.generalAccountantName.trim(),
+            generalAccountantName: settingsForm.generalAccountantName.trim(),
             chiefInvestmentOfficerName:
               settingsForm.chiefInvestmentOfficerName.trim(),
           }),
