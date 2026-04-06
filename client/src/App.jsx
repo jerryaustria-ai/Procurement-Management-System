@@ -4465,6 +4465,10 @@ export default function App() {
                       <span>Due Date:</span>
                       <div class="line-fill">${formatExportDate(dueDate)}</div>
                     </div>
+                    <div class="line-row line-row--date">
+                      <span>Reference No.:</span>
+                      <div class="line-fill">${record.requestNumber || 'Not set'}</div>
+                    </div>
                   </div>
                 </div>
                 <div class="top-meta-row top-meta-row--payee">
@@ -4524,23 +4528,23 @@ export default function App() {
                   <tbody>
                     <tr>
                       <td></td>
-                      <td>${record.title || 'Request expense'}</td>
-                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                      <td></td>
+                      <td class="amount-cell"></td>
                       <td></td>
                     </tr>
                     <tr>
                       <td></td>
-                      <td>Accounts Payable</td>
                       <td></td>
-                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                      <td></td>
+                      <td class="amount-cell"></td>
                     </tr>
                     <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
                     <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
                     <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
                     <tr class="total-row">
                       <td colspan="2" style="text-align:right;">Total</td>
-                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
-                      <td class="amount-cell">${formatCurrencyValue(parseAmountValue(amountRequested), currency)}</td>
+                      <td class="amount-cell"></td>
+                      <td class="amount-cell"></td>
                     </tr>
                   </tbody>
                 </table>
