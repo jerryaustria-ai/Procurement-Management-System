@@ -1,14 +1,7 @@
-import nodemailer from "nodemailer";
 import { Setting } from "../models/Setting.js";
 
-const REQUIRED_EMAIL_ENV_KEYS = [
-  "MAIL_HOST",
-  "MAIL_PORT",
-  "MAIL_SECURE",
-  "MAIL_USER",
-  "MAIL_PASSWORD",
-  "MAIL_FROM"
-];
+const REQUIRED_EMAIL_ENV_KEYS = ["BREVO_API_KEY", "MAIL_FROM"];
+const BREVO_SEND_EMAIL_URL = "https://api.brevo.com/v3/smtp/email";
 
 export function getEmailConfigurationStatus() {
   const missingKeys = REQUIRED_EMAIL_ENV_KEYS.filter(
@@ -17,7 +10,7 @@ export function getEmailConfigurationStatus() {
 
   return {
     configured: missingKeys.length === 0,
-    provider: "smtp",
+    provider: "brevo-api",
     missingKeys
   };
 }
@@ -31,19 +24,24 @@ async function getCompanyName() {
   }
 }
 
-function createTransport() {
-  const port = Number(process.env.MAIL_PORT || 0);
-  const secure = String(process.env.MAIL_SECURE || "").trim().toLowerCase() === "true";
+function parseSender(rawFrom) {
+  const value = String(rawFrom || "").trim();
+  const match = value.match(/^(.*)<([^>]+)>$/);
 
-  return nodemailer.createTransport({
-    host: process.env.MAIL_HOST,
-    port,
-    secure,
-    auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASSWORD
-    }
-  });
+  if (!match) {
+    return {
+      email: value,
+      name: undefined
+    };
+  }
+
+  const name = match[1].trim().replace(/^"|"$/g, "");
+  const email = match[2].trim();
+
+  return {
+    email,
+    name: name || undefined
+  };
 }
 
 async function sendMail({ to, subject, text, html }) {
@@ -56,9 +54,18 @@ async function sendMail({ to, subject, text, html }) {
     };
   }
 
+  const sender = parseSender(process.env.MAIL_FROM);
+  if (!sender.email) {
+    return {
+      skipped: true,
+      reason: "MAIL_FROM must contain a valid sender email."
+    };
+  }
+
   const recipients = (Array.isArray(to) ? to : [to])
     .map((recipient) => String(recipient || "").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((email) => ({ email }));
 
   if (recipients.length === 0) {
     return {
@@ -68,24 +75,38 @@ async function sendMail({ to, subject, text, html }) {
   }
 
   try {
-    const transport = createTransport();
-
-    await transport.sendMail({
-      from: process.env.MAIL_FROM,
-      to: recipients.join(", "),
-      subject,
-      text,
-      html
+    const response = await fetch(BREVO_SEND_EMAIL_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender,
+        to: recipients,
+        subject,
+        textContent: text,
+        htmlContent: html
+      })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        skipped: true,
+        reason: `Brevo API send failed (${response.status}): ${errorText || response.statusText}`
+      };
+    }
 
     return {
       skipped: false,
-      provider: "smtp"
+      provider: "brevo-api"
     };
   } catch (error) {
     return {
       skipped: true,
-      reason: `SMTP send failed: ${error.message}`
+      reason: `Brevo API send failed: ${error.message}`
     };
   }
 }
@@ -170,7 +191,7 @@ export async function sendNewRequestCreatedEmail({
     ? result
     : {
         skipped: false,
-        provider: "smtp",
+        provider: "brevo-api",
         recipients: uniqueRecipients
       };
 }
@@ -192,7 +213,7 @@ export async function sendTestEmail({ recipientEmail, requestedByName = "System 
     html: `
       <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
         <h2 style="margin-bottom: 8px;">Procurement System Test Email</h2>
-        <p style="margin-top: 0;">This confirms that your SMTP configuration is working.</p>
+        <p style="margin-top: 0;">This confirms that your Brevo API configuration is working.</p>
         <p><strong>Requested by:</strong> ${requestedByName}</p>
         ${requestUrl ? `<p><a href="${requestUrl}" style="color: #1d4ed8;">Open Procurement System</a></p>` : ""}
       </div>
@@ -203,7 +224,7 @@ export async function sendTestEmail({ recipientEmail, requestedByName = "System 
     ? result
     : {
         skipped: false,
-        provider: "smtp",
+        provider: "brevo-api",
         recipient: recipientEmail
       };
 }
