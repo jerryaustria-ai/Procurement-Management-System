@@ -934,7 +934,7 @@ label,
 }
 
 .request-list-search-row {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 12px;
   margin-bottom: 18px;
@@ -2899,6 +2899,7 @@ label,
   }
 
   .request-list-search-row {
+    display: flex;
     align-items: center;
     gap: 14px;
     margin: 12px 0 18px;
