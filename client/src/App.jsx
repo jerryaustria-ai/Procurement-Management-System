@@ -31,8 +31,8 @@ const DEFAULT_COMPANY_SETTINGS = {
   logoUrl: '/JANUARIUS.ico',
   address:
     'Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines',
-  generalAccountantName: 'General Accountant / Head ACC',
-  chiefInvestmentOfficerName: 'Chief Investment Officer',
+  generalAccountantName: '',
+  chiefInvestmentOfficerName: '',
 }
 
 function getStoredTheme() {
@@ -1155,10 +1155,10 @@ export default function App() {
       address: data.address || DEFAULT_COMPANY_SETTINGS.address,
       logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
       generalAccountantName:
-        data.generalAccountantName ||
+        data.generalAccountantName ??
         DEFAULT_COMPANY_SETTINGS.generalAccountantName,
       chiefInvestmentOfficerName:
-        data.chiefInvestmentOfficerName ||
+        data.chiefInvestmentOfficerName ??
         DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
     }
 
@@ -4430,6 +4430,13 @@ export default function App() {
               min-width: 0;
               justify-items: start;
             }
+            .approval-name {
+              width: 170px;
+              text-align: center;
+              font-weight: 700;
+              font-size: 10px;
+              line-height: 1.1;
+            }
             .approval-value .line-fill {
               min-width: 170px;
               width: 170px;
@@ -4586,6 +4593,7 @@ export default function App() {
                   <span class="approval-label">Prepared by</span>
                   <span class="muted">:</span>
                   <div class="approval-value">
+                    <div class="approval-name"></div>
                     <div class="line-fill"></div>
                     <div class="approval-subtitle">Accounting Assistant</div>
                   </div>
@@ -4593,15 +4601,17 @@ export default function App() {
                   <span class="approval-label">Checked by</span>
                   <span class="muted">:</span>
                   <div class="approval-value">
+                    <div class="approval-name">${companySettings.generalAccountantName || ''}</div>
                     <div class="line-fill"></div>
-                    <div class="approval-subtitle">${companySettings.generalAccountantName || 'General Accountant / Head ACC'}</div>
+                    <div class="approval-subtitle">General Accountant / HEADACC</div>
                   </div>
 
                   <span class="approval-label">Approved by</span>
                   <span class="muted">:</span>
                   <div class="approval-value">
+                    <div class="approval-name">${companySettings.chiefInvestmentOfficerName || ''}</div>
                     <div class="line-fill"></div>
-                    <div class="approval-subtitle">${companySettings.chiefInvestmentOfficerName || 'Chief Investment Officer'}</div>
+                    <div class="approval-subtitle">Chief of Investment Officer</div>
                   </div>
 
                   <span class="approval-date-label">Date</span>
@@ -4750,11 +4760,9 @@ export default function App() {
               settingsForm.address.trim() || DEFAULT_COMPANY_SETTINGS.address,
             logoUrl: settingsForm.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
             generalAccountantName:
-              settingsForm.generalAccountantName.trim() ||
-              DEFAULT_COMPANY_SETTINGS.generalAccountantName,
+              settingsForm.generalAccountantName.trim(),
             chiefInvestmentOfficerName:
-              settingsForm.chiefInvestmentOfficerName.trim() ||
-              DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
+              settingsForm.chiefInvestmentOfficerName.trim(),
           }),
         })
 
@@ -4768,10 +4776,10 @@ export default function App() {
           address: data.address || DEFAULT_COMPANY_SETTINGS.address,
           logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
           generalAccountantName:
-            data.generalAccountantName ||
+            data.generalAccountantName ??
             DEFAULT_COMPANY_SETTINGS.generalAccountantName,
           chiefInvestmentOfficerName:
-            data.chiefInvestmentOfficerName ||
+            data.chiefInvestmentOfficerName ??
             DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
         }
 

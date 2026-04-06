@@ -12,8 +12,8 @@ const DEFAULT_SETTINGS = {
   companyName: "Januarius Holdings Inc.",
   address: "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines",
   logoUrl: "/JANUARIUS.ico",
-  generalAccountantName: "General Accountant / Head ACC",
-  chiefInvestmentOfficerName: "Chief Investment Officer"
+  generalAccountantName: "",
+  chiefInvestmentOfficerName: ""
 };
 
 function serializeSetting(setting) {
@@ -76,8 +76,8 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
   setting.companyName = companyName;
   setting.address = address;
   setting.logoUrl = logoUrl;
-  setting.generalAccountantName = generalAccountantName || DEFAULT_SETTINGS.generalAccountantName;
-  setting.chiefInvestmentOfficerName = chiefInvestmentOfficerName || DEFAULT_SETTINGS.chiefInvestmentOfficerName;
+  setting.generalAccountantName = generalAccountantName;
+  setting.chiefInvestmentOfficerName = chiefInvestmentOfficerName;
 
   await setting.save();
   const identities = await getEntitySettings();

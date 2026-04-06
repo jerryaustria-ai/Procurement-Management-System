@@ -189,24 +189,24 @@ export default function SettingsPage({
             </label>
 
             <label>
-              General Accountant / Head ACC
+              General Accountant / Head ACC Name
               <input
                 name="generalAccountantName"
                 value={form.generalAccountantName || ""}
                 onChange={onChange}
                 disabled={!isMainSettingsEditing}
-                placeholder="Enter the General Accountant / Head ACC name"
+                placeholder="Enter the name for General Accountant / Head ACC"
               />
             </label>
 
             <label>
-              Chief Investment Officer
+              Chief Investment Officer Name
               <input
                 name="chiefInvestmentOfficerName"
                 value={form.chiefInvestmentOfficerName || ""}
                 onChange={onChange}
                 disabled={!isMainSettingsEditing}
-                placeholder="Enter the Chief Investment Officer name"
+                placeholder="Enter the name for Chief Investment Officer"
               />
             </label>
           </div>
