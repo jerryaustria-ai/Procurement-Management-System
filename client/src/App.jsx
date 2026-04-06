@@ -31,6 +31,8 @@ const DEFAULT_COMPANY_SETTINGS = {
   logoUrl: '/JANUARIUS.ico',
   address:
     'Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines',
+  generalAccountantName: 'General Accountant / Head ACC',
+  chiefInvestmentOfficerName: 'Chief Investment Officer',
 }
 
 function getStoredTheme() {
@@ -1152,6 +1154,12 @@ export default function App() {
       companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
       address: data.address || DEFAULT_COMPANY_SETTINGS.address,
       logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+      generalAccountantName:
+        data.generalAccountantName ||
+        DEFAULT_COMPANY_SETTINGS.generalAccountantName,
+      chiefInvestmentOfficerName:
+        data.chiefInvestmentOfficerName ||
+        DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
     }
 
     setCompanySettings(nextSettings)
@@ -4359,10 +4367,24 @@ export default function App() {
               margin-top: 18px;
               max-width: 420px;
               font-size: 11px;
+              align-items: start;
             }
             .signature-line {
+              display: grid;
+              gap: 0;
+              justify-items: start;
+            }
+            .signature-line-fill {
+              width: 170px;
+              min-width: 170px;
               border-bottom: 1px solid #444;
-              min-height: 18px;
+              height: 8px;
+            }
+            .signature-line-label {
+              width: 170px;
+              text-align: center;
+              font-size: 10px;
+              line-height: 0.95;
             }
             .accounting-block {
               margin-top: 18px;
@@ -4406,14 +4428,17 @@ export default function App() {
               display: grid;
               gap: 2px;
               min-width: 0;
+              justify-items: start;
             }
             .approval-value .line-fill {
               min-width: 170px;
-              justify-content: center;
-              text-align: center;
+              width: 170px;
+              justify-content: flex-start;
+              text-align: left;
               font-weight: 700;
             }
             .approval-subtitle {
+              width: 170px;
               text-align: center;
               font-size: 10px;
               line-height: 1.2;
@@ -4425,6 +4450,7 @@ export default function App() {
             }
             .approval-date-line {
               min-width: 170px;
+              width: 170px;
             }
             .muted {
               color: #444;
@@ -4506,11 +4532,18 @@ export default function App() {
 
               <div class="signature-grid">
                 <span>Prepared by:</span>
-                <div class="signature-line">${record.requester || ''}</div>
+                <div class="signature-line">
+                  <div class="signature-line-label">${record.requester || ''}</div>
+                  <div class="signature-line-fill"></div>
+                </div>
                 <span>Checked by:</span>
-                <div class="signature-line"></div>
+                <div class="signature-line">
+                  <div class="signature-line-fill"></div>
+                </div>
                 <span>Approved by:</span>
-                <div class="signature-line"></div>
+                <div class="signature-line">
+                  <div class="signature-line-fill"></div>
+                </div>
               </div>
 
               <div class="accounting-block">
@@ -4561,14 +4594,14 @@ export default function App() {
                   <span class="muted">:</span>
                   <div class="approval-value">
                     <div class="line-fill"></div>
-                    <div class="approval-subtitle">General Accountant / Head ACC</div>
+                    <div class="approval-subtitle">${companySettings.generalAccountantName || 'General Accountant / Head ACC'}</div>
                   </div>
 
                   <span class="approval-label">Approved by</span>
                   <span class="muted">:</span>
                   <div class="approval-value">
                     <div class="line-fill"></div>
-                    <div class="approval-subtitle">Chief Investment Officer</div>
+                    <div class="approval-subtitle">${companySettings.chiefInvestmentOfficerName || 'Chief Investment Officer'}</div>
                   </div>
 
                   <span class="approval-date-label">Date</span>
@@ -4716,6 +4749,12 @@ export default function App() {
             address:
               settingsForm.address.trim() || DEFAULT_COMPANY_SETTINGS.address,
             logoUrl: settingsForm.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+            generalAccountantName:
+              settingsForm.generalAccountantName.trim() ||
+              DEFAULT_COMPANY_SETTINGS.generalAccountantName,
+            chiefInvestmentOfficerName:
+              settingsForm.chiefInvestmentOfficerName.trim() ||
+              DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
           }),
         })
 
@@ -4728,6 +4767,12 @@ export default function App() {
           companyName: data.companyName || DEFAULT_COMPANY_SETTINGS.companyName,
           address: data.address || DEFAULT_COMPANY_SETTINGS.address,
           logoUrl: data.logoUrl || DEFAULT_COMPANY_SETTINGS.logoUrl,
+          generalAccountantName:
+            data.generalAccountantName ||
+            DEFAULT_COMPANY_SETTINGS.generalAccountantName,
+          chiefInvestmentOfficerName:
+            data.chiefInvestmentOfficerName ||
+            DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
         }
 
         setCompanySettings(nextSettings)

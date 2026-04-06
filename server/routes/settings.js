@@ -11,7 +11,9 @@ const DEFAULT_SETTINGS = {
   branchName: "",
   companyName: "Januarius Holdings Inc.",
   address: "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines",
-  logoUrl: "/JANUARIUS.ico"
+  logoUrl: "/JANUARIUS.ico",
+  generalAccountantName: "General Accountant / Head ACC",
+  chiefInvestmentOfficerName: "Chief Investment Officer"
 };
 
 function serializeSetting(setting) {
@@ -21,7 +23,9 @@ function serializeSetting(setting) {
     branchName: setting.branchName,
     companyName: setting.companyName,
     address: setting.address,
-    logoUrl: setting.logoUrl
+    logoUrl: setting.logoUrl,
+    generalAccountantName: setting.generalAccountantName,
+    chiefInvestmentOfficerName: setting.chiefInvestmentOfficerName
   };
 }
 
@@ -54,6 +58,8 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
   const companyName = String(req.body.companyName || "").trim();
   const address = String(req.body.address || "").trim();
   const logoUrl = String(req.body.logoUrl || "").trim();
+  const generalAccountantName = String(req.body.generalAccountantName || "").trim();
+  const chiefInvestmentOfficerName = String(req.body.chiefInvestmentOfficerName || "").trim();
 
   if (!companyName) {
     return res.status(400).json({ message: "Company name is required." });
@@ -70,6 +76,8 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
   setting.companyName = companyName;
   setting.address = address;
   setting.logoUrl = logoUrl;
+  setting.generalAccountantName = generalAccountantName || DEFAULT_SETTINGS.generalAccountantName;
+  setting.chiefInvestmentOfficerName = chiefInvestmentOfficerName || DEFAULT_SETTINGS.chiefInvestmentOfficerName;
 
   await setting.save();
   const identities = await getEntitySettings();

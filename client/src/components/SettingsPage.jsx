@@ -187,6 +187,28 @@ export default function SettingsPage({
                 disabled={!isMainSettingsEditing}
               />
             </label>
+
+            <label>
+              General Accountant / Head ACC
+              <input
+                name="generalAccountantName"
+                value={form.generalAccountantName || ""}
+                onChange={onChange}
+                disabled={!isMainSettingsEditing}
+                placeholder="Enter the General Accountant / Head ACC name"
+              />
+            </label>
+
+            <label>
+              Chief Investment Officer
+              <input
+                name="chiefInvestmentOfficerName"
+                value={form.chiefInvestmentOfficerName || ""}
+                onChange={onChange}
+                disabled={!isMainSettingsEditing}
+                placeholder="Enter the Chief Investment Officer name"
+              />
+            </label>
           </div>
         </div>
       </section>

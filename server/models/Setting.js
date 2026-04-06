@@ -7,7 +7,9 @@ const settingSchema = new mongoose.Schema(
     branchName: { type: String, default: "", trim: true },
     companyName: { type: String, required: true, trim: true },
     address: { type: String, required: true, trim: true },
-    logoUrl: { type: String, required: true, trim: true }
+    logoUrl: { type: String, required: true, trim: true },
+    generalAccountantName: { type: String, default: "", trim: true },
+    chiefInvestmentOfficerName: { type: String, default: "", trim: true }
   },
   { timestamps: true }
 );
