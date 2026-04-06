@@ -1382,6 +1382,7 @@ export default function App() {
         ...current,
         requesterName: defaultUser.name,
         requesterEmail: defaultUser.email,
+        department: defaultUser.department ?? '',
       }
     })
   }, [isAdmin, users])
@@ -1658,6 +1659,17 @@ export default function App() {
     const { name, value } = event.target
 
     setRequestForm((current) => {
+      if (name === 'requesterEmail') {
+        const selectedRequester = users.find((user) => user.email === value)
+
+        return {
+          ...current,
+          requesterEmail: value,
+          requesterName: selectedRequester?.name ?? '',
+          department: selectedRequester?.department ?? '',
+        }
+      }
+
       if (name === 'amount') {
         setRequestFormErrors((currentErrors) => ({
           ...currentErrors,
