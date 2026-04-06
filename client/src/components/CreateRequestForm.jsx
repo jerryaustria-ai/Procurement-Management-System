@@ -46,15 +46,17 @@ export default function CreateRequestForm({
           />
         </label>
 
-        <label>
-          Department
-          <input
-            name="department"
-            value={form.department}
-            onChange={onChange}
-            placeholder="Operations"
-          />
-        </label>
+        {isAdmin ? (
+          <label>
+            Department
+            <input
+              name="department"
+              value={form.department}
+              onChange={onChange}
+              placeholder="Operations"
+            />
+          </label>
+        ) : null}
 
         <label>
           Branch
@@ -89,15 +91,17 @@ export default function CreateRequestForm({
           />
         </label>
 
-        <label className="full-width-field">
-          Delivery address
-          <input
-            name="deliveryAddress"
-            value={form.deliveryAddress}
-            onChange={onChange}
-            placeholder="Main office or warehouse"
-          />
-        </label>
+        {isAdmin ? (
+          <label className="full-width-field">
+            Delivery address
+            <input
+              name="deliveryAddress"
+              value={form.deliveryAddress}
+              onChange={onChange}
+              placeholder="Main office or warehouse"
+            />
+          </label>
+        ) : null}
 
       </div>
 
