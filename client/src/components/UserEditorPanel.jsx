@@ -27,11 +27,22 @@ export default function UserEditorPanel({
       <div className="form-grid two-column">
         <label>
           Name
-          <input name="name" value={form.name} onChange={onChange} />
+          <input
+            name="name"
+            value={form.name}
+            onChange={onChange}
+            autoComplete="name"
+          />
         </label>
         <label>
           Email
-          <input name="email" value={form.email} onChange={onChange} />
+          <input
+            name="email"
+            type="email"
+            value={form.email}
+            onChange={onChange}
+            autoComplete="email"
+          />
         </label>
         <label>
           Role
@@ -45,7 +56,12 @@ export default function UserEditorPanel({
         </label>
         <label>
           Department
-          <input name="department" value={form.department} onChange={onChange} />
+          <input
+            name="department"
+            value={form.department}
+            onChange={onChange}
+            autoComplete="off"
+          />
         </label>
       </div>
 
@@ -56,6 +72,7 @@ export default function UserEditorPanel({
           type="password"
           value={form.password}
           onChange={onChange}
+          autoComplete={selectedUserId ? "new-password" : "new-password"}
           placeholder={selectedUserId ? "Leave blank to keep current password" : "Required"}
         />
       </label>
