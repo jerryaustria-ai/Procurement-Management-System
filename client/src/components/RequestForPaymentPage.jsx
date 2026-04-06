@@ -58,6 +58,10 @@ export default function RequestForPaymentPage({
       return;
     }
 
+    if (String(form.tinNumber || "").trim()) {
+      return;
+    }
+
     const matchedSupplier = suppliers.find(
       (supplier) => String(supplier.name || "").trim().toLowerCase() === normalizedPayee
     );
@@ -67,7 +71,7 @@ export default function RequestForPaymentPage({
     }
 
     const matchedTin = String(matchedSupplier.tinNumber || "");
-    if (matchedTin === String(form.tinNumber || "")) {
+    if (!matchedTin) {
       return;
     }
 
