@@ -487,10 +487,37 @@ textarea {
 }
 
 .auth-logo {
-  width: min(220px, 24vw);
+  width: min(120px, 14vw);
   height: auto;
   display: block;
   margin: 0 auto;
+}
+
+.auth-wordmark {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  text-align: center;
+  line-height: 0.95;
+}
+
+.auth-wordmark-primary,
+.auth-wordmark-secondary {
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 700;
+}
+
+.auth-wordmark-primary {
+  font-size: clamp(2.7rem, 4vw, 4.4rem);
+  color: #8b2420;
+  letter-spacing: 0.02em;
+}
+
+.auth-wordmark-secondary {
+  font-size: clamp(1.75rem, 2.6vw, 2.9rem);
+  color: #111111;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .auth-copy h1 {

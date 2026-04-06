@@ -4278,7 +4278,7 @@ export default function App() {
             }
             .top-meta {
               display: grid;
-              gap: 8px;
+              gap: 30px;
               margin-bottom: 8px;
             }
             .top-meta-row {
@@ -4297,7 +4297,7 @@ export default function App() {
             }
             .line-stack {
               display: grid;
-              gap: 4px;
+              gap: 10px;
             }
             .line-row {
               display: grid;
@@ -4389,7 +4389,7 @@ export default function App() {
               line-height: 0.95;
             }
             .accounting-block {
-              margin-top: 40px;
+              margin-top: 30px;
               padding-top: 30px;
               border-top: 1px solid #444;
             }
@@ -4999,9 +4999,13 @@ export default function App() {
           <div className='auth-brandmark' aria-hidden='true'>
             <img
               className='auth-logo'
-              src='/JANUARIUS2020_JULY_LOGO_final1-02-1.png'
+              src='/JANUARIUS.ico'
               alt='Januarius Holdings Inc.'
             />
+            <div className='auth-wordmark'>
+              <span className='auth-wordmark-primary'>Januarius</span>
+              <span className='auth-wordmark-secondary'>Holdings Inc.</span>
+            </div>
             <div className='auth-copy'>
               <h1>Januarius Procurement Hub</h1>
               <p className='hero-copy'>
