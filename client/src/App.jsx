@@ -4393,8 +4393,8 @@ export default function App() {
             .bottom-approvals {
               margin-top: 18px;
               display: grid;
-              grid-template-columns: 1fr auto 1fr;
-              gap: 12px 8px;
+              grid-template-columns: 110px 10px 1fr;
+              gap: 12px 4px;
               align-items: center;
               font-size: 11px;
             }
