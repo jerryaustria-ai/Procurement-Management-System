@@ -952,6 +952,13 @@ function CompanyHeader({
 
 export default function App() {
   const [theme, setTheme] = useState(() => getStoredTheme())
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    return window.matchMedia('(max-width: 820px)').matches
+  })
   const [companySettings, setCompanySettings] = useState(
     DEFAULT_COMPANY_SETTINGS,
   )
@@ -1144,6 +1151,22 @@ export default function App() {
   const canEditSelectedRequest = Boolean(
     canUserEditRequest(session?.user, selectedItem),
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 820px)')
+    const handleViewportChange = (event) => {
+      setIsMobileViewport(event.matches)
+    }
+
+    setIsMobileViewport(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleViewportChange)
+
+    return () => mediaQuery.removeEventListener('change', handleViewportChange)
+  }, [])
 
   async function syncCompanySettings() {
     const response = await fetch(`${API_BASE_URL}/settings`)
@@ -2995,6 +3018,39 @@ export default function App() {
         >
           Open request editor
         </button>
+      </section>
+    )
+  }
+
+  function renderCreateRequestPage() {
+    return (
+      <section className='mobile-create-request-page'>
+        <div className='mobile-create-request-header'>
+          <p className='eyebrow'>New Request</p>
+          <button
+            className='ghost-button mobile-create-request-close'
+            type='button'
+            onClick={handleCloseCreateRequestModal}
+          >
+            Close
+          </button>
+        </div>
+
+        <CreateRequestForm
+          form={requestForm}
+          branchOptions={branchOptions}
+          isAdmin={isAdmin}
+          requesterOptions={requesterOptions}
+          onChange={handleRequestFormChange}
+          onQuotationFileChange={handleRequestQuotationFileChange}
+          quotationFileName={requestQuotationFile?.name ?? ''}
+          onSubmit={handleCreateRequest}
+          onCancel={handleCloseCreateRequestModal}
+          errors={requestFormErrors}
+          isSubmitting={isSubmitting}
+          canCreate={canCreateRequest}
+          error={actionError}
+        />
       </section>
     )
   }
@@ -5617,7 +5673,9 @@ export default function App() {
         <p className='error-text'>Loading workflow data...</p>
       ) : null}
 
-      {session.user.role === 'requester' ? (
+      {isMobileViewport && isCreateRequestModalOpen ? (
+        renderCreateRequestPage()
+      ) : session.user.role === 'requester' ? (
         <div>
           {canCreateRequest ? (
             <div className='mobile-request-list-create'>
@@ -5703,7 +5761,7 @@ export default function App() {
         </div>
       )}
 
-      {isCreateRequestModalOpen ? (
+      {isCreateRequestModalOpen && !isMobileViewport ? (
         <Modal
           eyebrow='New Request'
           title=''
