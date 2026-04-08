@@ -18,6 +18,7 @@ import {
 } from "../utils/cloudinary.js";
 import {
   getEmailConfigurationStatus,
+  sendApproverApprovalRequiredEmail,
   sendNewRequestCreatedEmail,
   sendTestEmail
 } from "../utils/email.js";
@@ -536,6 +537,8 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     return res.json(serializePurchaseRequest(request));
   }
 
+  const shouldNotifyApprover = nextStage === "Approval" && Boolean(req.body.notifyApprover);
+
   if (nextStage !== request.currentStage) {
     const previousStage = request.currentStage;
     request.currentStage = nextStage;
@@ -545,7 +548,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     }
     if (previousStage === "Approval") {
       request.approvalCompleted = true;
-      request.requestForPaymentEnabled = Boolean(req.body.skipToRfp);
+      request.requestForPaymentEnabled = true;
     }
     if (previousStage === "Approve PO") {
       request.requestForPaymentEnabled = true;
@@ -565,7 +568,47 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
   }
 
   await request.save();
-  return res.json(serializePurchaseRequest(request));
+  let approverNotification = {
+    requested: false
+  };
+
+  if (shouldNotifyApprover) {
+    approverNotification.requested = true;
+
+    try {
+      const approverRecipients = await User.find({ role: "approver" }).select("email");
+      const notificationResult = await sendApproverApprovalRequiredEmail({
+        request,
+        reviewerName: req.user.name,
+        requesterName: request.requesterName,
+        recipients: approverRecipients.map((user) => user.email)
+      });
+
+      approverNotification = {
+        ...approverNotification,
+        ...notificationResult
+      };
+
+      if (notificationResult?.skipped) {
+        console.warn(
+          "Skipped approver approval notification.",
+          notificationResult.reason || "Unknown reason."
+        );
+      }
+    } catch (error) {
+      console.error("Failed to send approver approval notification.", error);
+      approverNotification = {
+        ...approverNotification,
+        skipped: true,
+        reason: error.message || "Failed to send approver approval notification."
+      };
+    }
+  }
+
+  return res.json({
+    ...serializePurchaseRequest(request),
+    approverNotification
+  });
 });
 
 router.patch("/purchase-requests/:id/reject", async (req, res) => {
@@ -639,7 +682,7 @@ router.patch("/purchase-requests/:id/approve", async (req, res) => {
   }
 
   request.approvalCompleted = true;
-  request.requestForPaymentEnabled = Boolean(req.body.skipToRfp);
+  request.requestForPaymentEnabled = true;
   request.history = request.history.map((entry) =>
     entry.stage === "Approval" && entry.status === "current"
       ? {

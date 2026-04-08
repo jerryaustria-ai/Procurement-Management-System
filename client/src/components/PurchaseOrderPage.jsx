@@ -32,6 +32,7 @@ function parseMoney(value) {
 
 export default function PurchaseOrderPage({
   item,
+  user,
   form,
   onChange,
   onLineItemChange,
@@ -41,13 +42,18 @@ export default function PurchaseOrderPage({
   onPrint,
   onSave,
   onClose,
-  isSubmitting
+  isSubmitting,
+  readOnly = false
 }) {
   const subTotal = form.lineItems.reduce((sum, lineItem) => sum + parseMoney(lineItem.total), 0);
   const salesTax = parseMoney(form.salesTax);
   const shippingHandling = parseMoney(form.shippingHandling);
   const other = parseMoney(form.other);
   const netTotal = subTotal + salesTax + shippingHandling + other;
+  const pageTitle = readOnly ? "Review purchase order" : "Prepare purchase order";
+  const pageCopy = readOnly
+    ? "Review the prepared purchase order before approving it for release."
+    : "Prepare the purchase order details in a focused workspace, then return to stage actions when you are ready.";
 
   return (
     <section className="po-page">
@@ -55,10 +61,7 @@ export default function PurchaseOrderPage({
         <div>
           <p className="eyebrow">Purchase Order</p>
           <h1>{item.poNumber || form.poNumber || `Create PO for ${item.requestNumber}`}</h1>
-          <p className="hero-copy">
-            Prepare the purchase order details in a focused workspace, then return to stage
-            actions when you are ready.
-          </p>
+          <p className="hero-copy">{pageCopy}</p>
         </div>
         <div className="po-page-header-actions">
           <button className="po-secondary-action" type="button" onClick={onClose}>
@@ -119,7 +122,7 @@ export default function PurchaseOrderPage({
           <div className="panel-heading">
             <div>
               <p className="eyebrow">PO Details</p>
-              <h2>Prepare purchase order</h2>
+              <h2>{pageTitle}</h2>
             </div>
           </div>
           <div className="form-grid">
@@ -130,6 +133,7 @@ export default function PurchaseOrderPage({
                 value={form.poNumber}
                 onChange={onChange}
                 placeholder="PO-2026-001"
+                readOnly={readOnly}
               />
             </label>
 
@@ -151,6 +155,7 @@ export default function PurchaseOrderPage({
                 onChange={onChange}
                 rows="6"
                 placeholder="Add purchase order notes, delivery instructions, or special terms"
+                readOnly={readOnly}
               />
             </label>
           </div>
@@ -161,11 +166,13 @@ export default function PurchaseOrderPage({
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Line Items</p>
-            <h2>Purchase order breakdown</h2>
+            <h2>{readOnly ? "Purchase order preview" : "Purchase order breakdown"}</h2>
           </div>
-          <button className="ghost-button" type="button" onClick={onAddLineItem}>
-            Add line
-          </button>
+          {!readOnly ? (
+            <button className="ghost-button" type="button" onClick={onAddLineItem}>
+              Add line
+            </button>
+          ) : null}
         </div>
 
         <div className="po-line-items">
@@ -185,31 +192,39 @@ export default function PurchaseOrderPage({
                 onChange={(event) => onLineItemChange(index, "qty", event.target.value)}
                 placeholder="1"
                 inputMode="decimal"
+                readOnly={readOnly}
               />
               <input
                 value={lineItem.unit}
                 onChange={(event) => onLineItemChange(index, "unit", event.target.value)}
                 placeholder="pcs"
+                readOnly={readOnly}
               />
               <input
                 value={lineItem.description}
                 onChange={(event) => onLineItemChange(index, "description", event.target.value)}
                 placeholder="Describe the item"
+                readOnly={readOnly}
               />
               <input
                 value={lineItem.unitPrice}
                 onChange={(event) => onLineItemChange(index, "unitPrice", event.target.value)}
                 placeholder="0.00"
                 inputMode="decimal"
+                readOnly={readOnly}
               />
               <input value={lineItem.total} readOnly placeholder="0.00" />
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() => onRemoveLineItem(index)}
-              >
-                Remove
-              </button>
+              {!readOnly ? (
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={() => onRemoveLineItem(index)}
+                >
+                  Remove
+                </button>
+              ) : (
+                <span />
+              )}
             </div>
           ))}
         </div>
@@ -227,6 +242,7 @@ export default function PurchaseOrderPage({
               onChange={onChange}
               placeholder="0.00"
               inputMode="decimal"
+              readOnly={readOnly}
             />
           </label>
           <label>
@@ -237,6 +253,7 @@ export default function PurchaseOrderPage({
               onChange={onChange}
               placeholder="0.00"
               inputMode="decimal"
+              readOnly={readOnly}
             />
           </label>
           <label>
@@ -247,6 +264,7 @@ export default function PurchaseOrderPage({
               onChange={onChange}
               placeholder="0.00"
               inputMode="decimal"
+              readOnly={readOnly}
             />
           </label>
           <label className="po-net-total">
@@ -260,14 +278,16 @@ export default function PurchaseOrderPage({
         <button className="po-secondary-action" type="button" onClick={onPrint}>
           Print PO
         </button>
-        <button
-          className="po-primary-action"
-          type="button"
-          onClick={onSave}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Saving..." : "Save PO"}
-        </button>
+        {!readOnly ? (
+          <button
+            className="po-primary-action"
+            type="button"
+            onClick={onSave}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : "Save PO"}
+          </button>
+        ) : null}
       </div>
     </section>
   );

@@ -46,6 +46,18 @@ function getAdvanceButtonLabel(currentStage, nextStage, isComplete, workflowFini
   return `Move to ${nextStage}`;
 }
 
+function getAdvanceLoadingLabel(currentStage, hasApprovalAttachment) {
+  if ((currentStage === "Review" || currentStage === "Approval") && hasApprovalAttachment) {
+    return "Uploading attachment...";
+  }
+
+  if (currentStage === "Review" || currentStage === "Approval") {
+    return "Approving...";
+  }
+
+  return "Processing...";
+}
+
 function isRejected(item) {
   return item.status === "rejected";
 }
@@ -106,8 +118,9 @@ export default function ActionPanel({
   onAddPurchaseOrderLineItem,
   onRemovePurchaseOrderLineItem,
   onPrintPurchaseOrder,
+  onReviewPurchaseOrder,
   onReviewAttachmentFileChange,
-  onUpload,
+  onClearReviewAttachment,
   onCreateSupplier = () => {},
   onAdvance,
   onReject,
@@ -127,7 +140,10 @@ export default function ActionPanel({
   const nextStage = stages[Math.min(currentIndex + 1, stages.length - 1)];
   const previousStage = stages[Math.max(currentIndex - 1, 0)];
   const showBackButton =
-    !isRejectedWorkflow && !isFirstStage && previousStage !== "Purchase Request";
+    !isRejectedWorkflow &&
+    !isFirstStage &&
+    previousStage !== "Purchase Request" &&
+    !(item.currentStage === "Approval" && user.role === "approver");
   const baseDisplayStage =
     item.currentStage === "Purchase Request" && !isComplete ? nextStage : item.currentStage;
   const displayStage = getDisplayStageLabel(item, baseDisplayStage);
@@ -160,6 +176,19 @@ export default function ActionPanel({
   const poShippingHandling = parseMoney(purchaseOrderForm?.shippingHandling);
   const poOther = parseMoney(purchaseOrderForm?.other);
   const poNetTotal = poSubTotal + poSalesTax + poShippingHandling + poOther;
+  const approvalAttachmentInputId = `approval-attachment-${item.id}`;
+  const advanceButtonLabel = getAdvanceButtonLabel(
+    item.currentStage,
+    nextStage,
+    isComplete,
+    workflowFinished
+  );
+  const advanceLoadingLabel = getAdvanceLoadingLabel(
+    item.currentStage,
+    Boolean(uploadForm.file)
+  );
+  const showReviewPoButton =
+    item.currentStage === "Approve PO" && user.role === "approver";
 
   function handleSupplierPick(value) {
     onChange({
@@ -182,16 +211,41 @@ export default function ActionPanel({
           <p className="eyebrow">Stage Actions</p>
           <h2>{displayStage}</h2>
         </div>
-      </div>
-
-      <div className="approval-meta">
-        <span>Current owner</span>
-        <strong>{displayOwner}</strong>
-        <small>
-          {isRejectedWorkflow
-            ? "This request was declined and the workflow has been stopped."
-            : displayDescription}
-        </small>
+        <div className="stage-tooltip">
+          <button
+            className="stage-tooltip-button"
+            type="button"
+            aria-label="Show current owner details"
+            title="Current owner details"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M12 10.2v5.2M12 7.8h.01"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.8"
+              />
+            </svg>
+          </button>
+          <div className="stage-tooltip-card" role="tooltip">
+            <span>Current owner</span>
+            <strong>{displayOwner}</strong>
+            <small>
+              {isRejectedWorkflow
+                ? "This request was declined and the workflow has been stopped."
+                : displayDescription}
+            </small>
+          </div>
+        </div>
       </div>
 
       <div className="form-grid">
@@ -456,53 +510,116 @@ export default function ActionPanel({
         ) : null}
       </div>
 
-      {item.currentStage === "Review" ? (
-        <>
-          <label>
-            Approval attachment
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
-              onChange={onReviewAttachmentFileChange}
+      {["Review", "Approval"].includes(item.currentStage) ? (
+        <div className="stage-notes-layout">
+          <div className="approval-upload-section">
+            <span className="approval-upload-label">Approval attachment</span>
+            <label
+              className={`approval-upload-dropzone ${isRejectedWorkflow ? "is-disabled" : ""}`}
+              htmlFor={approvalAttachmentInputId}
+            >
+              <input
+                key={uploadForm.file?.name ?? "empty-approval-file"}
+                id={approvalAttachmentInputId}
+                className="approval-upload-input"
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                onChange={onReviewAttachmentFileChange}
+                disabled={isRejectedWorkflow}
+              />
+              <span className="approval-upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M12 16V7m0 0-3.5 3.5M12 7l3.5 3.5M5 16.5v1a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-1"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                  />
+                </svg>
+              </span>
+              <span className="approval-upload-title">Upload File</span>
+            </label>
+
+            {uploadForm.file ? (
+              <div className="approval-upload-file-pill">
+                <span className="approval-upload-file-name">{uploadForm.file.name}</span>
+                <button
+                  className="approval-upload-remove"
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onClearReviewAttachment();
+                  }}
+                  aria-label="Remove selected approval attachment"
+                  title="Remove file"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M9 4.5h6M7.5 7h9m-7.5 0v9.5m3-9.5v9.5m3.5-9.5-.6 10a1.5 1.5 0 0 1-1.5 1.4H9.6a1.5 1.5 0 0 1-1.5-1.4L7.5 7"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.7"
+                    />
+                  </svg>
+                </button>
+              </div>
+            ) : null}
+
+            {!uploadForm.file ? (
+              <p className="panel-support">
+                Upload the attachment that proves this purchase request was approved by the boss.
+              </p>
+            ) : (
+              <p className="panel-support">
+                The selected file will be uploaded automatically when you click Approve.
+              </p>
+            )}
+
+          </div>
+
+          <label className="stage-notes-panel">
+            Stage notes
+            <textarea
+              name="notes"
+              value={form.notes}
+              onChange={onChange}
+              rows="4"
+              placeholder="Add reviewer, approver, or finance notes"
               disabled={isRejectedWorkflow}
             />
           </label>
-
-          {uploadForm.file ? (
-            <p className="panel-support">
-              Selected file: <strong>{uploadForm.file.name}</strong>
-            </p>
-          ) : (
-            <p className="panel-support">
-              Upload the attachment that proves this purchase request was approved by the boss.
-            </p>
-          )}
-
-          <button
-            className="ghost-button"
-            disabled={isSubmitting || !uploadForm.file || isRejectedWorkflow}
-            type="button"
-            onClick={onUpload}
-          >
-            Upload approval attachment
-          </button>
-        </>
-      ) : null}
-
-      <label>
-        Stage notes
-        <textarea
-          name="notes"
-          value={form.notes}
-          onChange={onChange}
-          rows="4"
-          placeholder="Add reviewer, approver, or finance notes"
-          disabled={isRejectedWorkflow}
-        />
-      </label>
+        </div>
+      ) : (
+        <label>
+          Stage notes
+          <textarea
+            name="notes"
+            value={form.notes}
+            onChange={onChange}
+            rows="4"
+            placeholder="Add reviewer, approver, or finance notes"
+            disabled={isRejectedWorkflow}
+          />
+        </label>
+      )}
 
       <div className="button-row">
-        {showBackButton ? (
+        {showReviewPoButton ? (
+          <button
+            className="ghost-button"
+            disabled={isSubmitting || !canAdvance}
+            onClick={onReviewPurchaseOrder}
+            type="button"
+          >
+            Review PO
+          </button>
+        ) : null}
+        {showBackButton && !showReviewPoButton ? (
           <button
             className="ghost-button"
             disabled={isSubmitting || !canAdvance}
@@ -527,20 +644,18 @@ export default function ActionPanel({
           onClick={onAdvance}
           type="button"
         >
-          {getAdvanceButtonLabel(item.currentStage, nextStage, isComplete, workflowFinished)}
+          {isSubmitting ? advanceLoadingLabel : advanceButtonLabel}
         </button>
-        {item.currentStage === "Approval" ? (
-          <label className="stage-inline-checkbox">
+        {item.currentStage === "Review" ? (
+          <label className="stage-checkbox-row action-inline-checkbox">
             <input
               type="checkbox"
-              name="skipToRfp"
-              checked={Boolean(form.skipToRfp)}
+              name="notifyApprover"
+              checked={Boolean(form.notifyApprover)}
               onChange={onChange}
+              disabled={isRejectedWorkflow || isSubmitting}
             />
-            <span className="stage-toggle-track" aria-hidden="true">
-              <span className="stage-toggle-thumb" />
-            </span>
-            <span>Enable RFP</span>
+            <span>Notify approver via email</span>
           </label>
         ) : null}
         {item.currentStage === "Prepare PO" ? (

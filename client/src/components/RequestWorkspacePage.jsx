@@ -16,9 +16,11 @@ export default function RequestWorkspacePage({
   onAddPurchaseOrderLineItem,
   onRemovePurchaseOrderLineItem,
   onPrintPurchaseOrder,
+  onReviewPurchaseOrder,
   onUploadFormChange,
   onUploadFileChange,
   onReviewAttachmentFileChange,
+  onClearReviewAttachment,
   onUpload,
   onCreateSupplier,
   onAdvance,
@@ -132,7 +134,9 @@ export default function RequestWorkspacePage({
               onAddPurchaseOrderLineItem={onAddPurchaseOrderLineItem}
               onRemovePurchaseOrderLineItem={onRemovePurchaseOrderLineItem}
               onPrintPurchaseOrder={onPrintPurchaseOrder}
+              onReviewPurchaseOrder={onReviewPurchaseOrder}
               onReviewAttachmentFileChange={onReviewAttachmentFileChange}
+              onClearReviewAttachment={onClearReviewAttachment}
               onUpload={onUpload}
               onCreateSupplier={onCreateSupplier}
               onAdvance={onAdvance}

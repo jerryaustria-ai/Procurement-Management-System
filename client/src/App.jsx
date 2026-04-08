@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import ActionPanel from './components/ActionPanel.jsx'
+import ApprovalConfirmationPage from './components/ApprovalConfirmationPage.jsx'
 import AuditTrailPage from './components/AuditTrailPage.jsx'
 import ConfirmDialog from './components/ConfirmDialog.jsx'
 import CreateRequestForm from './components/CreateRequestForm.jsx'
@@ -386,6 +387,44 @@ function canAccessRequestForPayment(item) {
   return (
     Boolean(item.requestForPaymentEnabled) ||
     requestForPaymentStages.has(item.currentStage)
+  )
+}
+
+function canAccessRequestWorkspace(user, item) {
+  if (!user || !item) {
+    return false
+  }
+
+  if (user.role === 'admin') {
+    return true
+  }
+
+  if (user.email === item.requesterEmail) {
+    return true
+  }
+
+  if (Array.isArray(item.allowedRoles) && item.allowedRoles.includes(user.role)) {
+    return true
+  }
+
+  return false
+}
+
+function canSeeRequestInRegistry(user, item) {
+  if (!user || !item) {
+    return false
+  }
+
+  if (user.role === 'admin') {
+    return true
+  }
+
+  if (user.role === 'requester') {
+    return user.email === item.requesterEmail
+  }
+
+  return Boolean(
+    Array.isArray(item.allowedRoles) && item.allowedRoles.includes(user.role),
   )
 }
 
@@ -987,6 +1026,7 @@ export default function App() {
   const [actionForm, setActionForm] = useState({
     supplier: '',
     notes: '',
+    notifyApprover: false,
     poNumber: '',
     invoiceNumber: '',
     paymentReference: '',
@@ -1041,6 +1081,8 @@ export default function App() {
     useState(true)
   const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] =
     useState(false)
+  const [approvalConfirmationRequest, setApprovalConfirmationRequest] =
+    useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [authError, setAuthError] = useState('')
@@ -1085,8 +1127,11 @@ export default function App() {
       ].filter((supplier) => supplier && supplier !== 'Pending selection'),
     ),
   ).sort((left, right) => left.localeCompare(right))
+  const visibleRegistryItems = items.filter((item) =>
+    canSeeRequestInRegistry(session?.user, item),
+  )
   const filteredItems = searchRequests(
-    filterRequests(items, requestRegistryFilter),
+    filterRequests(visibleRegistryItems, requestRegistryFilter),
     requestSearchQuery,
   )
   const selectedItem =
@@ -1307,6 +1352,7 @@ export default function App() {
       return {
         supplier: savedDraft.supplier || nextSupplier,
         notes: savedDraft.notes || '',
+        notifyApprover: false,
         poNumber:
           savedDraft.poNumber ||
           getAssignedPurchaseOrderNumber(selectedItem, items),
@@ -1836,6 +1882,14 @@ export default function App() {
       type: 'other',
       label: 'Boss approval attachment',
       file,
+    })
+  }
+
+  function handleClearReviewApprovalFile() {
+    setUploadForm({
+      type: 'other',
+      label: 'Boss approval attachment',
+      file: null,
     })
   }
 
@@ -2374,7 +2428,17 @@ export default function App() {
   }
 
   function openRequestDetailsModal() {
-    if (!selectedItem) {
+    if (!selectedItem || !session?.user) {
+      return
+    }
+
+    if (!canAccessRequestWorkspace(session.user, selectedItem)) {
+      pushToast({
+        title: 'Access restricted',
+        message: `You can no longer open ${selectedItem.currentStage} for this request.`,
+        variant: 'error',
+        duration: 4200,
+      })
       return
     }
 
@@ -2576,6 +2640,10 @@ export default function App() {
     setIsPurchaseOrderPageOpen(true)
   }
 
+  function handleReviewPurchaseOrder() {
+    openPurchaseOrderPage(selectedId)
+  }
+
   function closeRequestForPaymentPage() {
     setIsRequestForPaymentPageOpen(false)
     setIsRequestForPaymentEditing(true)
@@ -2620,6 +2688,11 @@ export default function App() {
   }
 
   function closeRequestWorkspacePage() {
+    setIsRequestWorkspacePageOpen(false)
+  }
+
+  function closeApprovalConfirmationPage() {
+    setApprovalConfirmationRequest(null)
     setIsRequestWorkspacePageOpen(false)
   }
 
@@ -2743,20 +2816,9 @@ export default function App() {
     })()
   }
 
-  function handlePrintPurchaseOrderPage() {
+  function getPurchaseOrderPreviewMarkup() {
     if (!selectedItem) {
-      return
-    }
-
-    const printWindow = window.open('', '_blank', 'width=1200,height=900')
-    if (!printWindow) {
-      pushToast({
-        title: 'Popup blocked',
-        message: 'Allow popups to print the purchase order.',
-        variant: 'error',
-        duration: 4200,
-      })
-      return
+      return null
     }
 
     const currency = selectedItem.currency || 'PHP'
@@ -2808,7 +2870,7 @@ export default function App() {
       )
       .join('')
 
-    printWindow.document.write(`
+    return `
       <html>
         <head>
           <title>Purchase Order ${purchaseOrderForm.poNumber || selectedItem.requestNumber}</title>
@@ -2953,7 +3015,65 @@ export default function App() {
           </section>
         </body>
       </html>
-    `)
+    `
+  }
+
+  function handleReviewPurchaseOrder() {
+    if (!selectedItem) {
+      return
+    }
+
+    const previewWindow = window.open('', '_blank', 'width=1200,height=900')
+    if (!previewWindow) {
+      pushToast({
+        title: 'Popup blocked',
+        message: 'Allow popups to open the purchase order preview.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    const markup = getPurchaseOrderPreviewMarkup()
+    if (!markup) {
+      previewWindow.close()
+      return
+    }
+
+    previewWindow.document.write(markup)
+    previewWindow.document.close()
+    previewWindow.focus()
+
+    pushToast({
+      title: 'PO preview opened',
+      message: 'The purchase order preview was opened in a separate window.',
+      variant: 'success',
+    })
+  }
+
+  function handlePrintPurchaseOrderPage() {
+    if (!selectedItem) {
+      return
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=900')
+    if (!printWindow) {
+      pushToast({
+        title: 'Popup blocked',
+        message: 'Allow popups to print the purchase order.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    const markup = getPurchaseOrderPreviewMarkup()
+    if (!markup) {
+      printWindow.close()
+      return
+    }
+
+    printWindow.document.write(markup)
 
     printWindow.document.close()
     printWindow.focus()
@@ -3238,10 +3358,47 @@ export default function App() {
 
     setActionError('')
     setIsSubmitting(true)
-    const shouldOpenRfpAfterAdvance =
-      selectedItem.currentStage === 'Approval' && Boolean(actionForm.skipToRfp)
+    const approvalWasHandledByApprover =
+      selectedItem.currentStage === 'Approval' && session.user.role === 'approver'
+    const shouldEnableRfpOnAdvance = selectedItem.currentStage === 'Approval'
 
     try {
+      if (
+        uploadForm.file &&
+        ['Review', 'Approval'].includes(selectedItem.currentStage)
+      ) {
+        const optimizedUploadFile = await optimizeDocumentFile(uploadForm.file)
+        const formData = new FormData()
+        formData.append('type', uploadForm.type)
+        formData.append('label', uploadForm.label)
+        formData.append('document', optimizedUploadFile)
+
+        const uploadResponse = await fetch(
+          `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/documents`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session.token}`,
+            },
+            body: formData,
+          },
+        )
+
+        const uploadData = await uploadResponse.json()
+        if (!uploadResponse.ok) {
+          throw new Error(uploadData.message || 'Failed to upload document.')
+        }
+
+        setItems((current) =>
+          current.map((item) => (item.id === uploadData.id ? uploadData : item)),
+        )
+        setUploadForm({
+          type: 'other',
+          label: 'Boss approval attachment',
+          file: null,
+        })
+      }
+
       const stageComment =
         actionForm.notes.trim() ||
         `${session.user.name} advanced ${selectedItem.requestNumber} to the next stage.`
@@ -3261,7 +3418,13 @@ export default function App() {
             paymentReference: actionForm.paymentReference,
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
-            skipToRfp: Boolean(actionForm.skipToRfp),
+            notifyApprover:
+              selectedItem.currentStage === 'Review'
+                ? Boolean(actionForm.notifyApprover)
+                : false,
+            skipToRfp: shouldEnableRfpOnAdvance
+              ? true
+              : Boolean(actionForm.skipToRfp),
             poDraft: purchaseOrderForm,
             comment: stageComment,
           }),
@@ -3284,19 +3447,36 @@ export default function App() {
         ...current,
         supplier: data.supplier || current.supplier,
         poNumber: data.poNumber || current.poNumber,
+        notifyApprover: false,
         skipToRfp: false,
         notes: '',
       }))
+
+      if (approvalWasHandledByApprover) {
+        setApprovalConfirmationRequest(data.requestNumber)
+        setIsRequestWorkspacePageOpen(false)
+      }
+
       pushToast({
         title: 'Stage advanced',
-        message: shouldOpenRfpAfterAdvance
+        message: shouldEnableRfpOnAdvance
           ? `${data.requestNumber} moved to ${data.currentStage}. Request for Payment is now active.`
           : `${data.requestNumber} moved to ${data.currentStage}.`,
         variant: 'success',
       })
 
-      if (shouldOpenRfpAfterAdvance) {
-        openRequestForPaymentPage(data)
+      if (data.approverNotification?.requested) {
+        pushToast({
+          title: data.approverNotification.skipped
+            ? 'Approver email skipped'
+            : 'Approver notified',
+          message: data.approverNotification.skipped
+            ? data.approverNotification.reason ||
+              'The request moved to Approval, but the approver email was not sent.'
+            : 'An approval email has been sent to the approver.',
+          variant: data.approverNotification.skipped ? 'error' : 'success',
+          duration: 4800,
+        })
       }
     } catch (error) {
       setActionError(error.message)
@@ -5174,6 +5354,7 @@ export default function App() {
         />
         <PurchaseOrderPage
           item={selectedItem}
+          user={session.user}
           form={purchaseOrderForm}
           onChange={handlePurchaseOrderFormChange}
           onLineItemChange={handlePurchaseOrderLineItemChange}
@@ -5184,6 +5365,10 @@ export default function App() {
           onSave={handleSavePurchaseOrderPage}
           onClose={closePurchaseOrderPage}
           isSubmitting={isSubmitting}
+          readOnly={
+            session.user.role === 'approver' &&
+            selectedItem.currentStage === 'Approve PO'
+          }
         />
       </main>
     )
@@ -5524,7 +5709,60 @@ export default function App() {
     )
   }
 
+  if (approvalConfirmationRequest) {
+    return (
+      <main className='app-shell approval-confirmation-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <ApprovalConfirmationPage
+          requestNumber={approvalConfirmationRequest}
+          onHome={closeApprovalConfirmationPage}
+        />
+      </main>
+    )
+  }
+
   if (isRequestWorkspacePageOpen && selectedItem) {
+    if (!canAccessRequestWorkspace(session?.user, selectedItem)) {
+      return (
+        <main className='app-shell'>
+          <LoadingOverlay visible={isSubmitting || isLoading} />
+          <ToastStack toasts={toasts} onDismiss={dismissToast} />
+          <CompanyHeader
+            isAuthenticated
+            user={session.user}
+            onLogout={handleLogout}
+            theme={theme}
+            onThemeChange={setTheme}
+            onOpenSuppliers={handleOpenSuppliersMenu}
+            onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+            onOpenRfpRecord={handleOpenSavedRfpRecord}
+            onPrintRfpRecord={handlePrintRequestForPaymentRecord}
+            onOpenAuditTrail={handleOpenAuditTrailPage}
+            onOpenUsers={handleOpenUsersDirectory}
+            onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+            onOpenSettings={handleOpenSettingsPage}
+            canOpenRfp={canOpenRequestForPaymentMenu}
+            rfpItems={requestForPaymentRecords}
+            companySettings={companySettings}
+          />
+          <section className='settings-page'>
+            <div className='settings-card approval-confirmation-card'>
+              <h1>Access restricted</h1>
+              <p className='hero-copy'>
+                You cannot open this request while it is in the {selectedItem.currentStage} stage.
+              </p>
+              <div className='approval-confirmation-actions'>
+                <button className='po-primary-action' type='button' onClick={closeRequestWorkspacePage}>
+                  Home
+                </button>
+              </div>
+            </div>
+          </section>
+        </main>
+      )
+    }
+
     return (
       <main className='app-shell'>
         <LoadingOverlay visible={isSubmitting || isLoading} />
@@ -5561,9 +5799,11 @@ export default function App() {
           onAddPurchaseOrderLineItem={handleAddPurchaseOrderLineItem}
           onRemovePurchaseOrderLineItem={handleRemovePurchaseOrderLineItem}
           onPrintPurchaseOrder={handlePrintPurchaseOrderPage}
+          onReviewPurchaseOrder={handleReviewPurchaseOrder}
           onUploadFormChange={handleUploadFormChange}
           onUploadFileChange={handleUploadFileChange}
           onReviewAttachmentFileChange={handleReviewApprovalFileChange}
+          onClearReviewAttachment={handleClearReviewApprovalFile}
           onUpload={handleUploadDocument}
           onCreateSupplier={openCreateSupplierModal}
           onAdvance={handleAdvance}
@@ -5856,7 +6096,9 @@ export default function App() {
               onAddPurchaseOrderLineItem={handleAddPurchaseOrderLineItem}
               onRemovePurchaseOrderLineItem={handleRemovePurchaseOrderLineItem}
               onPrintPurchaseOrder={handlePrintPurchaseOrderPage}
+              onReviewPurchaseOrder={handleReviewPurchaseOrder}
               onReviewAttachmentFileChange={handleReviewApprovalFileChange}
+              onClearReviewAttachment={handleClearReviewApprovalFile}
               onUpload={handleUploadDocument}
               onCreateSupplier={openCreateSupplierModal}
               onAdvance={handleAdvance}
