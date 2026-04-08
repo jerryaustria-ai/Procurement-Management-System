@@ -214,6 +214,42 @@ function getStoredSession() {
   }
 }
 
+function getPendingWorkspaceLink() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const requestId = String(params.get('requestId') || '').trim()
+  const requestNumber = String(params.get('requestNumber') || '').trim()
+  const open = String(params.get('open') || '').trim()
+  const stage = String(params.get('stage') || '').trim()
+
+  if (!requestId && !requestNumber) {
+    return null
+  }
+
+  return {
+    requestId,
+    requestNumber,
+    open: open || 'workspace',
+    stage,
+  }
+}
+
+function clearPendingWorkspaceLinkFromUrl() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const url = new URL(window.location.href)
+  url.searchParams.delete('requestId')
+  url.searchParams.delete('requestNumber')
+  url.searchParams.delete('open')
+  url.searchParams.delete('stage')
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 function getInitialRequestForm(
   department = '',
   requesterName = '',
@@ -1083,6 +1119,9 @@ export default function App() {
     useState(false)
   const [approvalConfirmationRequest, setApprovalConfirmationRequest] =
     useState(null)
+  const [pendingWorkspaceLink, setPendingWorkspaceLink] = useState(() =>
+    getPendingWorkspaceLink(),
+  )
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [authError, setAuthError] = useState('')
@@ -1422,6 +1461,42 @@ export default function App() {
     )
     void loadDashboard(session.token, session.user.role)
   }, [session, companySettings.companyName])
+
+  useEffect(() => {
+    if (!pendingWorkspaceLink || !session?.user || !items.length) {
+      return
+    }
+
+    const targetItem =
+      items.find((item) => item.id === pendingWorkspaceLink.requestId) ||
+      items.find(
+        (item) => item.requestNumber === pendingWorkspaceLink.requestNumber,
+      )
+
+    if (!targetItem) {
+      return
+    }
+
+    if (!canAccessRequestWorkspace(session.user, targetItem)) {
+      pushToast({
+        title: 'Access restricted',
+        message:
+          pendingWorkspaceLink.stage === 'Approval'
+            ? `You can no longer open the Approval stage for ${targetItem.requestNumber}.`
+            : `You can no longer open ${targetItem.requestNumber}.`,
+        variant: 'error',
+        duration: 4200,
+      })
+      clearPendingWorkspaceLinkFromUrl()
+      setPendingWorkspaceLink(null)
+      return
+    }
+
+    setSelectedId(targetItem.id)
+    setIsRequestWorkspacePageOpen(pendingWorkspaceLink.open === 'workspace')
+    clearPendingWorkspaceLinkFromUrl()
+    setPendingWorkspaceLink(null)
+  }, [pendingWorkspaceLink, session, items])
 
   useEffect(() => {
     setRequesterSettingsForm(

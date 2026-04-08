@@ -44,6 +44,28 @@ function parseSender(rawFrom) {
   };
 }
 
+function buildPortalLink(baseUrl, params = {}) {
+  const normalizedBaseUrl = String(baseUrl || "").trim();
+
+  if (!normalizedBaseUrl) {
+    return "";
+  }
+
+  try {
+    const url = new URL(normalizedBaseUrl);
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && typeof value !== "undefined" && String(value).trim()) {
+        url.searchParams.set(key, String(value));
+      }
+    });
+
+    return url.toString();
+  } catch (_error) {
+    return normalizedBaseUrl;
+  }
+}
+
 async function sendMail({ to, subject, text, html }) {
   const configurationStatus = getEmailConfigurationStatus();
 
@@ -219,7 +241,15 @@ export async function sendApproverApprovalRequiredEmail({
   }
 
   const companyName = await getCompanyName();
-  const requestUrl = process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "";
+  const requestUrl = buildPortalLink(
+    process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "",
+    {
+      requestId: request?._id?.toString?.() || request?.id || "",
+      requestNumber: request?.requestNumber || "",
+      stage: "Approval",
+      open: "workspace"
+    }
+  );
   const title = request.title || "Untitled request";
   const branch = request.branch || "Not set";
   const department = request.department || "Not set";
