@@ -885,54 +885,6 @@ function CompanyHeader({
                 Dark
               </button>
             </div>
-            {user.role !== 'requester' ? (
-              <>
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={() => handleMenuAction(onOpenSuppliers)}
-                >
-                  Suppliers
-                </button>
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={() => handleMenuAction(onOpenUsers)}
-                >
-                  Users
-                </button>
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={() => handleMenuAction(onOpenPurchaseOrder)}
-                >
-                  Purchase Order
-                </button>
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={handleOpenRfpModal}
-                >
-                  RFP
-                </button>
-                <button
-                  type='button'
-                  role='menuitem'
-                  onClick={() => handleMenuAction(onOpenAuditTrail)}
-                >
-                  Audit Trail
-                </button>
-              </>
-            ) : null}
-            {user.role === 'requester' && canOpenRfp ? (
-              <button
-                type='button'
-                role='menuitem'
-                onClick={handleOpenRfpModal}
-              >
-                RFP
-              </button>
-            ) : null}
             <button
               type='button'
               role='menuitem'
@@ -5702,6 +5654,28 @@ export default function App() {
           onCreateIdentity={handleOpenCreateIdentityModal}
           onEditIdentity={handleEditIdentity}
           onDeleteIdentity={handleDeleteIdentity}
+          users={users}
+          selectedUserId={selectedUserId}
+          onSelectUser={handleSelectUser}
+          onCreateNewUser={openCreateUserModal}
+          onEditUser={openEditUserModal}
+          onDeleteUser={handleDeleteUser}
+          suppliers={suppliers}
+          selectedSupplierId={selectedSupplierId}
+          onSelectSupplier={handleSelectSupplier}
+          onCreateNewSupplier={openCreateSupplierModal}
+          onEditSupplier={openEditSupplierModal}
+          onDeleteSupplier={handleDeleteSupplier}
+          purchaseOrderItems={purchaseOrderRecords}
+          onOpenPurchaseOrderItem={openPurchaseOrderPage}
+          rfpItems={requestForPaymentRecords}
+          onOpenRfpItem={handleOpenSavedRfpRecord}
+          onPrintRfpItem={handlePrintRequestForPaymentRecord}
+          auditItems={items}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
           settingsError={settingsError}
           isSubmitting={isSubmitting}
           onClose={closeSettingsPage}
@@ -5750,6 +5724,63 @@ export default function App() {
                 <p className='settings-inline-status'>{identitySaveMessage}</p>
               ) : null}
             </div>
+          </Modal>
+        ) : null}
+        {isUserModalOpen ? (
+          <Modal
+            eyebrow='Admin Users'
+            title={selectedUserId ? 'Edit user account' : 'Create user account'}
+            onClose={() => setIsUserModalOpen(false)}
+          >
+            <UserEditorPanel
+              selectedUserId={selectedUserId}
+              form={userForm}
+              onChange={handleUserFormChange}
+              onCreate={handleCreateUser}
+              onUpdate={handleUpdateUser}
+              onDelete={handleDeleteUser}
+              isSubmitting={isSubmitting}
+              error={userError}
+            />
+          </Modal>
+        ) : null}
+        {isSupplierModalOpen ? (
+          <Modal
+            eyebrow='Supplier Directory'
+            title={
+              selectedSupplierId && supplierModalMode === 'edit'
+                ? 'Edit supplier'
+                : 'Create supplier'
+            }
+            onClose={() => {
+              setSupplierForm(getInitialSupplierForm())
+              setSupplierError('')
+              setSupplierModalMode('create')
+              setSelectedSupplierId('')
+              setIsSupplierModalOpen(false)
+            }}
+          >
+            <SupplierForm
+              form={supplierForm}
+              onChange={handleSupplierFormChange}
+              onSubmit={
+                selectedSupplierId && supplierModalMode === 'edit'
+                  ? handleUpdateSupplier
+                  : handleCreateSupplier
+              }
+              onDelete={
+                selectedSupplierId && supplierModalMode === 'edit'
+                  ? handleDeleteSupplier
+                  : null
+              }
+              submitLabel={
+                selectedSupplierId && supplierModalMode === 'edit'
+                  ? 'Save supplier'
+                  : 'Create supplier'
+              }
+              error={supplierError}
+              isSubmitting={isSubmitting}
+            />
           </Modal>
         ) : null}
         {confirmDialog ? (

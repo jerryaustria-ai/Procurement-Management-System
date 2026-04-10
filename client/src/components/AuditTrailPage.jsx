@@ -55,7 +55,7 @@ function buildAuditRequests(items) {
     );
 }
 
-export default function AuditTrailPage({ items, onClose }) {
+export default function AuditTrailPage({ items, onClose, embedded = false }) {
   const auditRequests = useMemo(() => buildAuditRequests(items), [items]);
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [pageSize, setPageSize] = useState(5);
@@ -73,132 +73,141 @@ export default function AuditTrailPage({ items, onClose }) {
   const selectedRequest =
     auditRequests.find((request) => request.id === selectedRequestId) ?? null;
 
-  return (
-    <section className="po-page">
-      <div className="po-page-header">
+  const content = (
+    <section className="panel">
+      <div className="panel-heading">
         <div>
-          <p className="eyebrow">Audit Trail</p>
-          <h1>Audit Trail</h1>
-          <p className="hero-copy">
-            Review audit history by purchase request, then open each record to see its
-            complete timeline.
-          </p>
+          <p className="eyebrow">Records</p>
+          <h2>Purchase request audit trail</h2>
         </div>
-        <div className="po-page-actions">
-          <button className="ghost-button" type="button" onClick={onClose}>
-            Back to dashboard
-          </button>
-        </div>
+        <span className="panel-counter">{auditRequests.length} requests</span>
       </div>
 
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Records</p>
-            <h2>Purchase request audit trail</h2>
-          </div>
-          <span className="panel-counter">{auditRequests.length} requests</span>
-        </div>
-
-        {auditRequests.length === 0 ? (
-          <p className="empty-state">No audit trail entries available yet.</p>
-        ) : (
-          <div className="supplier-table audit-trail-table-wrap">
-            <table className="supplier-table-grid audit-trail-table">
-              <thead className="supplier-table-header">
-                <tr>
-                  <th>Purchase Request</th>
-                  <th>Requester</th>
-                  <th>Current Stage</th>
-                  <th>Status</th>
-                  <th>Last Updated</th>
-                  <th>Entries</th>
-                  <th>Action</th>
+      {auditRequests.length === 0 ? (
+        <p className="empty-state">No audit trail entries available yet.</p>
+      ) : (
+        <div className="supplier-table audit-trail-table-wrap">
+          <table className="supplier-table-grid audit-trail-table">
+            <thead className="supplier-table-header">
+              <tr>
+                <th>Purchase Request</th>
+                <th>Requester</th>
+                <th>Current Stage</th>
+                <th>Status</th>
+                <th>Last Updated</th>
+                <th>Entries</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedRequests.map((request) => (
+                <tr key={request.id} className="supplier-row audit-trail-row">
+                  <td>
+                    <button
+                      type="button"
+                      className="audit-trail-link"
+                      onClick={() => setSelectedRequestId(request.id)}
+                    >
+                      {request.requestNumber}
+                    </button>
+                    <div className="audit-trail-cell-subtext">{request.title}</div>
+                  </td>
+                  <td>{request.requester}</td>
+                  <td>{request.currentStage}</td>
+                  <td>{request.status}</td>
+                  <td>
+                    {formatDateTime(request.latestUpdatedAt)}
+                    <div className="audit-trail-cell-subtext">
+                      {request.latestActor}
+                    </div>
+                  </td>
+                  <td>{request.entryCount}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="ghost-button audit-trail-action"
+                      onClick={() => setSelectedRequestId(request.id)}
+                    >
+                      View history
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {paginatedRequests.map((request) => (
-                  <tr key={request.id} className="supplier-row audit-trail-row">
-                    <td>
-                      <button
-                        type="button"
-                        className="audit-trail-link"
-                        onClick={() => setSelectedRequestId(request.id)}
-                      >
-                        {request.requestNumber}
-                      </button>
-                      <div className="audit-trail-cell-subtext">{request.title}</div>
-                    </td>
-                    <td>{request.requester}</td>
-                    <td>{request.currentStage}</td>
-                    <td>{request.status}</td>
-                    <td>
-                      {formatDateTime(request.latestUpdatedAt)}
-                      <div className="audit-trail-cell-subtext">
-                        {request.latestActor}
-                      </div>
-                    </td>
-                    <td>{request.entryCount}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="ghost-button audit-trail-action"
-                        onClick={() => setSelectedRequestId(request.id)}
-                      >
-                        View history
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-        {auditRequests.length ? (
-          <div className="request-list-pagination">
-            <div className="request-list-pagination-meta">
-              <label className="request-list-limit">
-                <span>Show</span>
-                <select
-                  value={pageSize}
-                  onChange={(event) => {
-                    setPageSize(Number(event.target.value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                </select>
-              </label>
-              <span className="panel-counter">
-                Page {safeCurrentPage} of {totalPages}
-              </span>
+      {auditRequests.length ? (
+        <div className="request-list-pagination">
+          <div className="request-list-pagination-meta">
+            <label className="request-list-limit">
+              <span>Show</span>
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </label>
+            <span className="panel-counter">
+              Page {safeCurrentPage} of {totalPages}
+            </span>
+          </div>
+          <div className="request-list-pagination-actions">
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={safeCurrentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() =>
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }
+              disabled={safeCurrentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="settings-embedded-page">{content}</div>
+      ) : (
+        <section className="po-page">
+          <div className="po-page-header">
+            <div>
+              <p className="eyebrow">Audit Trail</p>
+              <h1>Audit Trail</h1>
+              <p className="hero-copy">
+                Review audit history by purchase request, then open each record to see its
+                complete timeline.
+              </p>
             </div>
-            <div className="request-list-pagination-actions">
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={safeCurrentPage === 1}
-              >
-                Previous
-              </button>
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() =>
-                  setCurrentPage((page) => Math.min(totalPages, page + 1))
-                }
-                disabled={safeCurrentPage === totalPages}
-              >
-                Next
+            <div className="po-page-actions">
+              <button className="ghost-button" type="button" onClick={onClose}>
+                Back to dashboard
               </button>
             </div>
           </div>
-        ) : null}
-      </section>
+          {content}
+        </section>
+      )}
 
       {selectedRequest ? (
         <Modal
@@ -255,6 +264,6 @@ export default function AuditTrailPage({ items, onClose }) {
           </div>
         </Modal>
       ) : null}
-    </section>
+    </>
   );
 }

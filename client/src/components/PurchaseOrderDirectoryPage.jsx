@@ -20,28 +20,18 @@ function getStatusGroups(items) {
   };
 }
 
-export default function PurchaseOrderDirectoryPage({ items, onOpen, onClose }) {
+export default function PurchaseOrderDirectoryPage({
+  items,
+  onOpen,
+  onClose,
+  embedded = false
+}) {
   const [activeFilter, setActiveFilter] = useState("all");
   const groups = useMemo(() => getStatusGroups(items), [items]);
   const visibleItems = groups[activeFilter] ?? groups.all;
 
-  return (
-    <section className="po-page">
-      <div className="po-page-header">
-        <div>
-          <p className="eyebrow">Purchase Orders</p>
-          <h1>Purchase Orders</h1>
-          <p className="hero-copy">
-            Review purchase order records by status and open any record in its own page.
-          </p>
-        </div>
-        <div className="po-page-actions">
-          <button className="ghost-button" type="button" onClick={onClose}>
-            Back to dashboard
-          </button>
-        </div>
-      </div>
-
+  const content = (
+    <>
       <section className="stats-grid">
         <article className="panel stat-card">
           <span>PO</span>
@@ -129,6 +119,30 @@ export default function PurchaseOrderDirectoryPage({ items, onOpen, onClose }) {
           ) : null}
         </div>
       </section>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="settings-embedded-page">{content}</div>;
+  }
+
+  return (
+    <section className="po-page">
+      <div className="po-page-header">
+        <div>
+          <p className="eyebrow">Purchase Orders</p>
+          <h1>Purchase Orders</h1>
+          <p className="hero-copy">
+            Review purchase order records by status and open any record in its own page.
+          </p>
+        </div>
+        <div className="po-page-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>
+            Back to dashboard
+          </button>
+        </div>
+      </div>
+      {content}
     </section>
   );
 }

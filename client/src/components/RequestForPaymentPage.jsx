@@ -219,8 +219,8 @@ export default function RequestForPaymentPage({
               <input
                 name="amountRequested"
                 value={form.amountRequested}
-                readOnly
-                disabled
+                onChange={onChange}
+                disabled={!isEditing}
               />
             </label>
 

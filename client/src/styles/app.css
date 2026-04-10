@@ -2700,6 +2700,51 @@ label,
   margin-top: 18px;
 }
 
+.settings-admin-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.settings-admin-sidebar {
+  position: sticky;
+  top: 24px;
+}
+
+.settings-admin-content {
+  display: grid;
+  gap: 24px;
+}
+
+.settings-shortcut-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.settings-shortcut-button {
+  min-height: 64px;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background: var(--panel-soft);
+  color: var(--heading-color);
+  font-size: 1rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.settings-shortcut-button.is-primary {
+  background: #4466df;
+  border-color: #4466df;
+  color: #ffffff;
+}
+
+.settings-shortcut-button:hover {
+  transform: translateY(-1px);
+}
+
 .settings-checkbox-row {
   display: flex;
   align-items: flex-start;
@@ -2897,6 +2942,20 @@ label,
   height: 100%;
   object-fit: contain;
   display: block;
+}
+
+@media (max-width: 720px) {
+  .settings-admin-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-admin-sidebar {
+    position: static;
+  }
+
+  .settings-shortcut-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .supplier-card-button {
