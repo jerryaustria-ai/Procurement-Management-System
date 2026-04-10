@@ -377,8 +377,8 @@ function getRequestForPaymentFormFromItem(item) {
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
     paymentReference: savedRfpDraft.paymentReference || '',
-    amountRequested: savedRfpDraft.amountRequested || '',
-    dueDate: savedRfpDraft.dueDate || '',
+    amountRequested: savedRfpDraft.amountRequested || String(item?.amount ?? ''),
+    dueDate: savedRfpDraft.dueDate || (item?.dateNeeded ? item.dateNeeded.slice(0, 10) : ''),
     notes: savedRfpDraft.notes || item?.description || '',
   }
 }
@@ -2799,15 +2799,7 @@ export default function App() {
       setItems((current) =>
         current.map((item) => (item.id === data.id ? data : item)),
       )
-      setRequestForPaymentForm({
-        payee: data.rfpDraft?.payee ?? '',
-        tinNumber: data.rfpDraft?.tinNumber ?? '',
-        invoiceNumber: data.rfpDraft?.invoiceNumber ?? '',
-        paymentReference: data.rfpDraft?.paymentReference ?? '',
-        amountRequested: data.rfpDraft?.amountRequested ?? '',
-        dueDate: data.rfpDraft?.dueDate ?? '',
-        notes: data.rfpDraft?.notes ?? '',
-      })
+      setRequestForPaymentForm(getRequestForPaymentFormFromItem(data))
       setIsRequestForPaymentEditing(false)
       setActionForm((current) => ({
         ...current,
@@ -5950,7 +5942,7 @@ export default function App() {
         </div>
       </section>
 
-      {session.user.role !== 'requester' ? (
+      {session.user.role !== 'requester' && session.user.role !== 'approver' ? (
         <section className='stats-grid'>
           {dashboardStats.map((stat) => (
             <article

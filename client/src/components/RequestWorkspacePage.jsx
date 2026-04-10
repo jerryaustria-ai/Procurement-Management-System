@@ -79,9 +79,6 @@ export default function RequestWorkspacePage({
           <div>
             <p className="eyebrow">Request Workspace</p>
             <h1>{item.requestNumber}</h1>
-            <p className="hero-copy">
-              Review the request and continue the workflow from a focused page instead of a modal.
-            </p>
           </div>
           <div className="po-page-header-actions">
             <button

@@ -12,9 +12,13 @@ import workflowRoutes from "./routes/workflows.js";
 const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = process.env.PORT || 5001;
+function normalizeOrigin(origin) {
+  return String(origin || "").trim().replace(/\/+$/, "");
+}
+
 const allowedOrigins = (process.env.CLIENT_ORIGIN || "")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => normalizeOrigin(origin))
   .filter(Boolean);
 
 function matchesWildcardOrigin(origin, allowedPattern) {
@@ -37,19 +41,29 @@ function matchesWildcardOrigin(origin, allowedPattern) {
 }
 
 function isAllowedOrigin(origin) {
-  if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (
+    !normalizedOrigin ||
+    allowedOrigins.length === 0 ||
+    allowedOrigins.includes(normalizedOrigin)
+  ) {
     return true;
   }
 
   // Allow local Vite/React dev servers without needing to update env on every port change.
   if (
-    /^https?:\/\/localhost:\d+$/.test(origin) ||
-    /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin)
+    /^https?:\/\/localhost:\d+$/.test(normalizedOrigin) ||
+    /^https?:\/\/127\.0\.0\.1:\d+$/.test(normalizedOrigin)
   ) {
     return true;
   }
 
-  if (allowedOrigins.some((allowedOrigin) => matchesWildcardOrigin(origin, allowedOrigin))) {
+  if (
+    allowedOrigins.some((allowedOrigin) =>
+      matchesWildcardOrigin(normalizedOrigin, allowedOrigin),
+    )
+  ) {
     return true;
   }
 

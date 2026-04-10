@@ -219,9 +219,8 @@ export default function RequestForPaymentPage({
               <input
                 name="amountRequested"
                 value={form.amountRequested}
-                onChange={onChange}
-                placeholder={String(item.amount || "0.00")}
-                disabled={!isEditing}
+                readOnly
+                disabled
               />
             </label>
 
@@ -231,8 +230,8 @@ export default function RequestForPaymentPage({
                 name="dueDate"
                 type="date"
                 value={form.dueDate}
-                onChange={onChange}
-                disabled={!isEditing}
+                readOnly
+                disabled
               />
             </label>
 
