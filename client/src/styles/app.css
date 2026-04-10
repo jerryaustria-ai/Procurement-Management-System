@@ -175,6 +175,28 @@ textarea {
   gap: 14px;
 }
 
+.brand-home-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand-home-button:hover .brand-copy strong,
+.brand-home-button:focus-visible .brand-copy strong {
+  opacity: 0.84;
+}
+
+.brand-home-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
 .brand-copy {
   min-width: 0;
 }

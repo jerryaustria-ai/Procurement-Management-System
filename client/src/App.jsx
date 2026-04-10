@@ -749,6 +749,17 @@ function CompanyHeader({
     onPrintRfpRecord?.(item)
   }
 
+  function handleGoHome() {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const url = new URL(window.location.href)
+    url.search = ''
+    url.hash = ''
+    window.location.assign(`${url.origin}${url.pathname}`)
+  }
+
   return (
     <>
       <header className='company-header' ref={menuRef}>
@@ -773,13 +784,20 @@ function CompanyHeader({
               </svg>
             </button>
           ) : null}
-          <div className='brand-mark' aria-hidden='true'>
-            <img src={companySettings.logoUrl} alt='' />
-          </div>
-          <div className='brand-copy'>
-            <p className='brand-kicker'>{companySettings.companyName}</p>
-            <strong>Procurement Management System</strong>
-          </div>
+          <button
+            className='brand-home-button'
+            type='button'
+            onClick={handleGoHome}
+            aria-label='Go to home page'
+          >
+            <div className='brand-mark' aria-hidden='true'>
+              <img src={companySettings.logoUrl} alt='' />
+            </div>
+            <div className='brand-copy'>
+              <p className='brand-kicker'>{companySettings.companyName}</p>
+              <strong>Procurement Management System</strong>
+            </div>
+          </button>
         </div>
 
         <div className='header-meta'>
