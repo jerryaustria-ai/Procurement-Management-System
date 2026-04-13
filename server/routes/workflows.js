@@ -167,6 +167,7 @@ router.post("/purchase-requests", async (req, res) => {
       paymentTerms: paymentTerms || "Net 30",
       notes: notes || "",
       currentStage: workflowStages[0],
+      requestForPaymentEnabled: true,
       history: [
         {
           stage: workflowStages[0],
@@ -544,7 +545,6 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     request.currentStage = nextStage;
     if (nextStage === "Approval") {
       request.approvalCompleted = false;
-      request.requestForPaymentEnabled = false;
     }
     if (previousStage === "Approval") {
       request.approvalCompleted = true;
@@ -735,7 +735,7 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
 
   request.currentStage = previousStage;
   request.approvalCompleted = false;
-  request.requestForPaymentEnabled = false;
+  request.requestForPaymentEnabled = true;
   request.filingCompleted = false;
   request.status = "open";
   request.history.push({
