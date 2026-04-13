@@ -546,11 +546,7 @@ function getRequestAdminForm(
     dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
     status: item.status ?? 'open',
     currentStage:
-      item.status === 'completed'
-        ? 'Completed'
-        : item.status === 'rejected'
-          ? 'Rejected'
-          : (item.currentStage ?? ''),
+      item.status === 'completed' ? 'Completed' : (item.currentStage ?? ''),
     inspectionStatus: item.inspectionStatus ?? 'pending',
     supplier:
       item.supplier === 'Pending selection' ? '' : (item.supplier ?? ''),

@@ -293,11 +293,16 @@ router.patch("/purchase-requests/:id", async (req, res) => {
 
   const isCompletedStageSelection =
     req.user.role === "admin" && req.body.currentStage === "Completed";
+  const isRejectedStageSelection =
+    req.user.role === "admin" && req.body.currentStage === "Rejected";
 
   for (const field of editableFields) {
     if (typeof req.body[field] === "string") {
       if (field === "currentStage" && isCompletedStageSelection) {
         request.currentStage = "Filing";
+        continue;
+      }
+      if (field === "currentStage" && isRejectedStageSelection) {
         continue;
       }
       request[field] = req.body[field];
