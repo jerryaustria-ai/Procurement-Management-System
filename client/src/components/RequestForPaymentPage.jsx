@@ -26,6 +26,7 @@ export default function RequestForPaymentPage({
   errors = {},
   suppliers = [],
   isEditing = true,
+  canEdit = true,
   onChange,
   onSelectSupplier,
   onCreateSupplier,
@@ -281,9 +282,11 @@ export default function RequestForPaymentPage({
                 <button className="ghost-button rfp-action-button" type="button" onClick={onPrint}>
                   Print
                 </button>
-                <button className="rfp-action-button" type="button" onClick={onEdit}>
-                  Edit
-                </button>
+                {canEdit ? (
+                  <button className="rfp-action-button" type="button" onClick={onEdit}>
+                    Edit
+                  </button>
+                ) : null}
               </>
             )}
           </div>

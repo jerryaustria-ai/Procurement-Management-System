@@ -438,6 +438,22 @@ function canAccessRequestForPayment(item) {
   )
 }
 
+function canEditRequestForPayment(user, item) {
+  if (!user || !item) {
+    return false
+  }
+
+  if (user.role === 'admin') {
+    return true
+  }
+
+  if (user.email !== item.requesterEmail) {
+    return false
+  }
+
+  return !item.approvalCompleted && !['completed', 'rejected'].includes(item.status)
+}
+
 function canAccessRequestWorkspace(user, item) {
   if (!user || !item) {
     return false
@@ -593,6 +609,10 @@ function filterRequests(items, filter) {
 
   if (filter === 'completed') {
     return items.filter((item) => item.status === 'completed')
+  }
+
+  if (filter === 'rejected') {
+    return items.filter((item) => item.status === 'rejected')
   }
 
   return items
@@ -1214,6 +1234,9 @@ export default function App() {
   )
   const canEditSelectedRequest = Boolean(
     canUserEditRequest(session?.user, selectedItem),
+  )
+  const canEditSelectedRequestForPayment = Boolean(
+    canEditRequestForPayment(session?.user, selectedItem),
   )
 
   useEffect(() => {
@@ -2667,8 +2690,10 @@ export default function App() {
     setIsPurchaseOrderPageOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
 
+    const canEditRfpDraft = canEditRequestForPayment(session?.user, resolvedRequest)
+
     setRequestForPaymentForm(getRequestForPaymentFormFromItem(resolvedRequest))
-    setIsRequestForPaymentEditing(!hasSavedRfpDraft)
+    setIsRequestForPaymentEditing(canEditRfpDraft && !hasSavedRfpDraft)
     setIsRequestForPaymentPageOpen(true)
   }
 
@@ -2765,7 +2790,13 @@ export default function App() {
   }
 
   async function handleSaveRequestForPaymentPage() {
-    if (!selectedItem || !session?.token) {
+    if (!selectedItem || !session?.token || !canEditRequestForPayment(session?.user, selectedItem)) {
+      pushToast({
+        title: 'RFP locked',
+        message: 'Only the admin can edit the Request for Payment after approval.',
+        variant: 'error',
+        duration: 4200,
+      })
       return
     }
 
@@ -5390,11 +5421,25 @@ export default function App() {
           errors={requestForPaymentErrors}
           suppliers={suppliers}
           isEditing={isRequestForPaymentEditing}
+          canEdit={canEditSelectedRequestForPayment}
           onChange={handleRequestForPaymentFormChange}
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
           onCreateSupplier={openCreateSupplierModal}
           canCreateSupplier={session.user.role === 'admin'}
-          onEdit={() => setIsRequestForPaymentEditing(true)}
+          onEdit={() => {
+            if (!canEditRequestForPayment(session?.user, selectedItem)) {
+              pushToast({
+                title: 'RFP locked',
+                message:
+                  'The requester can no longer edit the Request for Payment after approval.',
+                variant: 'error',
+                duration: 4200,
+              })
+              return
+            }
+
+            setIsRequestForPaymentEditing(true)
+          }}
           onCancel={handleCancelRequestForPaymentEdit}
           onPrint={() => handlePrintRequestForPaymentRecord(selectedItem)}
           onSave={handleSaveRequestForPaymentPage}

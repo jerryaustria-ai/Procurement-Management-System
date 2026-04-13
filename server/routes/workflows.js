@@ -81,6 +81,18 @@ function canManageRequestDrafts(req, request) {
   );
 }
 
+function canManageRequestForPaymentDraft(req, request) {
+  if (req.user.role === "admin") {
+    return true;
+  }
+
+  if (request.requesterEmail !== req.user.email) {
+    return false;
+  }
+
+  return !request.approvalCompleted && !["completed", "rejected"].includes(request.status);
+}
+
 async function getNextRequestNumber() {
   const currentYear = new Date().getFullYear();
   const prefix = `PR-${currentYear}-`;
@@ -402,7 +414,7 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
     return res.status(404).json({ message: "Purchase request not found." });
   }
 
-  if (!canManageRequestDrafts(req, request)) {
+  if (!canManageRequestForPaymentDraft(req, request)) {
     return res.status(403).json({ message: "Your role cannot update the request for payment draft." });
   }
 
