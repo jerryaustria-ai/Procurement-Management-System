@@ -324,8 +324,17 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     if (isCompletedStageSelection) {
       request.status = "completed";
       request.filingCompleted = true;
+      request.approvalCompleted = true;
     } else if (req.body.status === "open") {
+      request.status = "open";
       request.filingCompleted = false;
+      if (request.currentStage === "Approval") {
+        request.approvalCompleted = false;
+      }
+    } else if (req.body.status === "rejected") {
+      request.status = "rejected";
+      request.filingCompleted = false;
+      request.approvalCompleted = false;
     }
   }
 

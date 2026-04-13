@@ -58,6 +58,7 @@ export default function RequestAdminPanel({
               Status
               <select name="status" value={form.status} onChange={onChange}>
                 <option value="open">Open</option>
+                <option value="rejected">Rejected</option>
                 <option value="completed">Completed</option>
               </select>
             </label>
