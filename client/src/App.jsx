@@ -1156,7 +1156,9 @@ export default function App() {
         .filter(Boolean),
     ]),
   )
-  const canCreateRequest = ['requester', 'admin'].includes(session?.user?.role)
+  const canCreateRequest = ['requester', 'approver', 'admin'].includes(
+    session?.user?.role,
+  )
   const requesterOptions = users
   const supplierOptions = Array.from(
     new Set(
@@ -3291,7 +3293,7 @@ export default function App() {
       setActionError('Your role cannot create a new purchase request.')
       pushToast({
         title: 'Create request unavailable',
-        message: 'Only requesters and system admins can create new requests.',
+        message: 'Only requesters, approvers, and system admins can create new requests.',
         variant: 'error',
         duration: 4200,
       })
