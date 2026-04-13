@@ -23,6 +23,7 @@ function formatAmount(amount, currency) {
 export default function RequestForPaymentPage({
   item,
   form,
+  errors = {},
   suppliers = [],
   isEditing = true,
   onChange,
@@ -109,11 +110,6 @@ export default function RequestForPaymentPage({
             procurement workflow.
           </p>
         </div>
-        <div className="po-page-actions">
-          <button className="ghost-button" type="button" onClick={onClose}>
-            Back to workflow
-          </button>
-        </div>
       </div>
 
       <div className="po-page-grid">
@@ -168,7 +164,7 @@ export default function RequestForPaymentPage({
             </div>
           </div>
           <div className="form-grid">
-            <label>
+            <label className={errors.payee ? "field-invalid" : ""}>
               Payee / supplier
               <div className="supplier-select-row">
                 <input
@@ -177,6 +173,7 @@ export default function RequestForPaymentPage({
                   onChange={onChange}
                   placeholder="Enter payee name"
                   disabled={!isEditing}
+                  className={errors.payee ? "field-input-invalid" : ""}
                 />
                 <button
                   className="ghost-button supplier-select-button"
@@ -214,13 +211,14 @@ export default function RequestForPaymentPage({
               />
             </label>
 
-            <label>
+            <label className={errors.amountRequested ? "field-invalid" : ""}>
               Amount requested
               <input
                 name="amountRequested"
                 value={form.amountRequested}
                 onChange={onChange}
                 disabled={!isEditing}
+                className={errors.amountRequested ? "field-input-invalid" : ""}
               />
             </label>
 
@@ -253,6 +251,14 @@ export default function RequestForPaymentPage({
                 <button
                   className="ghost-button rfp-action-button"
                   type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                >
+                  Back
+                </button>
+                <button
+                  className="ghost-button rfp-action-button"
+                  type="button"
                   onClick={onCancel}
                   disabled={isSubmitting}
                 >
@@ -269,6 +275,9 @@ export default function RequestForPaymentPage({
               </>
             ) : (
               <>
+                <button className="ghost-button rfp-action-button" type="button" onClick={onClose}>
+                  Back
+                </button>
                 <button className="ghost-button rfp-action-button" type="button" onClick={onPrint}>
                   Print
                 </button>

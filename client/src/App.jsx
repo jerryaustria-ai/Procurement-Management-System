@@ -383,6 +383,18 @@ function getRequestForPaymentFormFromItem(item) {
   }
 }
 
+function getRequestForPaymentValidationErrors(payload) {
+  return {
+    payee: !String(payload?.payee || '').trim(),
+    amountRequested: !String(payload?.amountRequested || '').trim(),
+  }
+}
+
+function hasRequestForPaymentValidationErrors(payload) {
+  const errors = getRequestForPaymentValidationErrors(payload)
+  return Object.values(errors).some(Boolean)
+}
+
 function canUserEditRequest(user, item) {
   if (!user || !item) {
     return false
@@ -1083,6 +1095,7 @@ export default function App() {
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(
     getInitialRequestForPaymentForm(),
   )
+  const [requestForPaymentErrors, setRequestForPaymentErrors] = useState({})
   const [isRequestForPaymentEditing, setIsRequestForPaymentEditing] =
     useState(true)
   const [isRequestWorkspacePageOpen, setIsRequestWorkspacePageOpen] =
@@ -2070,6 +2083,13 @@ export default function App() {
   }
 
   function handleRequestForPaymentFormChange(event) {
+    if (['payee', 'amountRequested'].includes(event.target.name)) {
+      setRequestForPaymentErrors((current) => ({
+        ...current,
+        [event.target.name]: false,
+      }))
+    }
+
     setRequestForPaymentForm((current) => ({
       ...current,
       [event.target.name]: event.target.value,
@@ -2077,6 +2097,11 @@ export default function App() {
   }
 
   function handleRequestForPaymentSupplierSelect(supplier) {
+    setRequestForPaymentErrors((current) => ({
+      ...current,
+      payee: false,
+    }))
+
     setRequestForPaymentForm((current) => ({
       ...current,
       payee: supplier?.name || '',
@@ -2692,6 +2717,7 @@ export default function App() {
   function closeRequestForPaymentPage() {
     setIsRequestForPaymentPageOpen(false)
     setIsRequestForPaymentEditing(true)
+    setRequestForPaymentErrors({})
   }
 
   function handleCancelRequestForPaymentEdit() {
@@ -2746,6 +2772,21 @@ export default function App() {
       return
     }
 
+    const validationErrors = getRequestForPaymentValidationErrors(
+      requestForPaymentForm,
+    )
+
+    if (Object.values(validationErrors).some(Boolean)) {
+      setRequestForPaymentErrors(validationErrors)
+      pushToast({
+        title: 'Missing required fields',
+        message: 'Payee / supplier and Amount requested are required.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -2770,6 +2811,7 @@ export default function App() {
         current.map((item) => (item.id === data.id ? data : item)),
       )
       setRequestForPaymentForm(getRequestForPaymentFormFromItem(data))
+      setRequestForPaymentErrors({})
       setIsRequestForPaymentEditing(false)
       setActionForm((current) => ({
         ...current,
@@ -4443,6 +4485,22 @@ export default function App() {
       return
     }
 
+    const draft = record.rfpDraft ?? {}
+    const validationPayload = {
+      payee: draft.payee || '',
+      amountRequested: draft.amountRequested || String(record.amount || ''),
+    }
+
+    if (hasRequestForPaymentValidationErrors(validationPayload)) {
+      pushToast({
+        title: 'Missing required fields',
+        message: 'Payee / supplier and Amount requested are required before printing.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
     const printWindow = window.open('', '_blank', 'width=1100,height=900')
     if (!printWindow) {
       pushToast({
@@ -5332,6 +5390,7 @@ export default function App() {
         <RequestForPaymentPage
           item={selectedItem}
           form={requestForPaymentForm}
+          errors={requestForPaymentErrors}
           suppliers={suppliers}
           isEditing={isRequestForPaymentEditing}
           onChange={handleRequestForPaymentFormChange}
