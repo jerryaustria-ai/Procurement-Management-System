@@ -1121,6 +1121,7 @@ export default function App() {
   const [supplierModalMode, setSupplierModalMode] = useState('create')
   const [expandedPanel, setExpandedPanel] = useState('')
   const [requestRegistryFilter, setRequestRegistryFilter] = useState('all')
+  const [requestRegistryView, setRequestRegistryView] = useState('list')
   const [requestSearchQuery, setRequestSearchQuery] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [toasts, setToasts] = useState([])
@@ -6103,6 +6104,8 @@ export default function App() {
             items={filteredItems}
             selectedId={selectedId}
             activeFilter={requestRegistryFilter}
+            viewMode={requestRegistryView}
+            onViewModeChange={setRequestRegistryView}
             onFilterChange={setRequestRegistryFilter}
             onCreateNew={openCreateRequestModal}
             canCreateNew={canCreateRequest}
@@ -6145,6 +6148,8 @@ export default function App() {
             items={filteredItems}
             selectedId={selectedId}
             activeFilter={requestRegistryFilter}
+            viewMode={requestRegistryView}
+            onViewModeChange={setRequestRegistryView}
             onFilterChange={setRequestRegistryFilter}
             onCreateNew={openCreateRequestModal}
             canCreateNew={canCreateRequest}
@@ -6227,6 +6232,8 @@ export default function App() {
               items={filteredItems}
               selectedId={selectedId}
               activeFilter={requestRegistryFilter}
+              viewMode={requestRegistryView}
+              onViewModeChange={setRequestRegistryView}
               onFilterChange={setRequestRegistryFilter}
               onCreateNew={openCreateRequestModal}
               canCreateNew={canCreateRequest}

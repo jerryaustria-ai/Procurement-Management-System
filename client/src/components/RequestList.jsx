@@ -36,6 +36,8 @@ export default function RequestList({
   items,
   selectedId,
   activeFilter = "all",
+  viewMode = "list",
+  onViewModeChange,
   onFilterChange,
   searchQuery = "",
   onSearchChange,
@@ -138,40 +140,43 @@ export default function RequestList({
           </button>
           {isMenuOpen ? (
             <div className="panel-kebab-menu" role="menu" aria-label="Request registry actions">
-              <div className="panel-kebab-menu-group mobile-only-request-filter">
-                <span className="panel-kebab-menu-label">Filter requests</span>
+              <div className="panel-kebab-menu-group">
+                <span className="panel-kebab-menu-label">Layout view</span>
                 <button
                   type="button"
-                  role="menuitem"
-                  className={activeFilter === "all" ? "is-active" : ""}
+                  role="menuitemradio"
+                  aria-checked={viewMode === "list"}
+                  className={viewMode === "list" ? "is-active" : ""}
                   onClick={() => {
                     setIsMenuOpen(false);
-                    onFilterChange?.("all");
+                    onViewModeChange?.("list");
                   }}
                 >
-                  All
+                  List View
                 </button>
                 <button
                   type="button"
-                  role="menuitem"
-                  className={activeFilter === "open" ? "is-active" : ""}
+                  role="menuitemradio"
+                  aria-checked={viewMode === "grid"}
+                  className={viewMode === "grid" ? "is-active" : ""}
                   onClick={() => {
                     setIsMenuOpen(false);
-                    onFilterChange?.("open");
+                    onViewModeChange?.("grid");
                   }}
                 >
-                  Open
+                  Grid View
                 </button>
                 <button
                   type="button"
-                  role="menuitem"
-                  className={activeFilter === "completed" ? "is-active" : ""}
+                  role="menuitemradio"
+                  aria-checked={viewMode === "card"}
+                  className={viewMode === "card" ? "is-active" : ""}
                   onClick={() => {
                     setIsMenuOpen(false);
-                    onFilterChange?.("completed");
+                    onViewModeChange?.("card");
                   }}
                 >
-                  Completed
+                  Card View
                 </button>
               </div>
             </div>
@@ -198,13 +203,13 @@ export default function RequestList({
         </label>
       </div>
 
-      <div className="request-list">
+      <div className={`request-list request-list--${viewMode}`}>
         {paginatedItems.map((item) => (
           <article
             key={item.id}
             className={`request-list-item ${selectedId === item.id ? "selected" : ""} ${
               item.status === "completed" ? "completed" : ""
-            } ${item.status === "rejected" ? "completed" : ""
+            } ${item.status === "rejected" ? "rejected" : ""
             }`}
           >
             <button className="request-card-select" type="button" onClick={() => onSelect(item.id)}>

@@ -1191,6 +1191,16 @@ label,
   margin-top: 18px;
 }
 
+.request-list.request-list--grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.request-list.request-list--card {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .request-list-heading {
   flex-direction: column;
   align-items: stretch;
@@ -1281,6 +1291,53 @@ label,
   padding: 16px;
 }
 
+.request-list--grid .request-list-item,
+.request-list--card .request-list-item {
+  min-height: 100%;
+}
+
+.request-list--grid .request-list-item::after,
+.request-list--card .request-list-item::after {
+  font-size: 1.65rem;
+  right: 14px;
+}
+
+.request-list--grid .request-list-footer,
+.request-list--card .request-list-footer {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.request-list--grid .request-list-actions-inline,
+.request-list--card .request-list-actions-inline {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.request-list--card .request-list-item {
+  padding: 18px;
+  border-radius: 22px;
+}
+
+.request-list--card .request-list-topline,
+.request-list--card .request-list-footer {
+  gap: 12px;
+}
+
+.request-list--card .request-list-topline {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.request-list--card .request-card-select > span {
+  font-size: 1.1rem;
+  color: var(--heading-color);
+}
+
+.request-list--card .request-status-group {
+  gap: 8px;
+}
+
 .request-list-item:hover {
   border-color: rgba(213, 181, 108, 0.18);
 }
@@ -1347,6 +1404,42 @@ label,
 
 .request-list-item.completed .request-card-select,
 .request-list-item.completed .request-list-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.request-list-item.rejected {
+  border-color: rgba(220, 87, 87, 0.38);
+  background: linear-gradient(180deg, rgba(220, 87, 87, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+  box-shadow: inset 0 0 0 1px rgba(220, 87, 87, 0.1);
+}
+
+.request-list-item.rejected::after {
+  content: "REJECTED";
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-14deg);
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(220, 87, 87, 0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.request-list-item.rejected.selected {
+  border-color: rgba(220, 87, 87, 0.52);
+  background: linear-gradient(180deg, rgba(220, 87, 87, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%);
+  box-shadow: inset 0 0 0 1px rgba(220, 87, 87, 0.14);
+}
+
+.request-list-item.rejected:hover {
+  border-color: rgba(220, 87, 87, 0.48);
+}
+
+.request-list-item.rejected .request-card-select,
+.request-list-item.rejected .request-list-footer {
   position: relative;
   z-index: 1;
 }
@@ -3269,6 +3362,12 @@ label,
   .request-list-tools {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .request-list.request-list--grid,
+  .request-list.request-list--card {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .request-list-filter-select,
