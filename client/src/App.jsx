@@ -483,7 +483,7 @@ function canSeeRequestInRegistry(user, item) {
     return true
   }
 
-  if (user.role === 'requester') {
+  if (user.email === item.requesterEmail) {
     return user.email === item.requesterEmail
   }
 
