@@ -107,29 +107,18 @@ export default function RequestList({
   return (
     <section className="panel request-list-panel panel-with-expand">
       <div className="request-list-toolbar" ref={menuRef}>
-        <label className="request-list-search">
-          <span className="sr-only">Search requests</span>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => onSearchChange?.(event.target.value)}
-            placeholder="Search requests"
-            aria-label="Search requests"
-          />
-        </label>
-        <div className="panel-top-actions">
-          <div className="request-list-tools request-list-tools-top">
-          <span className="panel-counter">{items.length} total</span>
-          {canCreateNew ? (
-            <button
-              className="request-list-create-button"
-              type="button"
-              onClick={onCreateNew}
-            >
-              New purchase request
-            </button>
-          ) : null}
-          <label className="request-list-filter-select">
+        <div className="request-list-toolbar-left">
+          <label className="request-list-search">
+            <span className="sr-only">Search requests</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => onSearchChange?.(event.target.value)}
+              placeholder="Search requests"
+              aria-label="Search requests"
+            />
+          </label>
+          <label className="request-list-filter-select request-list-filter-select-inline">
             <span className="sr-only">Filter requests</span>
             <select
               value={activeFilter}
@@ -142,8 +131,18 @@ export default function RequestList({
               <option value="rejected">Rejected</option>
             </select>
           </label>
-          {activeFilter !== "all" ? (
-            <span className="panel-counter">Filtered: {activeFilter}</span>
+        </div>
+        <div className="panel-top-actions">
+          <div className="request-list-tools request-list-tools-top">
+          <span className="panel-counter">{items.length} total</span>
+          {canCreateNew ? (
+            <button
+              className="request-list-create-button"
+              type="button"
+              onClick={onCreateNew}
+            >
+              New purchase request
+            </button>
           ) : null}
           </div>
           <div className="panel-kebab-wrap">
