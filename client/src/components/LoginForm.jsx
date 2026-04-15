@@ -2,20 +2,21 @@ export default function LoginForm({
   credentials,
   onChange,
   onSubmit,
+  onForgotPassword,
   isSubmitting,
-  error
+  error,
 }) {
   return (
     <form
-      className="panel auth-panel"
+      className='panel auth-panel'
       onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit();
+        event.preventDefault()
+        onSubmit()
       }}
     >
-      <div className="panel-heading">
+      <div className='panel-heading'>
         <div>
-          <p className="eyebrow">Authentication</p>
+          <p className='eyebrow'>Authentication</p>
           <h2>Sign in to approve</h2>
         </div>
       </div>
@@ -23,41 +24,52 @@ export default function LoginForm({
       <label>
         Email
         <input
-          name="email"
-          type="email"
+          name='email'
+          type='email'
           value={credentials.email}
           onChange={onChange}
-          placeholder="reviewer@januarius.app"
+          placeholder='Enter your email address'
         />
       </label>
 
       <label>
         Password
         <input
-          name="password"
-          type="password"
+          name='password'
+          type='password'
           value={credentials.password}
           onChange={onChange}
-          placeholder="password123"
+          placeholder='Enter your password'
         />
       </label>
 
+      <label className='auth-remember-option'>
+        <input
+          name='rememberMe'
+          type='checkbox'
+          checked={Boolean(credentials.rememberMe)}
+          onChange={onChange}
+        />
+        <span>Remember me</span>
+      </label>
+
       <button
-        className="auth-signin-button"
+        className='auth-signin-button'
         disabled={isSubmitting}
-        type="submit"
+        type='submit'
       >
-        {isSubmitting ? "Signing in..." : "Sign in"}
+        {isSubmitting ? 'Signing in...' : 'Sign in'}
       </button>
-      <div className="auth-panel-actions">
-        <a
-          className="auth-forgot-link"
-          href="mailto:admin@januarius.app?subject=Forgot%20Password%20Request"
+      <div className='auth-panel-actions'>
+        <button
+          type='button'
+          className='auth-forgot-link auth-inline-button'
+          onClick={onForgotPassword}
         >
           Forgot password?
-        </a>
+        </button>
       </div>
-      {error ? <p className="error-text">{error}</p> : null}
+      {error ? <p className='error-text'>{error}</p> : null}
     </form>
-  );
+  )
 }

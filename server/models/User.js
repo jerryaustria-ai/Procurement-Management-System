@@ -12,7 +12,9 @@ const userSchema = new mongoose.Schema(
       required: true
     },
     department: { type: String, default: "" },
-    notifyOnRequestChanges: { type: Boolean, default: false }
+    notifyOnRequestChanges: { type: Boolean, default: false },
+    resetPasswordTokenHash: { type: String, default: "" },
+    resetPasswordExpiresAt: { type: Date, default: null }
   },
   { timestamps: true }
 );

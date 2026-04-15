@@ -339,6 +339,57 @@ export async function sendTestEmail({ recipientEmail, requestedByName = "System 
     : {
         skipped: false,
         provider: "brevo-api",
+      recipient: recipientEmail
+      };
+}
+
+export async function sendPasswordResetEmail({ recipientEmail, recipientName, resetUrl }) {
+  const companyName = await getCompanyName();
+
+  if (!resetUrl) {
+    return {
+      skipped: true,
+      reason: "Password reset link is missing."
+    };
+  }
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+      <h2 style="margin-bottom: 8px;">Reset Your Password</h2>
+      <p style="margin-top: 0;">Hi ${recipientName || "there"},</p>
+      <p>We received a request to reset your password for ${companyName}.</p>
+      <p>
+        <a href="${resetUrl}" style="display: inline-block; margin-top: 6px; padding: 12px 18px; background: #3852b4; color: #ffffff; text-decoration: none; border-radius: 10px;">
+          Reset password
+        </a>
+      </p>
+      <p>If you did not request this, you can safely ignore this email.</p>
+      <p>This link will expire in 1 hour.</p>
+    </div>
+  `;
+
+  const text = [
+    "Reset Your Password",
+    "",
+    `Hi ${recipientName || "there"},`,
+    `We received a request to reset your password for ${companyName}.`,
+    `Reset password: ${resetUrl}`,
+    "If you did not request this, you can safely ignore this email.",
+    "This link will expire in 1 hour."
+  ].join("\n");
+
+  const result = await sendMail({
+    to: recipientEmail,
+    subject: `[${companyName}] Reset Your Password`,
+    text,
+    html
+  });
+
+  return result.skipped
+    ? result
+    : {
+        skipped: false,
+        provider: "brevo-api",
         recipient: recipientEmail
       };
 }

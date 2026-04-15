@@ -16,6 +16,18 @@ function getProcurementStatus(item) {
   return `Current stage: ${item.currentStage}`;
 }
 
+function getProcurementStageValue(item) {
+  if (item.status === "completed" || item.filingCompleted) {
+    return "Complete";
+  }
+
+  if (item.status === "rejected") {
+    return "Rejected";
+  }
+
+  return item.currentStage || "Not set";
+}
+
 function hasActiveRfp(item) {
   return (
     Boolean(item.requestForPaymentEnabled) &&
@@ -94,8 +106,19 @@ export default function RequestList({
 
   return (
     <section className="panel request-list-panel panel-with-expand">
-      <div className="panel-top-actions" ref={menuRef}>
-        <div className="request-list-tools request-list-tools-top">
+      <div className="request-list-toolbar" ref={menuRef}>
+        <label className="request-list-search">
+          <span className="sr-only">Search requests</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange?.(event.target.value)}
+            placeholder="Search requests"
+            aria-label="Search requests"
+          />
+        </label>
+        <div className="panel-top-actions">
+          <div className="request-list-tools request-list-tools-top">
           <span className="panel-counter">{items.length} total</span>
           {canCreateNew ? (
             <button
@@ -122,66 +145,67 @@ export default function RequestList({
           {activeFilter !== "all" ? (
             <span className="panel-counter">Filtered: {activeFilter}</span>
           ) : null}
-        </div>
-        <div className="panel-kebab-wrap">
-          <button
-            className="panel-kebab-button"
-            type="button"
-            onClick={() => setIsMenuOpen((current) => !current)}
-            aria-haspopup="menu"
-            aria-expanded={isMenuOpen}
-            aria-label="More request actions"
-            title="More actions"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="5" cy="12" r="1.8" fill="currentColor" />
-              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-              <circle cx="19" cy="12" r="1.8" fill="currentColor" />
-            </svg>
-          </button>
-          {isMenuOpen ? (
-            <div className="panel-kebab-menu" role="menu" aria-label="Request registry actions">
-              <div className="panel-kebab-menu-group">
-                <span className="panel-kebab-menu-label">Layout view</span>
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={viewMode === "list"}
-                  className={viewMode === "list" ? "is-active" : ""}
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onViewModeChange?.("list");
-                  }}
-                >
-                  List View
-                </button>
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={viewMode === "grid"}
-                  className={viewMode === "grid" ? "is-active" : ""}
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onViewModeChange?.("grid");
-                  }}
-                >
-                  Grid View
-                </button>
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={viewMode === "card"}
-                  className={viewMode === "card" ? "is-active" : ""}
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onViewModeChange?.("card");
-                  }}
-                >
-                  Card View
-                </button>
+          </div>
+          <div className="panel-kebab-wrap">
+            <button
+              className="panel-kebab-button"
+              type="button"
+              onClick={() => setIsMenuOpen((current) => !current)}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+              aria-label="More request actions"
+              title="More actions"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+              </svg>
+            </button>
+            {isMenuOpen ? (
+              <div className="panel-kebab-menu" role="menu" aria-label="Request registry actions">
+                <div className="panel-kebab-menu-group">
+                  <span className="panel-kebab-menu-label">Layout view</span>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={viewMode === "list"}
+                    className={viewMode === "list" ? "is-active" : ""}
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onViewModeChange?.("list");
+                    }}
+                  >
+                    List View
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={viewMode === "grid"}
+                    className={viewMode === "grid" ? "is-active" : ""}
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onViewModeChange?.("grid");
+                    }}
+                  >
+                    Grid View
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={viewMode === "card"}
+                    className={viewMode === "card" ? "is-active" : ""}
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onViewModeChange?.("card");
+                    }}
+                  >
+                    Card View
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="panel-heading request-list-heading">
@@ -189,19 +213,6 @@ export default function RequestList({
           <p className="eyebrow">Requests</p>
           <h2>Request Registry</h2>
         </div>
-      </div>
-      <div className="request-list-search-row">
-        <span className="panel-counter">{items.length} total</span>
-        <label className="request-list-search">
-          <span className="sr-only">Search requests</span>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => onSearchChange?.(event.target.value)}
-            placeholder="Search requests"
-            aria-label="Search requests"
-          />
-        </label>
       </div>
 
       <div className={`request-list request-list--${viewMode}`}>
@@ -234,22 +245,37 @@ export default function RequestList({
                   </span>
                 ) : null}
               </div>
-              <span>{item.title}</span>
+              <span className="request-list-title">{item.title}</span>
               <small>
                 {item.branch} · {item.department}
               </small>
-              <small>Requester: {item.requester}</small>
+              <small className="request-list-meta-line">
+                <span>Requester:</span>{" "}
+                <span className="request-list-requester-name">{item.requester}</span>
+              </small>
             </button>
             <div className="request-list-footer">
               <div className="request-status-group">
-                <small>{getProcurementStatus(item)}</small>
-                <button
-                  className="request-open-link request-workflow-link"
-                  type="button"
-                  onClick={() => onOpenWorkflow?.(item.id)}
-                >
-                  View workflow
-                </button>
+                <small className="request-list-meta-line">
+                  <span>Current stage:</span>{" "}
+                  {getProcurementStageValue(item) === "Approval" ? (
+                    <button
+                      className="request-list-stage-link"
+                      type="button"
+                      onClick={() => onOpenWorkflow?.(item.id)}
+                    >
+                      {getProcurementStageValue(item)}
+                    </button>
+                  ) : (
+                    <span
+                      className={`request-list-stage-value ${
+                        getProcurementStageValue(item) === "Purchase Request" ? "is-purchase-request" : ""
+                      }`}
+                    >
+                      {getProcurementStageValue(item)}
+                    </span>
+                  )}
+                </small>
               </div>
               <div className="request-list-actions-inline">
                 {canDeleteItem?.(item) ? (

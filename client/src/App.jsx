@@ -5,6 +5,7 @@ import AuditTrailPage from './components/AuditTrailPage.jsx'
 import ConfirmDialog from './components/ConfirmDialog.jsx'
 import CreateRequestForm from './components/CreateRequestForm.jsx'
 import DocumentPanel from './components/DocumentPanel.jsx'
+import ForgotPasswordForm from './components/ForgotPasswordForm.jsx'
 import LoginForm from './components/LoginForm.jsx'
 import LoadingOverlay from './components/LoadingOverlay.jsx'
 import Modal from './components/Modal.jsx'
@@ -16,6 +17,7 @@ import RequestAdminPanel from './components/RequestAdminPanel.jsx'
 import RequestList from './components/RequestList.jsx'
 import RequestSummary from './components/RequestSummary.jsx'
 import RequestWorkspacePage from './components/RequestWorkspacePage.jsx'
+import ResetPasswordForm from './components/ResetPasswordForm.jsx'
 import SettingsPage from './components/SettingsPage.jsx'
 import SupplierForm from './components/SupplierForm.jsx'
 import SupplierManagementPage from './components/SupplierManagementPage.jsx'
@@ -25,6 +27,9 @@ import UserManagementPanel from './components/UserManagementPanel.jsx'
 import WorkflowTimeline from './components/WorkflowTimeline.jsx'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+const ART_GALLERY_URL =
+  import.meta.env.VITE_ART_GALLERY_URL ||
+  'https://art-inventory-self.vercel.app'
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const DEFAULT_COMPANY_SETTINGS = {
@@ -208,7 +213,23 @@ async function optimizeDocumentFile(file) {
 
 function getStoredSession() {
   try {
-    return JSON.parse(localStorage.getItem('procurement-session') || 'null')
+    const localSession = JSON.parse(
+      localStorage.getItem('procurement-session') || 'null',
+    )
+
+    if (localSession?.token) {
+      return localSession
+    }
+
+    const browserSession = JSON.parse(
+      sessionStorage.getItem('procurement-session') || 'null',
+    )
+
+    if (browserSession?.token) {
+      return browserSession
+    }
+
+    return null
   } catch {
     return null
   }
@@ -235,6 +256,60 @@ function getPendingWorkspaceLink() {
     open: open || 'workspace',
     stage,
   }
+}
+
+function getAuthViewFromUrl() {
+  if (typeof window === 'undefined') {
+    return 'login'
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const auth = String(params.get('auth') || '').trim()
+  const resetToken = String(params.get('resetToken') || '').trim()
+
+  if (resetToken || auth === 'reset-password') {
+    return 'reset-password'
+  }
+
+  if (auth === 'forgot-password') {
+    return 'forgot-password'
+  }
+
+  return 'login'
+}
+
+function getResetPasswordTokenFromUrl() {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  return String(params.get('resetToken') || '').trim()
+}
+
+function updateAuthUrl(view, resetToken = '') {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const url = new URL(window.location.href)
+  url.searchParams.delete('auth')
+  url.searchParams.delete('resetToken')
+
+  if (view === 'forgot-password') {
+    url.searchParams.set('auth', 'forgot-password')
+  }
+
+  if (view === 'reset-password' && resetToken) {
+    url.searchParams.set('auth', 'reset-password')
+    url.searchParams.set('resetToken', resetToken)
+  }
+
+  window.history.replaceState({}, '', url.toString())
+}
+
+function getInitialLandingApp() {
+  return getAuthViewFromUrl() === 'login' ? 'home' : 'procurement'
 }
 
 function clearPendingWorkspaceLinkFromUrl() {
@@ -377,8 +452,11 @@ function getRequestForPaymentFormFromItem(item) {
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
     paymentReference: savedRfpDraft.paymentReference || '',
-    amountRequested: savedRfpDraft.amountRequested || String(item?.amount ?? ''),
-    dueDate: savedRfpDraft.dueDate || (item?.dateNeeded ? item.dateNeeded.slice(0, 10) : ''),
+    amountRequested:
+      savedRfpDraft.amountRequested || String(item?.amount ?? ''),
+    dueDate:
+      savedRfpDraft.dueDate ||
+      (item?.dateNeeded ? item.dateNeeded.slice(0, 10) : ''),
     notes: savedRfpDraft.notes || item?.description || '',
   }
 }
@@ -451,7 +529,23 @@ function canEditRequestForPayment(user, item) {
     return false
   }
 
-  return !item.approvalCompleted && !['completed', 'rejected'].includes(item.status)
+  const requesterLockedStages = new Set([
+    'Prepare PO',
+    'Approve PO',
+    'Send PO',
+    'Delivery',
+    'Inspection',
+    'Invoice',
+    'Matching',
+    'Payment',
+    'Filing',
+  ])
+
+  return (
+    !item.approvalCompleted &&
+    !['completed', 'rejected'].includes(item.status) &&
+    !requesterLockedStages.has(item.currentStage)
+  )
 }
 
 function canAccessRequestWorkspace(user, item) {
@@ -467,7 +561,10 @@ function canAccessRequestWorkspace(user, item) {
     return true
   }
 
-  if (Array.isArray(item.allowedRoles) && item.allowedRoles.includes(user.role)) {
+  if (
+    Array.isArray(item.allowedRoles) &&
+    item.allowedRoles.includes(user.role)
+  ) {
     return true
   }
 
@@ -840,16 +937,45 @@ function CompanyHeader({
                 type='button'
                 onClick={() => onThemeChange?.('light')}
                 aria-pressed={theme === 'light'}
+                aria-label='Switch to light theme'
+                title='Light theme'
               >
-                Light
+                <svg viewBox='0 0 24 24' aria-hidden='true'>
+                  <circle
+                    cx='12'
+                    cy='12'
+                    r='4.2'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='1.8'
+                  />
+                  <path
+                    d='M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeLinecap='round'
+                    strokeWidth='1.8'
+                  />
+                </svg>
               </button>
               <button
                 className={`theme-toggle-button ${theme === 'dark' ? 'is-active' : ''}`}
                 type='button'
                 onClick={() => onThemeChange?.('dark')}
                 aria-pressed={theme === 'dark'}
+                aria-label='Switch to dark theme'
+                title='Dark theme'
               >
-                Dark
+                <svg viewBox='0 0 24 24' aria-hidden='true'>
+                  <path
+                    d='M20.2 14.7A8.8 8.8 0 1 1 9.3 3.8a7.2 7.2 0 0 0 10.9 10.9Z'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth='1.8'
+                  />
+                </svg>
               </button>
             </div>
           ) : null}
@@ -901,16 +1027,45 @@ function CompanyHeader({
                 type='button'
                 onClick={() => onThemeChange?.('light')}
                 aria-pressed={theme === 'light'}
+                aria-label='Switch to light theme'
+                title='Light theme'
               >
-                Light
+                <svg viewBox='0 0 24 24' aria-hidden='true'>
+                  <circle
+                    cx='12'
+                    cy='12'
+                    r='4.2'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='1.8'
+                  />
+                  <path
+                    d='M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeLinecap='round'
+                    strokeWidth='1.8'
+                  />
+                </svg>
               </button>
               <button
                 className={`theme-toggle-button ${theme === 'dark' ? 'is-active' : ''}`}
                 type='button'
                 onClick={() => onThemeChange?.('dark')}
                 aria-pressed={theme === 'dark'}
+                aria-label='Switch to dark theme'
+                title='Dark theme'
               >
-                Dark
+                <svg viewBox='0 0 24 24' aria-hidden='true'>
+                  <path
+                    d='M20.2 14.7A8.8 8.8 0 1 1 9.3 3.8a7.2 7.2 0 0 0 10.9 10.9Z'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth='1.8'
+                  />
+                </svg>
               </button>
             </div>
             <button
@@ -1049,7 +1204,24 @@ export default function App() {
   const [credentials, setCredentials] = useState({
     email: '',
     password: '',
+    rememberMe: false,
   })
+  const [selectedLandingApp, setSelectedLandingApp] = useState(
+    getInitialLandingApp(),
+  )
+  const [authView, setAuthView] = useState(() => getAuthViewFromUrl())
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState('')
+  const [forgotPasswordError, setForgotPasswordError] = useState('')
+  const [resetPasswordToken, setResetPasswordToken] = useState(() =>
+    getResetPasswordTokenFromUrl(),
+  )
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    password: '',
+    confirmPassword: '',
+  })
+  const [resetPasswordMessage, setResetPasswordMessage] = useState('')
+  const [resetPasswordError, setResetPasswordError] = useState('')
   const [items, setItems] = useState([])
   const [stages, setStages] = useState([])
   const [users, setUsers] = useState([])
@@ -1450,7 +1622,11 @@ export default function App() {
       return
     }
 
-    localStorage.setItem('procurement-session', JSON.stringify(session))
+    const storage = session.rememberMe ? localStorage : sessionStorage
+    const fallbackStorage = session.rememberMe ? sessionStorage : localStorage
+
+    storage.setItem('procurement-session', JSON.stringify(session))
+    fallbackStorage.removeItem('procurement-session')
     setRequestForm(
       getInitialRequestForm(
         session.user.department || '',
@@ -1560,6 +1736,7 @@ export default function App() {
 
   function clearSession() {
     localStorage.removeItem('procurement-session')
+    sessionStorage.removeItem('procurement-session')
     setSession(null)
     setItems([])
     setStages([])
@@ -1605,6 +1782,43 @@ export default function App() {
     setExpandedPanel('')
     setConfirmDialog(null)
     setSettingsError('')
+  }
+
+  function openLoginScreen() {
+    setAuthView('login')
+    setSelectedLandingApp('procurement')
+    setForgotPasswordError('')
+    setForgotPasswordMessage('')
+    setResetPasswordError('')
+    setResetPasswordMessage('')
+    setResetPasswordToken('')
+    setResetPasswordForm({ password: '', confirmPassword: '' })
+    updateAuthUrl('login')
+  }
+
+  function openForgotPasswordScreen() {
+    setAuthView('forgot-password')
+    setSelectedLandingApp('procurement')
+    setForgotPasswordEmail(String(credentials.email || '').trim())
+    setForgotPasswordError('')
+    setForgotPasswordMessage('')
+    updateAuthUrl('forgot-password')
+  }
+
+  function handleForgotPasswordChange(event) {
+    setForgotPasswordEmail(event.target.value)
+    setForgotPasswordError('')
+    setForgotPasswordMessage('')
+  }
+
+  function handleResetPasswordFormChange(event) {
+    const { name, value } = event.target
+    setResetPasswordForm((current) => ({
+      ...current,
+      [name]: value,
+    }))
+    setResetPasswordError('')
+    setResetPasswordMessage('')
   }
 
   function handleSessionExpired() {
@@ -1739,9 +1953,14 @@ export default function App() {
   }, [session, shouldPauseDashboardRefresh])
 
   function handleCredentialChange(event) {
+    const nextValue =
+      event.target.type === 'checkbox'
+        ? event.target.checked
+        : event.target.value
+
     setCredentials((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [event.target.name]: nextValue,
     }))
   }
 
@@ -1777,7 +1996,11 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({
+          email: credentials.email,
+          password: credentials.password,
+          rememberMe: Boolean(credentials.rememberMe),
+        }),
       })
 
       const data = await response.json()
@@ -1785,7 +2008,10 @@ export default function App() {
         throw new Error(data.message || 'Login failed.')
       }
 
-      setSession(data)
+      setSession({
+        ...data,
+        rememberMe: Boolean(credentials.rememberMe),
+      })
       pushToast({
         title: 'Signed in',
         message: `Welcome back, ${data.user.name}.`,
@@ -1799,6 +2025,106 @@ export default function App() {
         variant: 'error',
         duration: 4200,
       })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleForgotPasswordRequest() {
+    const email = String(forgotPasswordEmail || '')
+      .trim()
+      .toLowerCase()
+
+    if (!email) {
+      setForgotPasswordError('Email is required.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setForgotPasswordError('')
+    setForgotPasswordMessage('')
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send reset link.')
+      }
+
+      setForgotPasswordMessage(
+        data.message || 'If the email exists, a reset link has been sent.',
+      )
+    } catch (error) {
+      setForgotPasswordError(error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleResetPasswordSubmit() {
+    const password = String(resetPasswordForm.password || '')
+    const confirmPassword = String(resetPasswordForm.confirmPassword || '')
+
+    if (!resetPasswordToken) {
+      setResetPasswordError('The reset link is invalid or missing.')
+      return
+    }
+
+    if (!password || !confirmPassword) {
+      setResetPasswordError('Both password fields are required.')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setResetPasswordError('Passwords do not match.')
+      return
+    }
+
+    if (password.length < 8) {
+      setResetPasswordError('Password must be at least 8 characters long.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setResetPasswordError('')
+    setResetPasswordMessage('')
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: resetPasswordToken,
+          password,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to reset password.')
+      }
+
+      setResetPasswordMessage(
+        data.message || 'Password reset successful. You may sign in now.',
+      )
+      setResetPasswordForm({ password: '', confirmPassword: '' })
+      setResetPasswordToken('')
+      window.setTimeout(() => {
+        openLoginScreen()
+      }, 1200)
+    } catch (error) {
+      setResetPasswordError(error.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -2692,7 +3018,10 @@ export default function App() {
     setIsPurchaseOrderPageOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
 
-    const canEditRfpDraft = canEditRequestForPayment(session?.user, resolvedRequest)
+    const canEditRfpDraft = canEditRequestForPayment(
+      session?.user,
+      resolvedRequest,
+    )
 
     setRequestForPaymentForm(getRequestForPaymentFormFromItem(resolvedRequest))
     setIsRequestForPaymentEditing(canEditRfpDraft && !hasSavedRfpDraft)
@@ -2792,10 +3121,15 @@ export default function App() {
   }
 
   async function handleSaveRequestForPaymentPage() {
-    if (!selectedItem || !session?.token || !canEditRequestForPayment(session?.user, selectedItem)) {
+    if (
+      !selectedItem ||
+      !session?.token ||
+      !canEditRequestForPayment(session?.user, selectedItem)
+    ) {
       pushToast({
         title: 'RFP locked',
-        message: 'Only the admin can edit the Request for Payment after approval.',
+        message:
+          'Only the admin can edit the Request for Payment once the workflow reaches Prepare PO.',
         variant: 'error',
         duration: 4200,
       })
@@ -3293,7 +3627,8 @@ export default function App() {
       setActionError('Your role cannot create a new purchase request.')
       pushToast({
         title: 'Create request unavailable',
-        message: 'Only requesters, approvers, and system admins can create new requests.',
+        message:
+          'Only requesters, approvers, and system admins can create new requests.',
         variant: 'error',
         duration: 4200,
       })
@@ -3468,7 +3803,8 @@ export default function App() {
     setActionError('')
     setIsSubmitting(true)
     const approvalWasHandledByApprover =
-      selectedItem.currentStage === 'Approval' && session.user.role === 'approver'
+      selectedItem.currentStage === 'Approval' &&
+      session.user.role === 'approver'
     const shouldEnableRfpOnAdvance = selectedItem.currentStage === 'Approval'
 
     try {
@@ -3499,7 +3835,9 @@ export default function App() {
         }
 
         setItems((current) =>
-          current.map((item) => (item.id === uploadData.id ? uploadData : item)),
+          current.map((item) =>
+            item.id === uploadData.id ? uploadData : item,
+          ),
         )
         setUploadForm({
           type: 'other',
@@ -4524,7 +4862,8 @@ export default function App() {
     if (hasRequestForPaymentValidationErrors(validationPayload)) {
       pushToast({
         title: 'Missing required fields',
-        message: 'Payee / supplier and Amount requested are required before printing.',
+        message:
+          'Payee / supplier and Amount requested are required before printing.',
         variant: 'error',
         duration: 4200,
       })
@@ -5348,6 +5687,57 @@ export default function App() {
   }
 
   if (!session?.token) {
+    if (selectedLandingApp !== 'procurement') {
+      return (
+        <main className='app-shell auth-shell'>
+          <section className='app-selector-landing'>
+            <div className='app-selector-copy'>
+              <p className='eyebrow'>Application Hub</p>
+              <h1>Choose the application you want to open.</h1>
+              <p className='hero-copy app-selector-subcopy'>
+                {/* Start with Procurement Management System, or keep Art Gallery
+                ready as another entry point for your team. */}
+              </p>
+            </div>
+
+            <div className='app-selector-grid'>
+              <article className='panel app-selector-card app-selector-card-featured'>
+                <p className='eyebrow'>Available now</p>
+                <h2>Procurement Management System</h2>
+                <p>
+                  Manage purchase requests, approvals, suppliers, purchase
+                  orders, request for payment, and filing in one workflow.
+                </p>
+                <button
+                  type='button'
+                  className='app-selector-button'
+                  onClick={() => setSelectedLandingApp('procurement')}
+                >
+                  Open Procurement
+                </button>
+              </article>
+
+              <article className='panel app-selector-card'>
+                <p className='eyebrow'>Second application</p>
+                <h2>Art Gallery</h2>
+                <p>
+                  A separate application slot for gallery operations, collection
+                  browsing, or future art-related workflows.
+                </p>
+                {ART_GALLERY_URL ? (
+                  <a className='app-selector-secondary' href={ART_GALLERY_URL}>
+                    Open Art Gallery
+                  </a>
+                ) : (
+                  <span className='app-selector-badge'>Coming soon</span>
+                )}
+              </article>
+            </div>
+          </section>
+        </main>
+      )
+    }
+
     return (
       <main className='app-shell auth-shell'>
         <LoadingOverlay
@@ -5361,13 +5751,45 @@ export default function App() {
         />
         <section className='auth-landing'>
           <div className='auth-content'>
-            <LoginForm
-              credentials={credentials}
-              onChange={handleCredentialChange}
-              onSubmit={handleLogin}
-              isSubmitting={isSubmitting}
-              error={authError}
-            />
+            <button
+              type='button'
+              className='auth-app-switch'
+              onClick={() => setSelectedLandingApp('home')}
+            >
+              Back to applications
+            </button>
+            {authView === 'forgot-password' ? (
+              <ForgotPasswordForm
+                email={forgotPasswordEmail}
+                onChange={handleForgotPasswordChange}
+                onSubmit={handleForgotPasswordRequest}
+                onBack={openLoginScreen}
+                isSubmitting={isSubmitting}
+                error={forgotPasswordError}
+                message={forgotPasswordMessage}
+              />
+            ) : null}
+            {authView === 'reset-password' ? (
+              <ResetPasswordForm
+                form={resetPasswordForm}
+                onChange={handleResetPasswordFormChange}
+                onSubmit={handleResetPasswordSubmit}
+                onBack={openLoginScreen}
+                isSubmitting={isSubmitting}
+                error={resetPasswordError}
+                message={resetPasswordMessage}
+              />
+            ) : null}
+            {authView === 'login' ? (
+              <LoginForm
+                credentials={credentials}
+                onChange={handleCredentialChange}
+                onSubmit={handleLogin}
+                onForgotPassword={openForgotPasswordScreen}
+                isSubmitting={isSubmitting}
+                error={authError}
+              />
+            ) : null}
           </div>
           <div className='auth-brandmark' aria-hidden='true'>
             <img
@@ -5396,27 +5818,6 @@ export default function App() {
       <main className='app-shell'>
         <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
-        <CompanyHeader
-          isAuthenticated
-          user={session.user}
-          showRequestSearch={false}
-          onLogout={handleLogout}
-          theme={theme}
-          onThemeChange={setTheme}
-          requestSearchQuery={requestSearchQuery}
-          onRequestSearchChange={setRequestSearchQuery}
-          onOpenSuppliers={handleOpenSuppliersMenu}
-          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
-          onOpenRfpRecord={handleOpenSavedRfpRecord}
-          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
-          onOpenAuditTrail={handleOpenAuditTrailPage}
-          onOpenUsers={handleOpenUsersDirectory}
-          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
-          onOpenSettings={handleOpenSettingsPage}
-          canOpenRfp={canOpenRequestForPaymentMenu}
-          rfpItems={requestForPaymentRecords}
-          companySettings={companySettings}
-        />
         <RequestForPaymentPage
           item={selectedItem}
           form={requestForPaymentForm}
@@ -5433,7 +5834,7 @@ export default function App() {
               pushToast({
                 title: 'RFP locked',
                 message:
-                  'The requester can no longer edit the Request for Payment after approval.',
+                  'The requester can no longer edit the Request for Payment once the workflow reaches Prepare PO.',
                 variant: 'error',
                 duration: 4200,
               })
@@ -5796,7 +6197,7 @@ export default function App() {
                   name='branchName'
                   value={identityForm.branchName}
                   onChange={handleIdentityFormChange}
-                  placeholder='Example: Stats or Januarius Holdings Cebu'
+                  placeholder='Example: Stats or Januarius Holdings Inc.'
                 />
               </label>
 
@@ -5947,32 +6348,19 @@ export default function App() {
         <main className='app-shell'>
           <LoadingOverlay visible={isSubmitting || isLoading} />
           <ToastStack toasts={toasts} onDismiss={dismissToast} />
-          <CompanyHeader
-            isAuthenticated
-            user={session.user}
-            onLogout={handleLogout}
-            theme={theme}
-            onThemeChange={setTheme}
-            onOpenSuppliers={handleOpenSuppliersMenu}
-            onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
-            onOpenRfpRecord={handleOpenSavedRfpRecord}
-            onPrintRfpRecord={handlePrintRequestForPaymentRecord}
-            onOpenAuditTrail={handleOpenAuditTrailPage}
-            onOpenUsers={handleOpenUsersDirectory}
-            onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
-            onOpenSettings={handleOpenSettingsPage}
-            canOpenRfp={canOpenRequestForPaymentMenu}
-            rfpItems={requestForPaymentRecords}
-            companySettings={companySettings}
-          />
           <section className='settings-page'>
             <div className='settings-card approval-confirmation-card'>
               <h1>Access restricted</h1>
               <p className='hero-copy'>
-                You cannot open this request while it is in the {selectedItem.currentStage} stage.
+                You cannot open this request while it is in the{' '}
+                {selectedItem.currentStage} stage.
               </p>
               <div className='approval-confirmation-actions'>
-                <button className='po-primary-action' type='button' onClick={closeRequestWorkspacePage}>
+                <button
+                  className='po-primary-action'
+                  type='button'
+                  onClick={closeRequestWorkspacePage}
+                >
                   Home
                 </button>
               </div>
@@ -5986,24 +6374,6 @@ export default function App() {
       <main className='app-shell'>
         <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
-        <CompanyHeader
-          isAuthenticated
-          user={session.user}
-          onLogout={handleLogout}
-          theme={theme}
-          onThemeChange={setTheme}
-          onOpenSuppliers={handleOpenSuppliersMenu}
-          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
-          onOpenRfpRecord={handleOpenSavedRfpRecord}
-          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
-          onOpenAuditTrail={handleOpenAuditTrailPage}
-          onOpenUsers={handleOpenUsersDirectory}
-          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
-          onOpenSettings={handleOpenSettingsPage}
-          canOpenRfp={canOpenRequestForPaymentMenu}
-          rfpItems={requestForPaymentRecords}
-          companySettings={companySettings}
-        />
         <RequestWorkspacePage
           item={selectedItem}
           stages={stages}
@@ -6064,6 +6434,7 @@ export default function App() {
       <CompanyHeader
         isAuthenticated
         user={session.user}
+        showRequestSearch={false}
         onLogout={handleLogout}
         theme={theme}
         onThemeChange={setTheme}

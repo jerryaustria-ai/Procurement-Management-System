@@ -90,7 +90,23 @@ function canManageRequestForPaymentDraft(req, request) {
     return false;
   }
 
-  return !request.approvalCompleted && !["completed", "rejected"].includes(request.status);
+  const requesterLockedStages = new Set([
+    "Prepare PO",
+    "Approve PO",
+    "Send PO",
+    "Delivery",
+    "Inspection",
+    "Invoice",
+    "Matching",
+    "Payment",
+    "Filing"
+  ]);
+
+  return (
+    !request.approvalCompleted &&
+    !["completed", "rejected"].includes(request.status) &&
+    !requesterLockedStages.has(request.currentStage)
+  );
 }
 
 async function getNextRequestNumber() {
