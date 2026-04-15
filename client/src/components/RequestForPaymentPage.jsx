@@ -114,7 +114,7 @@ export default function RequestForPaymentPage({
       </div>
 
       <div className="po-page-grid">
-        <section className="panel">
+        <section className="panel rfp-reference-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Reference</p>

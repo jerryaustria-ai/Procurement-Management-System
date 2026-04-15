@@ -262,20 +262,20 @@ textarea {
 .theme-toggle {
   display: inline-flex;
   align-items: center;
-  padding: 4px;
+  padding: 3px;
   border-radius: 999px;
   border: 1px solid var(--pill-border);
   background: #221f20;
-  gap: 4px;
+  gap: 3px;
 }
 
 .theme-toggle-button {
   border: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
   border-radius: 999px;
   font-weight: 700;
@@ -287,8 +287,8 @@ textarea {
 }
 
 .theme-toggle-button svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 .theme-toggle-button:hover {
@@ -3507,6 +3507,10 @@ label,
 }
 
 @media (max-width: 720px) {
+  .rfp-reference-panel {
+    display: none;
+  }
+
   .hero {
     display: none;
   }

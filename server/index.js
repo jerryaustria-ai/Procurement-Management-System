@@ -90,22 +90,26 @@ function isAllowedOrigin(origin) {
   return false;
 }
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (isAllowedOrigin(origin)) {
-        return callback(null, true);
-      }
-
-      const error = new Error(
-        `Origin not allowed by CORS. Received: ${origin || "unknown"}. Allowed: ${
-          allowedOrigins.join(", ") || "(none configured)"
-        }`
-      );
-      return callback(error);
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
     }
-  })
-);
+
+    const error = new Error(
+      `Origin not allowed by CORS. Received: ${origin || "unknown"}. Allowed: ${
+        allowedOrigins.join(", ") || "(none configured)"
+      }`
+    );
+    return callback(error);
+  },
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 

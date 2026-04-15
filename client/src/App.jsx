@@ -2059,9 +2059,20 @@ export default function App() {
         throw new Error(data.message || 'Failed to send reset link.')
       }
 
-      setForgotPasswordMessage(
-        data.message || 'If the email exists, a reset link has been sent.',
-      )
+      const successMessage =
+        data.message || 'If the email exists, a reset link has been sent.'
+
+      setCredentials((current) => ({
+        ...current,
+        email,
+      }))
+      pushToast({
+        title: 'Reset link sent',
+        message: successMessage,
+        variant: 'success',
+        duration: 4200,
+      })
+      openLoginScreen()
     } catch (error) {
       setForgotPasswordError(error.message)
     } finally {
