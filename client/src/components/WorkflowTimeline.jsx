@@ -63,6 +63,7 @@ export default function WorkflowTimeline({
                 : index < currentIndex
                   ? "done"
                   : "queued";
+          const showEntryDetails = state !== "queued";
 
           return (
             <div className="timeline-stack" key={stage}>
@@ -81,13 +82,15 @@ export default function WorkflowTimeline({
                         ? "In progress"
                         : "Waiting"}
                   </p>
-                  {entry?.actor ? (
+                  {showEntryDetails && entry?.actor ? (
                     <small>
                       {entry.actor} · {entry.actorRoleLabel}
                     </small>
                   ) : null}
-                  {entry?.updatedAt ? <small>{formatDate(entry.updatedAt)}</small> : null}
-                  {entry?.comment ? <small>{entry.comment}</small> : null}
+                  {showEntryDetails && entry?.updatedAt ? (
+                    <small>{formatDate(entry.updatedAt)}</small>
+                  ) : null}
+                  {showEntryDetails && entry?.comment ? <small>{entry.comment}</small> : null}
                 </div>
               </article>
             </div>

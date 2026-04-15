@@ -775,6 +775,20 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
       : entry
   );
 
+  const previousStageIndex = workflowStages.indexOf(previousStage);
+  const resetComment = req.body.comment || `Moved back to ${previousStage}`;
+
+  workflowStages.slice(previousStageIndex + 1).forEach((stage) => {
+    request.history.push({
+      stage,
+      status: "reverted",
+      updatedAt: new Date(),
+      actor: req.user.name,
+      actorRole: req.user.role,
+      comment: `Reset after moving back to ${previousStage}`
+    });
+  });
+
   request.currentStage = previousStage;
   request.approvalCompleted = false;
   request.requestForPaymentEnabled = true;
@@ -786,7 +800,7 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
     updatedAt: new Date(),
     actor: req.user.name,
     actorRole: req.user.role,
-    comment: req.body.comment || `Moved back to ${previousStage}`
+    comment: resetComment
   });
 
   await request.save();
