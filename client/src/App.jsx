@@ -807,8 +807,6 @@ function CompanyHeader({
   isAuthenticated,
   user,
   showRequestSearch = true,
-  theme = 'light',
-  onThemeChange,
   onLogout,
   requestSearchQuery = '',
   onRequestSearchChange,
@@ -926,59 +924,6 @@ function CompanyHeader({
         </div>
 
         <div className='header-meta'>
-          {user ? (
-            <div
-              className='theme-toggle'
-              role='group'
-              aria-label='Theme toggle'
-            >
-              <button
-                className={`theme-toggle-button ${theme === 'light' ? 'is-active' : ''}`}
-                type='button'
-                onClick={() => onThemeChange?.('light')}
-                aria-pressed={theme === 'light'}
-                aria-label='Switch to light theme'
-                title='Light theme'
-              >
-                <svg viewBox='0 0 24 24' aria-hidden='true'>
-                  <circle
-                    cx='12'
-                    cy='12'
-                    r='4.2'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='1.8'
-                  />
-                  <path
-                    d='M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeWidth='1.8'
-                  />
-                </svg>
-              </button>
-              <button
-                className={`theme-toggle-button ${theme === 'dark' ? 'is-active' : ''}`}
-                type='button'
-                onClick={() => onThemeChange?.('dark')}
-                aria-pressed={theme === 'dark'}
-                aria-label='Switch to dark theme'
-                title='Dark theme'
-              >
-                <svg viewBox='0 0 24 24' aria-hidden='true'>
-                  <path
-                    d='M20.2 14.7A8.8 8.8 0 1 1 9.3 3.8a7.2 7.2 0 0 0 10.9 10.9Z'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth='1.8'
-                  />
-                </svg>
-              </button>
-            </div>
-          ) : null}
           {user && showRequestSearch ? (
             <input
               className='header-request-search'
@@ -1020,53 +965,6 @@ function CompanyHeader({
             <div className='header-menu-user mobile-only'>
               <strong>{user.name}</strong>
               <span>{user.email}</span>
-            </div>
-            <div className='theme-toggle header-menu-theme-toggle mobile-only'>
-              <button
-                className={`theme-toggle-button ${theme === 'light' ? 'is-active' : ''}`}
-                type='button'
-                onClick={() => onThemeChange?.('light')}
-                aria-pressed={theme === 'light'}
-                aria-label='Switch to light theme'
-                title='Light theme'
-              >
-                <svg viewBox='0 0 24 24' aria-hidden='true'>
-                  <circle
-                    cx='12'
-                    cy='12'
-                    r='4.2'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='1.8'
-                  />
-                  <path
-                    d='M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeWidth='1.8'
-                  />
-                </svg>
-              </button>
-              <button
-                className={`theme-toggle-button ${theme === 'dark' ? 'is-active' : ''}`}
-                type='button'
-                onClick={() => onThemeChange?.('dark')}
-                aria-pressed={theme === 'dark'}
-                aria-label='Switch to dark theme'
-                title='Dark theme'
-              >
-                <svg viewBox='0 0 24 24' aria-hidden='true'>
-                  <path
-                    d='M20.2 14.7A8.8 8.8 0 1 1 9.3 3.8a7.2 7.2 0 0 0 10.9 10.9Z'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth='1.8'
-                  />
-                </svg>
-              </button>
             </div>
             <button
               type='button'
@@ -6131,26 +6029,6 @@ export default function App() {
       <main className='app-shell'>
         <LoadingOverlay visible={isSubmitting || isLoading} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
-        <CompanyHeader
-          isAuthenticated
-          user={session.user}
-          onLogout={handleLogout}
-          theme={theme}
-          onThemeChange={setTheme}
-          requestSearchQuery={requestSearchQuery}
-          onRequestSearchChange={setRequestSearchQuery}
-          onOpenSuppliers={handleOpenSuppliersMenu}
-          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
-          onOpenRfpRecord={handleOpenSavedRfpRecord}
-          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
-          onOpenAuditTrail={handleOpenAuditTrailPage}
-          onOpenUsers={handleOpenUsersDirectory}
-          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
-          onOpenSettings={handleOpenSettingsPage}
-          canOpenRfp={canOpenRequestForPaymentMenu}
-          rfpItems={requestForPaymentRecords}
-          companySettings={companySettings}
-        />
         <SettingsPage
           user={session.user}
           isAdmin={isAdmin}

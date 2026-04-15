@@ -1113,7 +1113,7 @@ label,
 }
 
 .request-list-toolbar-left {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 12px;
   flex: 1 1 auto;
@@ -1148,6 +1148,8 @@ label,
   width: auto;
   flex: 0 0 auto;
   min-width: fit-content;
+  margin-left: auto;
+  align-self: center;
 }
 
 .request-list-toolbar .panel-top-actions,
@@ -1155,6 +1157,9 @@ label,
 .request-list-toolbar .request-list-tools-top {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
 
 .request-list-search-top {
@@ -1476,6 +1481,11 @@ label,
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.request-list-pagination-count {
   color: var(--text-muted);
   font-weight: 600;
 }
@@ -2664,6 +2674,21 @@ label,
   gap: 12px;
 }
 
+.settings-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.settings-back-button span[aria-hidden="true"] {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 .po-page-header-actions {
   display: flex;
   justify-content: flex-end;
@@ -3739,6 +3764,7 @@ label,
   .request-list-toolbar .panel-top-actions {
     order: 3;
     margin-bottom: 0;
+    margin-left: 0;
   }
 
   .request-list-toolbar .panel-kebab-wrap {

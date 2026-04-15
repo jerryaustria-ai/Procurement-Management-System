@@ -65,7 +65,7 @@ export default function RequestList({
   canDeleteItem,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const menuRef = useRef(null);
 
@@ -257,23 +257,15 @@ export default function RequestList({
               <div className="request-status-group">
                 <small className="request-list-meta-line">
                   <span>Current stage:</span>{" "}
-                  {getProcurementStageValue(item) === "Approval" ? (
-                    <button
-                      className="request-list-stage-link"
-                      type="button"
-                      onClick={() => onOpenWorkflow?.(item.id)}
-                    >
-                      {getProcurementStageValue(item)}
-                    </button>
-                  ) : (
-                    <span
-                      className={`request-list-stage-value ${
-                        getProcurementStageValue(item) === "Purchase Request" ? "is-purchase-request" : ""
-                      }`}
-                    >
-                      {getProcurementStageValue(item)}
-                    </span>
-                  )}
+                  <button
+                    className={`request-list-stage-link request-list-stage-value ${
+                      getProcurementStageValue(item) === "Purchase Request" ? "is-purchase-request" : ""
+                    }`}
+                    type="button"
+                    onClick={() => onOpenWorkflow?.(item.id)}
+                  >
+                    {getProcurementStageValue(item)}
+                  </button>
                 </small>
               </div>
               <div className="request-list-actions-inline">
@@ -305,7 +297,7 @@ export default function RequestList({
         ) : null}
       </div>
 
-      {items.length && totalPages > 1 ? (
+      {items.length ? (
         <div className="request-list-pagination">
           <div className="request-list-pagination-meta">
             <label className="request-list-limit">
@@ -316,11 +308,14 @@ export default function RequestList({
                   setPageSize(Number(event.target.value));
                   setCurrentPage(1);
                 }}
+                aria-label="Requests per page"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
                 <option value={20}>20</option>
+                <option value={100}>100</option>
               </select>
+              <span>per page</span>
             </label>
             <span className="panel-counter">
               Page {safeCurrentPage} of {totalPages}

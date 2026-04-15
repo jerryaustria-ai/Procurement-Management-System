@@ -63,8 +63,13 @@ export default function SettingsPage({
             </p>
           </div>
           <div className='po-page-actions'>
-            <button className='ghost-button' type='button' onClick={onClose}>
-              Back to dashboard
+            <button
+              className='ghost-button settings-back-button'
+              type='button'
+              onClick={onClose}
+            >
+              <span aria-hidden='true'>←</span>
+              <span>Back to dashboard</span>
             </button>
           </div>
         </div>
@@ -155,8 +160,13 @@ export default function SettingsPage({
           <h1>Settings</h1>
         </div>
         <div className='po-page-actions'>
-          <button className='ghost-button' type='button' onClick={onClose}>
-            Back to dashboard
+          <button
+            className='ghost-button settings-back-button'
+            type='button'
+            onClick={onClose}
+          >
+            <span aria-hidden='true'>←</span>
+            <span>Back to dashboard</span>
           </button>
         </div>
       </div>
