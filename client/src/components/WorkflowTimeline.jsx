@@ -54,15 +54,15 @@ export default function WorkflowTimeline({
           const entry = getEntry(history, stage);
           const entryRejected = entry?.status === "rejected";
           const state =
-            entryRejected
-              ? "active"
-              : entry?.status === "completed" || entry?.status === "ready"
-              ? "done"
-              : index === currentIndex
+            index > currentIndex
+              ? "queued"
+              : entryRejected
                 ? "active"
-                : index < currentIndex
-                  ? "done"
-                  : "queued";
+                : index === currentIndex
+                  ? "active"
+                  : entry?.status === "completed" || entry?.status === "ready" || index < currentIndex
+                    ? "done"
+                    : "queued";
           const showEntryDetails = state !== "queued";
 
           return (
