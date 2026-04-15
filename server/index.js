@@ -12,8 +12,28 @@ import workflowRoutes from "./routes/workflows.js";
 const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = process.env.PORT || 5001;
+
 function normalizeOrigin(origin) {
   return String(origin || "").trim().replace(/\/+$/, "");
+}
+
+function buildPortalRedirect(pathname, searchParams = new URLSearchParams()) {
+  const rawPortalUrl = String(
+    process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || ""
+  ).trim();
+
+  if (!rawPortalUrl) {
+    return null;
+  }
+
+  try {
+    const targetUrl = new URL(rawPortalUrl);
+    targetUrl.pathname = pathname;
+    targetUrl.search = searchParams.toString();
+    return targetUrl.toString();
+  } catch (_error) {
+    return null;
+  }
 }
 
 const allowedOrigins = (process.env.CLIENT_ORIGIN || "")
@@ -88,6 +108,34 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+
+app.get("/forgot-password", (req, res) => {
+  const redirectUrl = buildPortalRedirect("/", new URLSearchParams({ auth: "forgot-password" }));
+
+  if (redirectUrl) {
+    return res.redirect(302, redirectUrl);
+  }
+
+  return res.status(404).send("Forgot password page is unavailable.");
+});
+
+app.get("/reset-password", (req, res) => {
+  const searchParams = new URLSearchParams();
+  const resetToken = String(req.query?.resetToken || req.query?.token || "").trim();
+
+  searchParams.set("auth", "reset-password");
+  if (resetToken) {
+    searchParams.set("resetToken", resetToken);
+  }
+
+  const redirectUrl = buildPortalRedirect("/", searchParams);
+
+  if (redirectUrl) {
+    return res.redirect(302, redirectUrl);
+  }
+
+  return res.status(404).send("Reset password page is unavailable.");
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "procurement-workflow-api" });

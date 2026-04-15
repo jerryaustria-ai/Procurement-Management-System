@@ -363,6 +363,7 @@ export async function sendPasswordResetEmail({ recipientEmail, recipientName, re
           Reset password
         </a>
       </p>
+      <p style="font-size: 13px; color: #64748b;">If the button does not open, copy and paste this link into your browser: ${resetUrl}</p>
       <p>If you did not request this, you can safely ignore this email.</p>
       <p>This link will expire in 1 hour.</p>
     </div>
