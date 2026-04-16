@@ -220,7 +220,7 @@ export async function sendNewRequestCreatedEmail({
 
 export async function sendApproverApprovalRequiredEmail({
   request,
-  reviewerName,
+  actorName,
   requesterName,
   recipients = [],
 }) {
@@ -266,7 +266,7 @@ export async function sendApproverApprovalRequiredEmail({
         <tr><td style="padding: 6px 0; font-weight: 700;">Request Number</td><td style="padding: 6px 0;">${request.requestNumber}</td></tr>
         <tr><td style="padding: 6px 0; font-weight: 700;">Title</td><td style="padding: 6px 0;">${title}</td></tr>
         <tr><td style="padding: 6px 0; font-weight: 700;">Requester</td><td style="padding: 6px 0;">${requesterName || request.requesterName || "Not set"}</td></tr>
-        <tr><td style="padding: 6px 0; font-weight: 700;">Reviewed By</td><td style="padding: 6px 0;">${reviewerName}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Prepared By</td><td style="padding: 6px 0;">${actorName}</td></tr>
         <tr><td style="padding: 6px 0; font-weight: 700;">Branch</td><td style="padding: 6px 0;">${branch}</td></tr>
         <tr><td style="padding: 6px 0; font-weight: 700;">Department</td><td style="padding: 6px 0;">${department}</td></tr>
         <tr><td style="padding: 6px 0; font-weight: 700;">Amount</td><td style="padding: 6px 0;">${amount}</td></tr>
@@ -285,7 +285,7 @@ export async function sendApproverApprovalRequiredEmail({
     `Request Number: ${request.requestNumber}`,
     `Title: ${title}`,
     `Requester: ${requesterName || request.requesterName || "Not set"}`,
-    `Reviewed By: ${reviewerName}`,
+    `Prepared By: ${actorName}`,
     `Branch: ${branch}`,
     `Department: ${department}`,
     `Amount: ${amount}`,

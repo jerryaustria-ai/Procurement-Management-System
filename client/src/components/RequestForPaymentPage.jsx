@@ -35,6 +35,7 @@ export default function RequestForPaymentPage({
   onCancel,
   onPrint,
   onSave,
+  onSubmitForApproval,
   onClose,
   isSubmitting
 }) {
@@ -53,6 +54,7 @@ export default function RequestForPaymentPage({
         .some((value) => String(value).toLowerCase().includes(normalizedSearch))
     );
   }, [supplierSearch, suppliers]);
+  const showSubmitToApproval = item.currentStage === "Request for Payment" && canEdit;
 
   useEffect(() => {
     const normalizedPayee = String(form.payee || "").trim().toLowerCase();
@@ -273,6 +275,16 @@ export default function RequestForPaymentPage({
                 >
                   {isSubmitting ? "Saving..." : "Save"}
                 </button>
+                {showSubmitToApproval ? (
+                  <button
+                    className="rfp-action-button"
+                    type="button"
+                    onClick={onSubmitForApproval}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit to Approval"}
+                  </button>
+                ) : null}
               </>
             ) : (
               <>
@@ -285,6 +297,16 @@ export default function RequestForPaymentPage({
                 {canEdit ? (
                   <button className="rfp-action-button" type="button" onClick={onEdit}>
                     Edit
+                  </button>
+                ) : null}
+                {showSubmitToApproval ? (
+                  <button
+                    className="rfp-action-button"
+                    type="button"
+                    onClick={onSubmitForApproval}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit to Approval"}
                   </button>
                 ) : null}
               </>

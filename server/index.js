@@ -1,5 +1,4 @@
 import "dotenv/config";
-import cors from "cors";
 import express from "express";
 import path from "path";
 import { connectDatabase } from "./config/database.js";
@@ -90,26 +89,32 @@ function isAllowedOrigin(origin) {
   return false;
 }
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      return callback(null, true);
-    }
+const allowedMethods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+const allowedHeaders = ["Content-Type", "Authorization"];
 
-    const error = new Error(
-      `Origin not allowed by CORS. Received: ${origin || "unknown"}. Allowed: ${
+app.use((req, res, next) => {
+  const requestOrigin = normalizeOrigin(req.headers.origin);
+
+  if (requestOrigin && isAllowedOrigin(requestOrigin)) {
+    res.header("Access-Control-Allow-Origin", requestOrigin);
+    res.header("Vary", "Origin");
+    res.header("Access-Control-Allow-Methods", allowedMethods.join(","));
+    res.header("Access-Control-Allow-Headers", allowedHeaders.join(","));
+    res.header("Access-Control-Allow-Credentials", "true");
+  } else if (requestOrigin && !isAllowedOrigin(requestOrigin)) {
+    return res.status(403).json({
+      message: `Origin not allowed by CORS. Received: ${requestOrigin}. Allowed: ${
         allowedOrigins.join(", ") || "(none configured)"
-      }`
-    );
-    return callback(error);
-  },
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 204,
-};
+      }`,
+    });
+  }
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
+  return next();
+});
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 

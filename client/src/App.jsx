@@ -32,6 +32,21 @@ const ART_GALLERY_URL =
   'https://art-inventory-self.vercel.app'
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
+const DEFAULT_WORKFLOW_STAGES = [
+  'Purchase Request',
+  'Review',
+  'Request for Payment',
+  'Approval',
+  'Prepare PO',
+  'Approve PO',
+  'Send PO',
+  'Delivery',
+  'Inspection',
+  'Invoice',
+  'Matching',
+  'Payment',
+  'Filing',
+]
 const DEFAULT_COMPANY_SETTINGS = {
   companyName: 'Januarius Holdings Inc.',
   logoUrl: '/JANUARIUS.ico',
@@ -39,6 +54,7 @@ const DEFAULT_COMPANY_SETTINGS = {
     'Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines',
   generalAccountantName: '',
   chiefInvestmentOfficerName: '',
+  workflowStages: DEFAULT_WORKFLOW_STAGES,
 }
 
 function getStoredTheme() {
@@ -63,6 +79,16 @@ function getInitialIdentityForm(defaults = DEFAULT_COMPANY_SETTINGS) {
     address: defaults.address,
     logoUrl: defaults.logoUrl,
   }
+}
+
+function getEffectiveWorkflowStages(item, fallbackStages = DEFAULT_WORKFLOW_STAGES) {
+  if (Array.isArray(item?.workflowStages) && item.workflowStages.length) {
+    return item.workflowStages
+  }
+
+  return Array.isArray(fallbackStages) && fallbackStages.length
+    ? fallbackStages
+    : DEFAULT_WORKFLOW_STAGES
 }
 
 function getCompanyIdentityForBranch(branch, companySettings, identities = []) {
@@ -501,6 +527,7 @@ function canAccessRequestForPayment(item) {
   }
 
   const requestForPaymentStages = new Set([
+    'Request for Payment',
     'Send PO',
     'Delivery',
     'Inspection',
@@ -1344,6 +1371,10 @@ export default function App() {
       chiefInvestmentOfficerName:
         data.chiefInvestmentOfficerName ??
         DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
+      workflowStages:
+        Array.isArray(data.workflowStages) && data.workflowStages.length
+          ? data.workflowStages
+          : DEFAULT_COMPANY_SETTINGS.workflowStages,
     }
 
     setCompanySettings(nextSettings)
@@ -1476,7 +1507,6 @@ export default function App() {
           ? selectedItem.deliveryDate.slice(0, 10)
           : '',
         inspectionStatus: selectedItem.inspectionStatus ?? 'pending',
-        skipToRfp: Boolean(selectedItem.requestForPaymentEnabled),
         selectedItemId: selectedItem.id,
         selectedItemStage: selectedItem.currentStage,
       }
@@ -2126,54 +2156,6 @@ export default function App() {
       [name]: nextValue,
     }))
 
-    if (
-      name !== 'skipToRfp' ||
-      !selectedItem ||
-      selectedItem.currentStage !== 'Approval' ||
-      !session?.token
-    ) {
-      return
-    }
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/rfp-access`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.token}`,
-          },
-          body: JSON.stringify({
-            enabled: Boolean(nextValue),
-          }),
-        },
-      )
-
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(
-          data.message || 'Failed to update Request for Payment access.',
-        )
-      }
-
-      setItems((current) =>
-        current.map((item) => (item.id === data.id ? data : item)),
-      )
-      setSelectedId(data.id)
-    } catch (error) {
-      setActionForm((current) => ({
-        ...current,
-        skipToRfp: !Boolean(nextValue),
-      }))
-      setActionError(error.message)
-      pushToast({
-        title: 'RFP toggle failed',
-        message: error.message,
-        variant: 'error',
-        duration: 4200,
-      })
-    }
   }
 
   function handleUploadFormChange(event) {
@@ -2270,6 +2252,36 @@ export default function App() {
       ...current,
       [event.target.name]: event.target.value,
     }))
+  }
+
+  function handleWorkflowStageMove(stage, direction) {
+    setSettingsForm((current) => {
+      const stages = Array.isArray(current.workflowStages)
+        ? [...current.workflowStages]
+        : [...DEFAULT_WORKFLOW_STAGES]
+      const currentIndex = stages.indexOf(stage)
+
+      if (currentIndex === -1) {
+        return current
+      }
+
+      const targetIndex =
+        direction === 'up' ? currentIndex - 1 : currentIndex + 1
+
+      if (targetIndex < 0 || targetIndex >= stages.length) {
+        return current
+      }
+
+      ;[stages[currentIndex], stages[targetIndex]] = [
+        stages[targetIndex],
+        stages[currentIndex],
+      ]
+
+      return {
+        ...current,
+        workflowStages: stages,
+      }
+    })
   }
 
   function handleRequesterSettingsFormChange(event) {
@@ -2461,11 +2473,10 @@ export default function App() {
     const headers = [
       'Request Number',
       'Title',
+      'Branch',
       'Department',
-      'Category',
       'Requester',
       'Amount',
-      'Priority',
       'Status',
       'Current Stage',
       'Requested At',
@@ -2484,7 +2495,7 @@ export default function App() {
       item.currentStage,
       formatExportDate(item.requestedAt),
       formatExportDate(item.dateNeeded),
-      item.supplier,
+      item.supplier || '',
     ])
 
     const csvContent = [headers, ...rows]
@@ -2860,11 +2871,7 @@ export default function App() {
     const fallbackRequest =
       items.find((item) => canAccessRequestForPayment(item)) ?? null
     const requestedIsImmediatelyAccessible =
-      Boolean(targetRequest) &&
-      (canAccessRequestForPayment(targetRequest) ||
-        (selectedItem?.id === targetRequest?.id &&
-          targetRequest?.currentStage === 'Approval' &&
-          Boolean(actionForm.skipToRfp)))
+      Boolean(targetRequest) && canAccessRequestForPayment(targetRequest)
     const nextTargetRequest = requestedIsImmediatelyAccessible
       ? targetRequest
       : fallbackRequest
@@ -2877,21 +2884,16 @@ export default function App() {
       items.find((item) => item.id === nextTargetRequest.id) ??
       nextTargetRequest
     const isSelectedRequest = selectedItem?.id === resolvedRequest.id
-    const isPendingRfpActivation =
-      isSelectedRequest &&
-      resolvedRequest.currentStage === 'Approval' &&
-      Boolean(actionForm.skipToRfp)
     const hasImmediateRfpAccess =
       canAccessRequestForPayment(resolvedRequest) ||
       canAccessRequestForPayment(nextTargetRequest) ||
-      (isSelectedRequest && canAccessRequestForPayment(selectedItem)) ||
-      isPendingRfpActivation
+      (isSelectedRequest && canAccessRequestForPayment(selectedItem))
 
     if (!hasImmediateRfpAccess) {
       pushToast({
         title: 'Request for Payment unavailable',
         message:
-          'Request for Payment becomes available when Enable RFP is turned on, or once the workflow reaches Send PO and beyond.',
+          'Request for Payment is not available for this request yet.',
         variant: 'error',
         duration: 4200,
       })
@@ -3063,22 +3065,7 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/rfp-draft`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.token}`,
-          },
-          body: JSON.stringify(requestForPaymentForm),
-        },
-      )
-
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to save request for payment.')
-      }
+      const data = await saveRequestForPaymentDraft(selectedItem)
 
       setItems((current) =>
         current.map((item) => (item.id === data.id ? data : item)),
@@ -3099,6 +3086,128 @@ export default function App() {
     } catch (error) {
       pushToast({
         title: 'Save failed',
+        message: error.message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function saveRequestForPaymentDraft(targetItem = selectedItem) {
+    const response = await fetch(
+      `${API_BASE_URL}/workflows/purchase-requests/${targetItem.id}/rfp-draft`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: JSON.stringify(requestForPaymentForm),
+      },
+    )
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to save request for payment.')
+    }
+
+    return data
+  }
+
+  async function handleSubmitRequestForPaymentToApproval() {
+    if (
+      !selectedItem ||
+      !session?.token ||
+      selectedItem.currentStage !== 'Request for Payment' ||
+      !canEditRequestForPayment(session?.user, selectedItem)
+    ) {
+      pushToast({
+        title: 'Submit unavailable',
+        message:
+          'Only the requester or admin can submit the Request for Payment to Approval.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    const validationErrors = getRequestForPaymentValidationErrors(
+      requestForPaymentForm,
+    )
+
+    if (Object.values(validationErrors).some(Boolean)) {
+      setRequestForPaymentErrors(validationErrors)
+      pushToast({
+        title: 'Missing required fields',
+        message: 'Payee / supplier and Amount requested are required.',
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const savedDraft = await saveRequestForPaymentDraft(selectedItem)
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/advance`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            notifyApprover: true,
+            comment: `${session.user.name} submitted ${savedDraft.requestNumber} to Approval.`,
+          }),
+        },
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to submit Request for Payment to Approval.')
+      }
+
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
+      setSelectedId(data.id)
+      setRequestForPaymentForm(getRequestForPaymentFormFromItem(data))
+      setRequestForPaymentErrors({})
+      setIsRequestForPaymentEditing(false)
+      setIsRequestForPaymentPageOpen(false)
+      setActionForm((current) => ({
+        ...current,
+        notifyApprover: false,
+        notes: '',
+      }))
+
+      pushToast({
+        title: 'Sent to Approval',
+        message: `${data.requestNumber} moved to ${data.currentStage}.`,
+        variant: 'success',
+      })
+
+      if (data.approverNotification?.requested) {
+        pushToast({
+          title: data.approverNotification.skipped
+            ? 'Approver email skipped'
+            : 'Approver notified',
+          message: data.approverNotification.skipped
+            ? data.approverNotification.reason ||
+              'The request moved to Approval, but the approver email was not sent.'
+            : 'An approval email has been sent to the approver.',
+          variant: data.approverNotification.skipped ? 'error' : 'success',
+          duration: 4800,
+        })
+      }
+    } catch (error) {
+      pushToast({
+        title: 'Submit failed',
         message: error.message,
         variant: 'error',
         duration: 4200,
@@ -3714,8 +3823,6 @@ export default function App() {
     const approvalWasHandledByApprover =
       selectedItem.currentStage === 'Approval' &&
       session.user.role === 'approver'
-    const shouldEnableRfpOnAdvance = selectedItem.currentStage === 'Approval'
-
     try {
       if (
         uploadForm.file &&
@@ -3775,12 +3882,9 @@ export default function App() {
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
             notifyApprover:
-              selectedItem.currentStage === 'Review'
+              selectedItem.currentStage === 'Request for Payment'
                 ? Boolean(actionForm.notifyApprover)
                 : false,
-            skipToRfp: shouldEnableRfpOnAdvance
-              ? true
-              : Boolean(actionForm.skipToRfp),
             poDraft: purchaseOrderForm,
             comment: stageComment,
           }),
@@ -3804,7 +3908,6 @@ export default function App() {
         supplier: data.supplier || current.supplier,
         poNumber: data.poNumber || current.poNumber,
         notifyApprover: false,
-        skipToRfp: false,
         notes: '',
       }))
 
@@ -3815,9 +3918,7 @@ export default function App() {
 
       pushToast({
         title: 'Stage advanced',
-        message: shouldEnableRfpOnAdvance
-          ? `${data.requestNumber} moved to ${data.currentStage}. Request for Payment is now active.`
-          : `${data.requestNumber} moved to ${data.currentStage}.`,
+        message: `${data.requestNumber} moved to ${data.currentStage}.`,
         variant: 'success',
       })
 
@@ -5386,6 +5487,11 @@ export default function App() {
             generalAccountantName: settingsForm.generalAccountantName.trim(),
             chiefInvestmentOfficerName:
               settingsForm.chiefInvestmentOfficerName.trim(),
+            workflowStages:
+              Array.isArray(settingsForm.workflowStages) &&
+              settingsForm.workflowStages.length
+                ? settingsForm.workflowStages
+                : DEFAULT_COMPANY_SETTINGS.workflowStages,
           }),
         })
 
@@ -5404,6 +5510,10 @@ export default function App() {
           chiefInvestmentOfficerName:
             data.chiefInvestmentOfficerName ??
             DEFAULT_COMPANY_SETTINGS.chiefInvestmentOfficerName,
+          workflowStages:
+            Array.isArray(data.workflowStages) && data.workflowStages.length
+              ? data.workflowStages
+              : DEFAULT_COMPANY_SETTINGS.workflowStages,
         }
 
         setCompanySettings(nextSettings)
@@ -5755,6 +5865,7 @@ export default function App() {
           onCancel={handleCancelRequestForPaymentEdit}
           onPrint={() => handlePrintRequestForPaymentRecord(selectedItem)}
           onSave={handleSaveRequestForPaymentPage}
+          onSubmitForApproval={handleSubmitRequestForPaymentToApproval}
           onClose={closeRequestForPaymentPage}
           isSubmitting={isSubmitting}
         />
@@ -6041,6 +6152,7 @@ export default function App() {
           onRequesterChange={handleRequesterSettingsFormChange}
           onSaveRequesterSettings={handleSaveRequesterSettings}
           onLogoFileChange={handleSettingsLogoChange}
+          onWorkflowStageMove={handleWorkflowStageMove}
           onStartMainSettingsEdit={handleStartMainSettingsEdit}
           onCancelMainSettingsEdit={handleCancelMainSettingsEdit}
           onSave={handleSaveSettings}
@@ -6231,6 +6343,8 @@ export default function App() {
     )
   }
 
+  const selectedItemStages = getEffectiveWorkflowStages(selectedItem, stages)
+
   if (isRequestWorkspacePageOpen && selectedItem) {
     if (!canAccessRequestWorkspace(session?.user, selectedItem)) {
       return (
@@ -6265,7 +6379,7 @@ export default function App() {
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <RequestWorkspacePage
           item={selectedItem}
-          stages={stages}
+          stages={selectedItemStages}
           user={session.user}
           actionForm={actionForm}
           purchaseOrderForm={purchaseOrderForm}
@@ -6424,6 +6538,7 @@ export default function App() {
             onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
             onDelete={handleDeleteRequestById}
+            onExportCsv={handleExportCsv}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
             canDeleteItem={(item) =>
               Boolean(
@@ -6433,7 +6548,6 @@ export default function App() {
                 item.status !== 'completed',
               )
             }
-            onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
           />
@@ -6468,6 +6582,7 @@ export default function App() {
             onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
             onDelete={handleDeleteRequestById}
+            onExportCsv={handleExportCsv}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
             canDeleteItem={(item) =>
               Boolean(
@@ -6477,7 +6592,6 @@ export default function App() {
                 item.status !== 'completed',
               )
             }
-            onExportCsv={handleExportCsv}
             onExportPdf={handleExportPdf}
             onExpand={() => openExpandedPanel('request-list')}
           />
@@ -6552,6 +6666,7 @@ export default function App() {
               onOpenRequestForPayment={openRequestForPaymentPage}
               onEdit={openEditRequestModalForItem}
               onDelete={handleDeleteRequestById}
+              onExportCsv={handleExportCsv}
               canEditItem={(item) => canUserEditRequest(session?.user, item)}
               canDeleteItem={(item) =>
                 Boolean(
@@ -6561,7 +6676,6 @@ export default function App() {
                   item.status !== 'completed',
                 )
               }
-              onExportCsv={handleExportCsv}
               onExportPdf={handleExportPdf}
               showExpand={false}
             />
@@ -6569,7 +6683,7 @@ export default function App() {
           {expandedPanel === 'stage-actions' && selectedItem ? (
             <ActionPanel
               item={selectedItem}
-              stages={stages}
+              stages={selectedItemStages}
               user={session.user}
               form={actionForm}
               purchaseOrderForm={purchaseOrderForm}
@@ -6603,7 +6717,7 @@ export default function App() {
           ) : null}
           {expandedPanel === 'workflow' && selectedItem ? (
             <WorkflowTimeline
-              stages={stages}
+              stages={selectedItemStages}
               currentStage={selectedItem.currentStage}
               requestStatus={selectedItem.status}
               history={selectedItem.history}
@@ -6651,7 +6765,7 @@ export default function App() {
         >
           <RequestAdminPanel
             item={selectedItem}
-            stages={stages}
+            stages={selectedItemStages}
             branchOptions={Array.from(
               new Set([...branchOptions, selectedItem.branch].filter(Boolean)),
             )}

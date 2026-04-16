@@ -17,6 +17,7 @@ export default function SettingsPage({
   onRequesterChange,
   onSaveRequesterSettings,
   onLogoFileChange,
+  onWorkflowStageMove,
   onStartMainSettingsEdit,
   onCancelMainSettingsEdit,
   onSave,
@@ -188,6 +189,13 @@ export default function SettingsPage({
               Branding
             </button>
             <button
+              className={`settings-shortcut-button ${activeSection === 'workflow' ? 'is-primary' : ''}`}
+              type='button'
+              onClick={() => setActiveSection('workflow')}
+            >
+              Workflow
+            </button>
+            <button
               className={`settings-shortcut-button ${activeSection === 'users' ? 'is-primary' : ''}`}
               type='button'
               onClick={() => setActiveSection('users')}
@@ -226,7 +234,80 @@ export default function SettingsPage({
         </section>
 
         <div className='settings-admin-content'>
-          {activeSection === 'users' ? (
+          {activeSection === 'workflow' ? (
+            <section
+              id='settings-workflow-panel'
+              className={`panel settings-branding-panel ${isMainSettingsEditing ? 'is-active' : 'is-inactive'}`}
+            >
+              <div
+                className={`settings-panel-actions ${isMainSettingsEditing ? 'is-active' : ''}`}
+              >
+                {isMainSettingsEditing ? (
+                  <button
+                    className='ghost-button settings-panel-cancel'
+                    type='button'
+                    onClick={onCancelMainSettingsEdit}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+                <button
+                  className={`settings-panel-toggle ${isMainSettingsEditing ? 'is-active' : ''}`}
+                  type='button'
+                  onClick={
+                    isMainSettingsEditing ? onSave : onStartMainSettingsEdit
+                  }
+                >
+                  {isMainSettingsEditing ? 'Save' : 'Edit'}
+                </button>
+              </div>
+              <div className='panel-heading'>
+                <div>
+                  <p className='eyebrow'>Workflow</p>
+                  <h2>Workflow order</h2>
+                  <p className='hero-copy'>
+                    Reorder the procurement stages for new requests only.
+                    Existing requests will keep their current workflow order.
+                  </p>
+                </div>
+              </div>
+
+              <div className='settings-form-card'>
+                <div className='settings-workflow-list'>
+                  {(form.workflowStages || []).map((stage, index, stages) => (
+                    <article className='settings-workflow-item' key={stage}>
+                      <div className='settings-workflow-index'>
+                        {String(index + 1).padStart(2, '0')}
+                      </div>
+                      <div className='settings-workflow-stage'>
+                        <strong>{stage}</strong>
+                      </div>
+                      <div className='settings-workflow-actions'>
+                        <button
+                          className='ghost-button'
+                          type='button'
+                          onClick={() => onWorkflowStageMove(stage, 'up')}
+                          disabled={!isMainSettingsEditing || index === 0}
+                        >
+                          Move up
+                        </button>
+                        <button
+                          className='ghost-button'
+                          type='button'
+                          onClick={() => onWorkflowStageMove(stage, 'down')}
+                          disabled={
+                            !isMainSettingsEditing || index === stages.length - 1
+                          }
+                        >
+                          Move down
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : activeSection === 'users' ? (
             <UserManagementPanel
               users={users}
               selectedUserId={selectedUserId}

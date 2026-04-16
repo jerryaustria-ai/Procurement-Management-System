@@ -1,5 +1,9 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import {
+  normalizeWorkflowStageOrder,
+  workflowStages as defaultWorkflowStages
+} from "../config/workflow.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Setting } from "../models/Setting.js";
 
@@ -13,10 +17,34 @@ const DEFAULT_SETTINGS = {
   address: "Januarius Holdings Inc., Head Office, Makati City, Metro Manila, Philippines",
   logoUrl: "/JANUARIUS.ico",
   generalAccountantName: "",
-  chiefInvestmentOfficerName: ""
+  chiefInvestmentOfficerName: "",
+  workflowStages: [...defaultWorkflowStages]
 };
 
+function normalizeWorkflowStages(input) {
+  if (!Array.isArray(input)) {
+    return null;
+  }
+
+  const normalized = normalizeWorkflowStageOrder(input);
+
+  if (normalized.length !== defaultWorkflowStages.length) {
+    return null;
+  }
+
+  const hasAllStages = defaultWorkflowStages.every((stage) => normalized.includes(stage));
+  const hasUniqueStages = new Set(normalized).size === defaultWorkflowStages.length;
+
+  if (!hasAllStages || !hasUniqueStages) {
+    return null;
+  }
+
+  return normalized;
+}
+
 function serializeSetting(setting) {
+  const normalizedWorkflowStages = normalizeWorkflowStageOrder(setting.workflowStages);
+
   return {
     id: setting.id,
     scope: setting.scope,
@@ -25,7 +53,8 @@ function serializeSetting(setting) {
     address: setting.address,
     logoUrl: setting.logoUrl,
     generalAccountantName: setting.generalAccountantName,
-    chiefInvestmentOfficerName: setting.chiefInvestmentOfficerName
+    chiefInvestmentOfficerName: setting.chiefInvestmentOfficerName,
+    workflowStages: normalizedWorkflowStages
   };
 }
 
@@ -60,6 +89,10 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
   const logoUrl = String(req.body.logoUrl || "").trim();
   const generalAccountantName = String(req.body.generalAccountantName || "").trim();
   const chiefInvestmentOfficerName = String(req.body.chiefInvestmentOfficerName || "").trim();
+  const normalizedWorkflowStages =
+    typeof req.body.workflowStages === "undefined"
+      ? serializeSetting(setting).workflowStages
+      : normalizeWorkflowStages(req.body.workflowStages);
 
   if (!companyName) {
     return res.status(400).json({ message: "Company name is required." });
@@ -73,11 +106,18 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
     return res.status(400).json({ message: "Logo is required." });
   }
 
+  if (!normalizedWorkflowStages) {
+    return res.status(400).json({
+      message: "Workflow order must contain each stage exactly once."
+    });
+  }
+
   setting.companyName = companyName;
   setting.address = address;
   setting.logoUrl = logoUrl;
   setting.generalAccountantName = generalAccountantName;
   setting.chiefInvestmentOfficerName = chiefInvestmentOfficerName;
+  setting.workflowStages = normalizedWorkflowStages;
 
   await setting.save();
   const identities = await getEntitySettings();

@@ -61,6 +61,7 @@ export default function RequestList({
   onOpenRequestForPayment,
   onEdit,
   onDelete,
+  onExportCsv,
   canEditItem,
   canDeleteItem,
 }) {
@@ -202,6 +203,17 @@ export default function RequestList({
                     Card View
                   </button>
                 </div>
+                <div className="panel-kebab-menu-separator" aria-hidden="true" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onExportCsv?.();
+                  }}
+                >
+                  Download CSV
+                </button>
               </div>
             ) : null}
           </div>

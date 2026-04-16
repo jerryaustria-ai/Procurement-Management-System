@@ -21,6 +21,11 @@ export function serializeUser(user) {
 }
 
 export function serializePurchaseRequest(request) {
+  const requestWorkflowStages =
+    Array.isArray(request.workflowStages) && request.workflowStages.length
+      ? request.workflowStages
+      : workflowStages;
+
   return {
     id: request._id.toString(),
     requestNumber: request.requestNumber,
@@ -75,12 +80,13 @@ export function serializePurchaseRequest(request) {
     requestedAt: request.requestedAt,
     currentStage: request.currentStage,
     currentStageDescription: stageDescriptions[request.currentStage],
+    workflowStages: requestWorkflowStages,
     approvalCompleted: Boolean(request.approvalCompleted),
     requestForPaymentEnabled: Boolean(request.requestForPaymentEnabled),
     filingCompleted: Boolean(request.filingCompleted),
     status: request.status,
     notes: request.notes,
-    progressIndex: workflowStages.indexOf(request.currentStage),
+    progressIndex: requestWorkflowStages.indexOf(request.currentStage),
     allowedRoles: getAllowedRoles(request.currentStage),
     allowedRoleLabels: getAllowedRoles(request.currentStage).map((role) => roleLabels[role] ?? role),
     documents: (request.documents ?? []).map((document) => ({

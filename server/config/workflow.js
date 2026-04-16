@@ -1,6 +1,7 @@
 export const workflowStages = [
   "Purchase Request",
   "Review",
+  "Request for Payment",
   "Approval",
   "Prepare PO",
   "Approve PO",
@@ -16,6 +17,7 @@ export const workflowStages = [
 export const stageDescriptions = {
   "Purchase Request": "Create and justify the business need.",
   Review: "Validate scope, budget, and completeness of the request.",
+  "Request for Payment": "Complete the Request for Payment details before approval.",
   Approval: "Management approves the procurement request.",
   "Prepare PO": "Draft the purchase order details and reference numbers.",
   "Approve PO": "Authorize the prepared purchase order for release.",
@@ -52,6 +54,7 @@ export const priorityLabels = {
 export const stageRoleMap = {
   "Purchase Request": ["requester", "admin"],
   Review: ["reviewer", "admin"],
+  "Request for Payment": ["requester", "admin"],
   Approval: ["approver", "admin"],
   "Prepare PO": ["procurement", "admin"],
   "Approve PO": ["approver", "admin"],
@@ -68,24 +71,74 @@ export function getAllowedRoles(stage) {
   return stageRoleMap[stage] ?? ["admin"];
 }
 
-export function getNextStage(stage) {
-  const currentIndex = workflowStages.indexOf(stage);
+export function normalizeWorkflowStageOrder(input, fallback = workflowStages) {
+  const normalized = Array.isArray(input)
+    ? input.map((stage) => String(stage || "").trim()).filter(Boolean)
+    : [];
+
+  if (!normalized.length) {
+    return [...fallback];
+  }
+
+  const uniqueKnownStages = normalized.filter(
+    (stage, index) => workflowStages.includes(stage) && normalized.indexOf(stage) === index
+  );
+
+  const reconciledStages = [...uniqueKnownStages];
+
+  workflowStages.forEach((stage, defaultIndex) => {
+    if (reconciledStages.includes(stage)) {
+      return;
+    }
+
+    let insertAt = reconciledStages.length;
+
+    for (let previousIndex = defaultIndex - 1; previousIndex >= 0; previousIndex -= 1) {
+      const previousStage = workflowStages[previousIndex];
+      const existingIndex = reconciledStages.indexOf(previousStage);
+
+      if (existingIndex !== -1) {
+        insertAt = existingIndex + 1;
+        break;
+      }
+    }
+
+    if (insertAt === reconciledStages.length) {
+      for (let nextIndex = defaultIndex + 1; nextIndex < workflowStages.length; nextIndex += 1) {
+        const nextStage = workflowStages[nextIndex];
+        const existingIndex = reconciledStages.indexOf(nextStage);
+
+        if (existingIndex !== -1) {
+          insertAt = existingIndex;
+          break;
+        }
+      }
+    }
+
+    reconciledStages.splice(insertAt, 0, stage);
+  });
+
+  return reconciledStages;
+}
+
+export function getNextStage(stage, stages = workflowStages) {
+  const currentIndex = stages.indexOf(stage);
   if (currentIndex === -1) {
-    return workflowStages[0];
+    return stages[0];
   }
 
-  return workflowStages[Math.min(currentIndex + 1, workflowStages.length - 1)];
+  return stages[Math.min(currentIndex + 1, stages.length - 1)];
 }
 
-export function getPreviousStage(stage) {
-  const currentIndex = workflowStages.indexOf(stage);
+export function getPreviousStage(stage, stages = workflowStages) {
+  const currentIndex = stages.indexOf(stage);
   if (currentIndex <= 0) {
-    return workflowStages[0];
+    return stages[0];
   }
 
-  return workflowStages[currentIndex - 1];
+  return stages[currentIndex - 1];
 }
 
-export function isTerminalStage(stage) {
-  return stage === workflowStages[workflowStages.length - 1];
+export function isTerminalStage(stage, stages = workflowStages) {
+  return stage === stages[stages.length - 1];
 }

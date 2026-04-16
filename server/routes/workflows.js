@@ -5,11 +5,13 @@ import {
   getNextStage,
   getPreviousStage,
   isTerminalStage,
+  normalizeWorkflowStageOrder,
   workflowStages
 } from "../config/workflow.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { uploadSingleDocument } from "../middleware/upload.js";
 import { PurchaseRequest } from "../models/PurchaseRequest.js";
+import { Setting } from "../models/Setting.js";
 import { User } from "../models/User.js";
 import {
   deleteDocumentFromCloudinary,
@@ -27,6 +29,16 @@ import { serializePurchaseRequest } from "../utils/serializers.js";
 const router = Router();
 
 router.use(requireAuth);
+
+function getRequestWorkflowStages(request) {
+  return normalizeWorkflowStageOrder(request?.workflowStages, workflowStages);
+}
+
+async function getConfiguredWorkflowStages() {
+  const globalSetting = await Setting.findOne({ key: "global" }).select("workflowStages");
+
+  return normalizeWorkflowStageOrder(globalSetting?.workflowStages, workflowStages);
+}
 
 function parseAmountValue(value) {
   if (value === null || typeof value === "undefined") {
@@ -128,10 +140,11 @@ async function getNextRequestNumber() {
 
 router.get("/purchase-requests", async (req, res) => {
   const query = req.user.role === "requester" ? { requesterEmail: req.user.email } : {};
+  const configuredWorkflowStages = await getConfiguredWorkflowStages();
   const items = await PurchaseRequest.find(query).sort({ createdAt: -1 });
 
   res.json({
-    stages: workflowStages,
+    stages: configuredWorkflowStages,
     items: items.map(serializePurchaseRequest)
   });
 });
@@ -172,6 +185,7 @@ router.post("/purchase-requests", async (req, res) => {
     }
 
     const requestNumber = await getNextRequestNumber();
+    const requestWorkflowStages = await getConfiguredWorkflowStages();
     const parsedAmount = parseAmountValue(amount);
 
     if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
@@ -194,11 +208,12 @@ router.post("/purchase-requests", async (req, res) => {
       deliveryAddress: deliveryAddress || "",
       paymentTerms: paymentTerms || "Net 30",
       notes: notes || "",
-      currentStage: workflowStages[0],
+      workflowStages: requestWorkflowStages,
+      currentStage: requestWorkflowStages[0],
       requestForPaymentEnabled: true,
       history: [
         {
-          stage: workflowStages[0],
+          stage: requestWorkflowStages[0],
           status: "current",
           updatedAt: new Date(),
           actor: req.user.name,
@@ -504,7 +519,8 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     });
   }
 
-  const nextStage = getNextStage(request.currentStage);
+  const requestWorkflowStages = getRequestWorkflowStages(request);
+  const nextStage = getNextStage(request.currentStage, requestWorkflowStages);
   request.history = request.history.map((entry) =>
     entry.stage === request.currentStage ? { ...entry.toObject(), status: "completed" } : entry
   );
@@ -559,7 +575,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     };
   }
 
-  if (isTerminalStage(request.currentStage)) {
+  if (isTerminalStage(request.currentStage, requestWorkflowStages)) {
     request.history = request.history.map((entry) =>
       entry.stage === request.currentStage && entry.status === "current"
         ? {
@@ -621,7 +637,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
       const approverRecipients = await User.find({ role: "approver" }).select("email");
       const notificationResult = await sendApproverApprovalRequiredEmail({
         request,
-        reviewerName: req.user.name,
+        actorName: req.user.name,
         requesterName: request.requesterName,
         recipients: approverRecipients.map((user) => user.email)
       });
@@ -764,7 +780,8 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
     });
   }
 
-  const previousStage = getPreviousStage(request.currentStage);
+  const requestWorkflowStages = getRequestWorkflowStages(request);
+  const previousStage = getPreviousStage(request.currentStage, requestWorkflowStages);
   if (previousStage === request.currentStage) {
     return res.status(400).json({ message: "This request is already at the first stage." });
   }
@@ -775,10 +792,10 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
       : entry
   );
 
-  const previousStageIndex = workflowStages.indexOf(previousStage);
+  const previousStageIndex = requestWorkflowStages.indexOf(previousStage);
   const resetComment = req.body.comment || `Moved back to ${previousStage}`;
 
-  workflowStages.slice(previousStageIndex + 1).forEach((stage) => {
+  requestWorkflowStages.slice(previousStageIndex + 1).forEach((stage) => {
     request.history.push({
       stage,
       status: "reverted",

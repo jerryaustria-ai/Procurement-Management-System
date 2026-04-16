@@ -39,6 +39,10 @@ function getAdvanceButtonLabel(currentStage, nextStage, isComplete, workflowFini
     return "Approve";
   }
 
+  if (currentStage === "Request for Payment") {
+    return "Submit to Approval";
+  }
+
   if (currentStage === "Approve PO") {
     return "Approve PO";
   }
@@ -55,6 +59,10 @@ function getAdvanceLoadingLabel(currentStage, hasApprovalAttachment) {
     return "Approving...";
   }
 
+  if (currentStage === "Request for Payment") {
+    return "Submitting...";
+  }
+
   return "Processing...";
 }
 
@@ -65,6 +73,7 @@ function isRejected(item) {
 const STAGE_ROLE_LABELS = {
   "Purchase Request": "Requester, System Admin",
   Review: "Reviewer, System Admin",
+  "Request for Payment": "Requester, System Admin",
   Approval: "Approver, System Admin",
   "Prepare PO": "Procurement Officer, System Admin",
   "Approve PO": "Approver, System Admin",
@@ -80,6 +89,7 @@ const STAGE_ROLE_LABELS = {
 const STAGE_DESCRIPTIONS = {
   "Purchase Request": "Create and justify the business need.",
   Review: "Validate scope, budget, and completeness of the request.",
+  "Request for Payment": "Finalize the payment request details before approval.",
   Approval: "Management approves the procurement request.",
   "Prepare PO": "Draft the purchase order details and reference numbers.",
   "Approve PO": "Authorize the prepared purchase order for release.",
@@ -646,7 +656,7 @@ export default function ActionPanel({
         >
           {isSubmitting ? advanceLoadingLabel : advanceButtonLabel}
         </button>
-        {item.currentStage === "Review" ? (
+        {item.currentStage === "Request for Payment" ? (
           <label className="stage-checkbox-row action-inline-checkbox">
             <input
               type="checkbox"

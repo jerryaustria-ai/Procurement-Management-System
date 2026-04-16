@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { workflowStages } from "../config/workflow.js";
 
 const settingSchema = new mongoose.Schema(
   {
@@ -9,7 +10,8 @@ const settingSchema = new mongoose.Schema(
     address: { type: String, required: true, trim: true },
     logoUrl: { type: String, required: true, trim: true },
     generalAccountantName: { type: String, default: "", trim: true },
-    chiefInvestmentOfficerName: { type: String, default: "", trim: true }
+    chiefInvestmentOfficerName: { type: String, default: "", trim: true },
+    workflowStages: { type: [String], default: () => [...workflowStages] }
   },
   { timestamps: true }
 );
