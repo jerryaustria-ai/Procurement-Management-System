@@ -25,6 +25,7 @@ export default function RequestForPaymentPage({
   form,
   errors = {},
   suppliers = [],
+  embeddedInWorkspace = false,
   isEditing = true,
   canEdit = true,
   onChange,
@@ -103,61 +104,65 @@ export default function RequestForPaymentPage({
   }
 
   return (
-    <section className="po-page">
-      <div className="po-page-header">
-        <div>
-          <p className="eyebrow">Request for Payment</p>
-          <h1>{item.requestNumber} Payment Request</h1>
-          <p className="hero-copy">
-            Prepare the payment request details in a focused workspace, then return to the
-            procurement workflow.
-          </p>
+    <section className={`po-page${embeddedInWorkspace ? " po-page-embedded" : ""}`}>
+      {!embeddedInWorkspace ? (
+        <div className="po-page-header">
+          <div>
+            <p className="eyebrow">Request for Payment</p>
+            <h1>{item.requestNumber} Payment Request</h1>
+            <p className="hero-copy">
+              Prepare the payment request details in a focused workspace, then return to the
+              procurement workflow.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="po-page-grid">
-        <section className="panel rfp-reference-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Reference</p>
-              <h2>{item.requestNumber}</h2>
+        {!embeddedInWorkspace ? (
+          <section className="panel rfp-reference-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Reference</p>
+                <h2>{item.requestNumber}</h2>
+              </div>
             </div>
-          </div>
-          <div className="summary-grid">
-            <div>
-              <span>Request title</span>
-              <strong>{item.title}</strong>
+            <div className="summary-grid">
+              <div>
+                <span>Request title</span>
+                <strong>{item.title}</strong>
+              </div>
+              <div>
+                <span>Requester</span>
+                <strong>{item.requester}</strong>
+              </div>
+              <div>
+                <span>Supplier</span>
+                <strong>{item.supplier || "Pending selection"}</strong>
+              </div>
+              <div>
+                <span>PO number</span>
+                <strong>{item.poNumber || "Pending"}</strong>
+              </div>
+              <div>
+                <span>Budget</span>
+                <strong>{formatAmount(item.amount, item.currency)}</strong>
+              </div>
+              <div>
+                <span>Date needed</span>
+                <strong>{formatDate(item.dateNeeded)}</strong>
+              </div>
+              <div>
+                <span>Branch</span>
+                <strong>{item.branch || "Not set"}</strong>
+              </div>
+              <div>
+                <span>Department</span>
+                <strong>{item.department || "Not set"}</strong>
+              </div>
             </div>
-            <div>
-              <span>Requester</span>
-              <strong>{item.requester}</strong>
-            </div>
-            <div>
-              <span>Supplier</span>
-              <strong>{item.supplier || "Pending selection"}</strong>
-            </div>
-            <div>
-              <span>PO number</span>
-              <strong>{item.poNumber || "Pending"}</strong>
-            </div>
-            <div>
-              <span>Budget</span>
-              <strong>{formatAmount(item.amount, item.currency)}</strong>
-            </div>
-            <div>
-              <span>Date needed</span>
-              <strong>{formatDate(item.dateNeeded)}</strong>
-            </div>
-            <div>
-              <span>Branch</span>
-              <strong>{item.branch || "Not set"}</strong>
-            </div>
-            <div>
-              <span>Department</span>
-              <strong>{item.department || "Not set"}</strong>
-            </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         <section className="panel">
           <div className="panel-heading">
@@ -166,8 +171,8 @@ export default function RequestForPaymentPage({
               <h2>Prepare request for payment</h2>
             </div>
           </div>
-          <div className="form-grid">
-            <label className={errors.payee ? "field-invalid" : ""}>
+          <div className="form-grid two-column">
+            <label className={`full-width-field${errors.payee ? " field-invalid" : ""}`}>
               Payee / supplier
               <div className="supplier-select-row">
                 <input
@@ -236,7 +241,7 @@ export default function RequestForPaymentPage({
               />
             </label>
 
-            <label>
+            <label className="full-width-field">
               Description
               <textarea
                 name="notes"
@@ -248,17 +253,9 @@ export default function RequestForPaymentPage({
               />
             </label>
           </div>
-          <div className="panel-form-actions panel-form-actions-right rfp-action-row">
+          <div className="panel-form-actions rfp-action-row">
             {isEditing ? (
               <>
-                <button
-                  className="ghost-button rfp-action-button"
-                  type="button"
-                  onClick={onClose}
-                  disabled={isSubmitting}
-                >
-                  Back
-                </button>
                 <button
                   className="ghost-button rfp-action-button"
                   type="button"
@@ -277,7 +274,7 @@ export default function RequestForPaymentPage({
                 </button>
                 {showSubmitToApproval ? (
                   <button
-                    className="rfp-action-button"
+                    className="rfp-action-button rfp-submit-action"
                     type="button"
                     onClick={onSubmitForApproval}
                     disabled={isSubmitting}
@@ -288,9 +285,6 @@ export default function RequestForPaymentPage({
               </>
             ) : (
               <>
-                <button className="ghost-button rfp-action-button" type="button" onClick={onClose}>
-                  Back
-                </button>
                 <button className="ghost-button rfp-action-button" type="button" onClick={onPrint}>
                   Print
                 </button>
@@ -301,7 +295,7 @@ export default function RequestForPaymentPage({
                 ) : null}
                 {showSubmitToApproval ? (
                   <button
-                    className="rfp-action-button"
+                    className="rfp-action-button rfp-submit-action"
                     type="button"
                     onClick={onSubmitForApproval}
                     disabled={isSubmitting}

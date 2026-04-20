@@ -2842,6 +2842,18 @@ label,
   gap: 20px;
 }
 
+.po-page-embedded {
+  width: 100%;
+}
+
+.po-page-embedded .po-page-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.po-page-embedded .panel {
+  width: 100%;
+}
+
 .po-page .form-grid > label {
   display: grid;
   gap: 12px;
@@ -2890,6 +2902,10 @@ label,
   border-radius: 14px;
   font-weight: 700;
   box-shadow: none !important;
+}
+
+.rfp-submit-action {
+  margin-left: auto;
 }
 
 .request-workspace-stack {

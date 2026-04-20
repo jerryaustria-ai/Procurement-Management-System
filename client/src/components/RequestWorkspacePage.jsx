@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ActionPanel from "./ActionPanel.jsx";
+import RequestForPaymentPage from "./RequestForPaymentPage.jsx";
 import RequestSummary from "./RequestSummary.jsx";
 
 export default function RequestWorkspacePage({
@@ -26,6 +27,17 @@ export default function RequestWorkspacePage({
   onAdvance,
   onReject,
   onBack,
+  requestForPaymentForm,
+  requestForPaymentErrors,
+  isRequestForPaymentEditing,
+  canEditRequestForPayment,
+  onRequestForPaymentChange,
+  onRequestForPaymentSupplierSelect,
+  onRequestForPaymentEdit,
+  onRequestForPaymentCancel,
+  onRequestForPaymentPrint,
+  onRequestForPaymentSave,
+  onRequestForPaymentSubmitForApproval,
   isSubmitting,
   actionError,
   onDeleteDocument,
@@ -76,10 +88,6 @@ export default function RequestWorkspacePage({
 
       {user.role !== "requester" ? (
         <div className="po-page-header">
-          <div>
-            <p className="eyebrow">Request Workspace</p>
-            <h1>{item.requestNumber}</h1>
-          </div>
           <div className="po-page-header-actions">
             <button
               className="po-secondary-action request-workspace-back-button"
@@ -117,32 +125,55 @@ export default function RequestWorkspacePage({
 
         {user.role !== "requester" ? (
           <div ref={stageActionsRef} className="request-workspace-review">
-            <ActionPanel
-              item={item}
-              stages={stages}
-              user={user}
-              form={actionForm}
-              purchaseOrderForm={purchaseOrderForm}
-              uploadForm={uploadForm}
-              suppliers={suppliers}
-              onChange={onActionChange}
-              onPurchaseOrderChange={onPurchaseOrderChange}
-              onPurchaseOrderLineItemChange={onPurchaseOrderLineItemChange}
-              onAddPurchaseOrderLineItem={onAddPurchaseOrderLineItem}
-              onRemovePurchaseOrderLineItem={onRemovePurchaseOrderLineItem}
-              onPrintPurchaseOrder={onPrintPurchaseOrder}
-              onReviewPurchaseOrder={onReviewPurchaseOrder}
-              onReviewAttachmentFileChange={onReviewAttachmentFileChange}
-              onClearReviewAttachment={onClearReviewAttachment}
-              onUpload={onUpload}
-              onCreateSupplier={onCreateSupplier}
-              onAdvance={onAdvance}
-              onReject={onReject}
-              onBack={onBack}
-              isSubmitting={isSubmitting}
-              error={actionError}
-              showExpand={false}
-            />
+            {item.currentStage === "Request for Payment" ? (
+              <RequestForPaymentPage
+                item={item}
+                form={requestForPaymentForm}
+                errors={requestForPaymentErrors}
+                suppliers={suppliers}
+                embeddedInWorkspace
+                isEditing={isRequestForPaymentEditing}
+                canEdit={canEditRequestForPayment}
+                onChange={onRequestForPaymentChange}
+                onSelectSupplier={onRequestForPaymentSupplierSelect}
+                onCreateSupplier={onCreateSupplier}
+                canCreateSupplier={user.role === "admin"}
+                onEdit={onRequestForPaymentEdit}
+                onCancel={onRequestForPaymentCancel}
+                onPrint={onRequestForPaymentPrint}
+                onSave={onRequestForPaymentSave}
+                onSubmitForApproval={onRequestForPaymentSubmitForApproval}
+                onClose={onClose}
+                isSubmitting={isSubmitting}
+              />
+            ) : (
+              <ActionPanel
+                item={item}
+                stages={stages}
+                user={user}
+                form={actionForm}
+                purchaseOrderForm={purchaseOrderForm}
+                uploadForm={uploadForm}
+                suppliers={suppliers}
+                onChange={onActionChange}
+                onPurchaseOrderChange={onPurchaseOrderChange}
+                onPurchaseOrderLineItemChange={onPurchaseOrderLineItemChange}
+                onAddPurchaseOrderLineItem={onAddPurchaseOrderLineItem}
+                onRemovePurchaseOrderLineItem={onRemovePurchaseOrderLineItem}
+                onPrintPurchaseOrder={onPrintPurchaseOrder}
+                onReviewPurchaseOrder={onReviewPurchaseOrder}
+                onReviewAttachmentFileChange={onReviewAttachmentFileChange}
+                onClearReviewAttachment={onClearReviewAttachment}
+                onUpload={onUpload}
+                onCreateSupplier={onCreateSupplier}
+                onAdvance={onAdvance}
+                onReject={onReject}
+                onBack={onBack}
+                isSubmitting={isSubmitting}
+                error={actionError}
+                showExpand={false}
+              />
+            )}
           </div>
         ) : null}
       </div>

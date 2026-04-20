@@ -6401,6 +6401,32 @@ export default function App() {
           onAdvance={handleAdvance}
           onReject={handleReject}
           onBack={handleRevert}
+          requestForPaymentForm={requestForPaymentForm}
+          requestForPaymentErrors={requestForPaymentErrors}
+          isRequestForPaymentEditing={isRequestForPaymentEditing}
+          canEditRequestForPayment={canEditSelectedRequestForPayment}
+          onRequestForPaymentChange={handleRequestForPaymentFormChange}
+          onRequestForPaymentSupplierSelect={handleRequestForPaymentSupplierSelect}
+          onRequestForPaymentEdit={() => {
+            if (!canEditRequestForPayment(session?.user, selectedItem)) {
+              pushToast({
+                title: 'RFP locked',
+                message:
+                  'The requester can no longer edit the Request for Payment once the workflow reaches Prepare PO.',
+                variant: 'error',
+                duration: 4200,
+              })
+              return
+            }
+
+            setIsRequestForPaymentEditing(true)
+          }}
+          onRequestForPaymentCancel={handleCancelRequestForPaymentEdit}
+          onRequestForPaymentPrint={() =>
+            handlePrintRequestForPaymentRecord(selectedItem)
+          }
+          onRequestForPaymentSave={handleSaveRequestForPaymentPage}
+          onRequestForPaymentSubmitForApproval={handleSubmitRequestForPaymentToApproval}
           isSubmitting={isSubmitting}
           actionError={actionError}
           onDeleteDocument={handleDeleteDocument}
