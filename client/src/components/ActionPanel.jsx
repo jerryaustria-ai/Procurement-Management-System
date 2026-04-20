@@ -104,7 +104,7 @@ const STAGE_DESCRIPTIONS = {
 
 function getDisplayStageLabel(item, fallbackStage) {
   if (item.status === "completed" || item.filingCompleted) {
-    return "Complete";
+    return "Completed";
   }
 
   if (isRejected(item)) {
@@ -199,7 +199,6 @@ export default function ActionPanel({
   );
   const showReviewPoButton =
     item.currentStage === "Approve PO" && user.role === "approver";
-
   function handleSupplierPick(value) {
     onChange({
       target: {
@@ -568,12 +567,11 @@ export default function ActionPanel({
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
-                      d="M9 4.5h6M7.5 7h9m-7.5 0v9.5m3-9.5v9.5m3.5-9.5-.6 10a1.5 1.5 0 0 1-1.5 1.4H9.6a1.5 1.5 0 0 1-1.5-1.4L7.5 7"
+                      d="M8 8l8 8M16 8l-8 8"
                       fill="none"
                       stroke="currentColor"
                       strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="1.7"
+                      strokeWidth="2.2"
                     />
                   </svg>
                 </button>
@@ -589,7 +587,6 @@ export default function ActionPanel({
                 The selected file will be uploaded automatically when you click Approve.
               </p>
             )}
-
           </div>
 
           <label className="stage-notes-panel">
@@ -656,7 +653,7 @@ export default function ActionPanel({
         >
           {isSubmitting ? advanceLoadingLabel : advanceButtonLabel}
         </button>
-        {item.currentStage === "Request for Payment" ? (
+        {item.currentStage === "Review" ? (
           <label className="stage-checkbox-row action-inline-checkbox">
             <input
               type="checkbox"

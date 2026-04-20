@@ -5,6 +5,8 @@ export default function CreateRequestForm({
   requesterOptions,
   onChange,
   onQuotationFileChange,
+  onClearQuotationFile,
+  quotationFile,
   quotationFileName,
   onSubmit,
   onCancel,
@@ -59,7 +61,7 @@ export default function CreateRequestForm({
         ) : null}
 
         <label>
-          Branch
+          Company
           <select name="branch" value={form.branch} onChange={onChange}>
             {branchOptions.map((branch) => (
               <option key={branch} value={branch}>
@@ -118,16 +120,41 @@ export default function CreateRequestForm({
         />
       </label>
 
-      <label>
-        Approved Quotation or Request
-        <input
-          type="file"
-          accept=".pdf,.png,.jpg,.jpeg,.webp"
-          onChange={onQuotationFileChange}
-        />
-        <small>PDF, JPG, PNG, or WEBP only.</small>
-        {quotationFileName ? <small>{quotationFileName}</small> : null}
-      </label>
+      <div className="form-grid two-column">
+        <label>
+          Payee / Supplier
+          <input
+            name="supplier"
+            value={form.supplier}
+            onChange={onChange}
+            placeholder="Enter payee or supplier name"
+          />
+        </label>
+
+        <label className="create-request-upload-field">
+          <span>Approved Quotation or Request</span>
+          <input
+            key={quotationFileName || 'empty-request-quotation'}
+            id="request-quotation-upload"
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp"
+            onChange={onQuotationFileChange}
+          />
+          {quotationFileName ? (
+            <div className="create-request-upload-inline-row">
+              <small>{quotationFileName}</small>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => onClearQuotationFile?.()}
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
+          <small>PDF, JPG, PNG, or WEBP only.</small>
+        </label>
+      </div>
 
       <div className="button-row create-request-actions">
         <button className="ghost-button" onClick={onCancel} type="button">

@@ -65,7 +65,7 @@ function SupplierDirectoryContent({
             </button>
             {canManage ? (
               <div className="request-list-footer">
-                <small>{supplier.createdBy || "No creator recorded"}</small>
+                <small>{supplier.email || "No supplier email recorded"}</small>
                 <div className="request-list-actions-inline">
                   <button
                     className="request-open-link"

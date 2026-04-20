@@ -25,7 +25,7 @@ function formatInspectionStatus(status) {
 
 function getDisplayStageLabel(item) {
   if (item.status === "completed" || item.filingCompleted) {
-    return "Complete";
+    return "Completed";
   }
 
   if (item.status === "rejected") {
@@ -37,7 +37,7 @@ function getDisplayStageLabel(item) {
 
 function getProcurementStatusLabel(item) {
   if (item.status === "completed" || item.filingCompleted) {
-    return "Current stage: Complete";
+    return "Current stage: Completed";
   }
 
   if (item.status === "rejected") {
@@ -51,14 +51,6 @@ function getProcurementStatusLabel(item) {
   return `Current stage: ${item.currentStage}`;
 }
 
-function hasActiveRfp(item) {
-  return (
-    Boolean(item.requestForPaymentEnabled) &&
-    !["completed", "rejected"].includes(item.status) &&
-    !item.filingCompleted
-  );
-}
-
 export default function RequestSummary({
   item,
   apiOrigin = "",
@@ -66,7 +58,8 @@ export default function RequestSummary({
   showExpand = true,
   showHeader = true,
   isCollapsed = false,
-  onToggleVisibility
+  onToggleVisibility,
+  showStagePill = true
 }) {
   const attachments = item.documents ?? [];
 
@@ -87,8 +80,7 @@ export default function RequestSummary({
             <p className="summary-title">{item.title}</p>
           </div>
           <div className="summary-header-actions">
-            <span className="status-pill">{getDisplayStageLabel(item)}</span>
-            {hasActiveRfp(item) ? <span className="rfp-badge">RFP Enabled</span> : null}
+            {showStagePill ? <span className="status-pill">{getDisplayStageLabel(item)}</span> : null}
             {onToggleVisibility ? (
               <button
                 className="summary-toggle-icon"

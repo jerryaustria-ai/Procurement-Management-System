@@ -364,6 +364,7 @@ function getInitialRequestForm(
     title: '',
     description: '',
     branch,
+    supplier: '',
     department,
     amount: '',
     currency: 'PHP',
@@ -470,19 +471,50 @@ function getInitialRequestForPaymentForm() {
   }
 }
 
+function getDefaultRequestForPaymentPayee(item) {
+  const requestedPayeeSupplier = String(
+    item?.requestedPayeeSupplier || '',
+  ).trim()
+
+  if (requestedPayeeSupplier) {
+    return requestedPayeeSupplier
+  }
+
+  return String(item?.requester || item?.requesterName || '').trim()
+}
+
+function getDefaultRequestForPaymentAmount(item) {
+  return String(item?.amount ?? '')
+}
+
+function getDefaultRequestForPaymentDueDate(item) {
+  return item?.dateNeeded ? String(item.dateNeeded).slice(0, 10) : ''
+}
+
 function getRequestForPaymentFormFromItem(item) {
   const savedRfpDraft = item?.rfpDraft ?? {}
+  const savedPayee = String(savedRfpDraft.payee || '').trim()
+  const currentSupplier = String(item?.supplier || '').trim()
+  const hasOriginalPayeeSupplier = Boolean(
+    String(item?.requestedPayeeSupplier || '').trim(),
+  )
+  const shouldReplaceLegacySupplierPayee =
+    !hasOriginalPayeeSupplier &&
+    savedPayee &&
+    currentSupplier &&
+    currentSupplier !== 'Pending selection' &&
+    savedPayee.toLowerCase() === currentSupplier.toLowerCase()
 
   return {
-    payee: savedRfpDraft.payee || '',
+    payee:
+      shouldReplaceLegacySupplierPayee || !savedPayee
+        ? getDefaultRequestForPaymentPayee(item)
+        : savedPayee,
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
     paymentReference: savedRfpDraft.paymentReference || '',
-    amountRequested:
-      savedRfpDraft.amountRequested || String(item?.amount ?? ''),
-    dueDate:
-      savedRfpDraft.dueDate ||
-      (item?.dateNeeded ? item.dateNeeded.slice(0, 10) : ''),
+    amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
+    dueDate: savedRfpDraft.dueDate || getDefaultRequestForPaymentDueDate(item),
     notes: savedRfpDraft.notes || item?.description || '',
   }
 }
@@ -1485,6 +1517,11 @@ export default function App() {
       const selectedIdChanged = current.selectedItemId !== selectedItem.id
       const selectedStageChanged =
         current.selectedItemStage !== selectedItem.currentStage
+      const preserveNotifyApprover =
+        !selectedIdChanged &&
+        selectedStageChanged &&
+        current.selectedItemStage === 'Review' &&
+        selectedItem.currentStage === 'Request for Payment'
 
       if (!selectedIdChanged && !selectedStageChanged) {
         return {
@@ -1497,7 +1534,9 @@ export default function App() {
       return {
         supplier: savedDraft.supplier || nextSupplier,
         notes: savedDraft.notes || '',
-        notifyApprover: false,
+        notifyApprover: preserveNotifyApprover
+          ? current.notifyApprover
+          : false,
         poNumber:
           savedDraft.poNumber ||
           getAssignedPurchaseOrderNumber(selectedItem, items),
@@ -2145,6 +2184,10 @@ export default function App() {
 
   function handleRequestQuotationFileChange(event) {
     setRequestQuotationFile(event.target.files?.[0] ?? null)
+  }
+
+  function handleClearRequestQuotationFile() {
+    setRequestQuotationFile(null)
   }
 
   async function handleActionFormChange(event) {
@@ -2867,6 +2910,14 @@ export default function App() {
     setExpandedPanel('workflow')
   }
 
+  function handleOpenRequestSummaryPreview(itemId) {
+    if (itemId) {
+      setSelectedId(itemId)
+    }
+
+    setExpandedPanel('request-summary')
+  }
+
   function openRequestForPaymentPage(targetRequest = selectedItem) {
     const fallbackRequest =
       items.find((item) => canAccessRequestForPayment(item)) ?? null
@@ -3161,7 +3212,7 @@ export default function App() {
             Authorization: `Bearer ${session.token}`,
           },
           body: JSON.stringify({
-            notifyApprover: true,
+            notifyApprover: Boolean(actionForm.notifyApprover),
             comment: `${session.user.name} submitted ${savedDraft.requestNumber} to Approval.`,
           }),
         },
@@ -3624,6 +3675,8 @@ export default function App() {
           requesterOptions={requesterOptions}
           onChange={handleRequestFormChange}
           onQuotationFileChange={handleRequestQuotationFileChange}
+          onClearQuotationFile={handleClearRequestQuotationFile}
+          quotationFile={requestQuotationFile}
           quotationFileName={requestQuotationFile?.name ?? ''}
           onSubmit={handleCreateRequest}
           onCancel={handleCloseCreateRequestModal}
@@ -3736,6 +3789,7 @@ export default function App() {
             requesterEmail: isAdmin
               ? requestForm.requesterEmail
               : session.user.email,
+            supplier: requestForm.supplier,
             amount: parsedRequestAmount,
           }),
         },
@@ -3882,6 +3936,7 @@ export default function App() {
             deliveryDate: actionForm.deliveryDate || undefined,
             inspectionStatus: actionForm.inspectionStatus,
             notifyApprover:
+              selectedItem.currentStage === 'Review' ||
               selectedItem.currentStage === 'Request for Payment'
                 ? Boolean(actionForm.notifyApprover)
                 : false,
@@ -3903,11 +3958,16 @@ export default function App() {
         ...current,
         [data.id]: data.poDraft ?? purchaseOrderForm,
       }))
+      const preserveNotifyApproverForRfp =
+        selectedItem.currentStage === 'Review' &&
+        data.currentStage === 'Request for Payment'
       setActionForm((current) => ({
         ...current,
         supplier: data.supplier || current.supplier,
         poNumber: data.poNumber || current.poNumber,
-        notifyApprover: false,
+        notifyApprover: preserveNotifyApproverForRfp
+          ? current.notifyApprover
+          : false,
         notes: '',
       }))
 
@@ -4865,8 +4925,9 @@ export default function App() {
 
     const draft = record.rfpDraft ?? {}
     const validationPayload = {
-      payee: draft.payee || '',
-      amountRequested: draft.amountRequested || String(record.amount || ''),
+      payee: draft.payee || getDefaultRequestForPaymentPayee(record),
+      amountRequested:
+        draft.amountRequested || getDefaultRequestForPaymentAmount(record),
     }
 
     if (hasRequestForPaymentValidationErrors(validationPayload)) {
@@ -4902,7 +4963,7 @@ export default function App() {
     const amountRequested =
       record.rfpDraft?.amountRequested || String(record.amount || '')
     const description = record.rfpDraft?.notes || record.description || ''
-    const payee = record.rfpDraft?.payee || 'Not set'
+    const payee = record.rfpDraft?.payee || getDefaultRequestForPaymentPayee(record) || 'Not set'
     const tinNumber = record.rfpDraft?.tinNumber || 'Not set'
     const invoiceNumber = record.rfpDraft?.invoiceNumber || 'Not set'
     const matchedSupplier = suppliers.find(
@@ -6559,13 +6620,20 @@ export default function App() {
             searchQuery={requestSearchQuery}
             onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
+            onOpenSummary={handleOpenRequestSummaryPreview}
             onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
-            onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
             onDelete={handleDeleteRequestById}
             onExportCsv={handleExportCsv}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
+            canOpenItem={(item) =>
+              Boolean(
+                session?.user?.role === 'admin' ||
+                (Array.isArray(item.allowedRoles) &&
+                  item.allowedRoles.includes(session.user.role)),
+              )
+            }
             canDeleteItem={(item) =>
               Boolean(
                 session?.user?.role === 'requester' &&
@@ -6603,13 +6671,20 @@ export default function App() {
             searchQuery={requestSearchQuery}
             onSearchChange={setRequestSearchQuery}
             onSelect={handleSelect}
+            onOpenSummary={handleOpenRequestSummaryPreview}
             onOpenWorkflow={handleOpenWorkflowPreview}
             onOpenDetails={handleOpenRequestDetails}
-            onOpenRequestForPayment={openRequestForPaymentPage}
             onEdit={openEditRequestModalForItem}
             onDelete={handleDeleteRequestById}
             onExportCsv={handleExportCsv}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
+            canOpenItem={(item) =>
+              Boolean(
+                session?.user?.role === 'admin' ||
+                (Array.isArray(item.allowedRoles) &&
+                  item.allowedRoles.includes(session.user.role)),
+              )
+            }
             canDeleteItem={(item) =>
               Boolean(
                 session?.user?.role === 'requester' &&
@@ -6637,6 +6712,8 @@ export default function App() {
             requesterOptions={requesterOptions}
             onChange={handleRequestFormChange}
             onQuotationFileChange={handleRequestQuotationFileChange}
+            onClearQuotationFile={handleClearRequestQuotationFile}
+            quotationFile={requestQuotationFile}
             quotationFileName={requestQuotationFile?.name ?? ''}
             onSubmit={handleCreateRequest}
             onCancel={handleCloseCreateRequestModal}
@@ -6666,11 +6743,28 @@ export default function App() {
 
       {expandedPanel ? (
         <Modal
-          eyebrow={expandedPanel === 'workflow' ? 'Workflow' : 'Expanded Panel'}
+          eyebrow={
+            expandedPanel === 'workflow'
+              ? undefined
+              : expandedPanel === 'request-summary'
+                ? 'Purchase Request'
+                : undefined
+          }
           title={
             expandedPanel === 'workflow' && selectedItem
-              ? `${selectedItem.requestNumber} workflow`
-              : 'Expanded view'
+              ? undefined
+              : expandedPanel === 'request-summary' && selectedItem
+                ? selectedItem.requestNumber
+                : undefined
+          }
+          actions={
+            expandedPanel === 'request-summary' && selectedItem ? (
+              <span className='status-pill'>{selectedItem.status === 'completed' || selectedItem.filingCompleted
+                ? 'Completed'
+                : selectedItem.status === 'rejected'
+                  ? 'Rejected'
+                  : selectedItem.currentStage}</span>
+            ) : undefined
           }
           onClose={closeExpandedPanel}
         >
@@ -6687,13 +6781,20 @@ export default function App() {
               searchQuery={requestSearchQuery}
               onSearchChange={setRequestSearchQuery}
               onSelect={handleSelect}
+              onOpenSummary={handleOpenRequestSummaryPreview}
               onOpenWorkflow={handleOpenWorkflowPreview}
               onOpenDetails={handleOpenRequestDetails}
-              onOpenRequestForPayment={openRequestForPaymentPage}
               onEdit={openEditRequestModalForItem}
               onDelete={handleDeleteRequestById}
               onExportCsv={handleExportCsv}
               canEditItem={(item) => canUserEditRequest(session?.user, item)}
+              canOpenItem={(item) =>
+                Boolean(
+                  session?.user?.role === 'admin' ||
+                  (Array.isArray(item.allowedRoles) &&
+                    item.allowedRoles.includes(session.user.role)),
+                )
+              }
               canDeleteItem={(item) =>
                 Boolean(
                   session?.user?.role === 'requester' &&
@@ -6739,6 +6840,8 @@ export default function App() {
               item={selectedItem}
               apiOrigin={API_ORIGIN}
               showExpand={false}
+              showHeader={false}
+              showStagePill={false}
             />
           ) : null}
           {expandedPanel === 'workflow' && selectedItem ? (

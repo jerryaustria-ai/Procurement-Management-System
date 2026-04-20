@@ -96,6 +96,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     dateNeeded: { type: Date, default: null },
     deliveryAddress: { type: String, default: "" },
     paymentTerms: { type: String, default: "Net 30" },
+    requestedPayeeSupplier: { type: String, default: "" },
     supplier: { type: String, default: "Pending selection" },
     poNumber: { type: String, default: "" },
     invoiceNumber: { type: String, default: "" },

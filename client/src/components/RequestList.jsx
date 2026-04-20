@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 function getProcurementStatus(item) {
   if (item.status === "completed" || item.filingCompleted) {
-    return "Current stage: Complete";
+    return "Current stage: Completed";
   }
 
   if (item.status === "rejected") {
@@ -18,7 +18,7 @@ function getProcurementStatus(item) {
 
 function getProcurementStageValue(item) {
   if (item.status === "completed" || item.filingCompleted) {
-    return "Complete";
+    return "Completed";
   }
 
   if (item.status === "rejected") {
@@ -26,22 +26,6 @@ function getProcurementStageValue(item) {
   }
 
   return item.currentStage || "Not set";
-}
-
-function hasActiveRfp(item) {
-  return (
-    Boolean(item.requestForPaymentEnabled) &&
-    !["completed", "rejected"].includes(item.status) &&
-    !item.filingCompleted
-  );
-}
-
-function handleRfpBadgeKeyDown(event, item, onOpenRequestForPayment) {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    event.stopPropagation();
-    onOpenRequestForPayment?.(item);
-  }
 }
 
 export default function RequestList({
@@ -56,14 +40,15 @@ export default function RequestList({
   onCreateNew,
   canCreateNew = false,
   onSelect,
+  onOpenSummary,
   onOpenWorkflow,
   onOpenDetails,
-  onOpenRequestForPayment,
   onEdit,
   onDelete,
   onExportCsv,
   canEditItem,
   canDeleteItem,
+  canOpenItem,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -235,26 +220,16 @@ export default function RequestList({
             } ${item.status === "rejected" ? "rejected" : ""
             }`}
           >
-            <button className="request-card-select" type="button" onClick={() => onSelect(item.id)}>
+            <button
+              className="request-card-select"
+              type="button"
+              onClick={() => {
+                onSelect(item.id);
+                onOpenSummary?.(item.id);
+              }}
+            >
               <div className="request-list-topline">
                 <strong>{item.requestNumber}</strong>
-                {hasActiveRfp(item) ? (
-                  <span
-                    className="rfp-badge rfp-badge-link"
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Open Request for Payment"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpenRequestForPayment?.(item);
-                    }}
-                    onKeyDown={(event) =>
-                      handleRfpBadgeKeyDown(event, item, onOpenRequestForPayment)
-                    }
-                  >
-                    RFP Enabled
-                  </span>
-                ) : null}
               </div>
               <span className="request-list-title">{item.title}</span>
               <small>
@@ -297,9 +272,11 @@ export default function RequestList({
                     Edit
                   </button>
                 ) : null}
-                <button className="request-open-link" type="button" onClick={() => onOpenDetails(item.id)}>
-                  Open
-                </button>
+                {canOpenItem?.(item) ? (
+                  <button className="request-open-link" type="button" onClick={() => onOpenDetails(item.id)}>
+                    Open
+                  </button>
+                ) : null}
               </div>
             </div>
           </article>

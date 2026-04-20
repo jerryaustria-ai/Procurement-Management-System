@@ -115,6 +115,25 @@ export default function RequestForPaymentPage({
               procurement workflow.
             </p>
           </div>
+          <div className="po-page-header-actions">
+            <button
+              className="po-secondary-action request-workspace-back-button"
+              type="button"
+              onClick={onClose}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M10 6 4 12l6 6M4 12h16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                />
+              </svg>
+              Back to dashboard
+            </button>
+          </div>
         </div>
       ) : null}
 

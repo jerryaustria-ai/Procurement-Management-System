@@ -157,6 +157,7 @@ router.post("/purchase-requests", async (req, res) => {
       description,
       category,
       branch,
+      supplier,
       department,
       amount,
       currency,
@@ -207,6 +208,8 @@ router.post("/purchase-requests", async (req, res) => {
       dateNeeded: dateNeeded || null,
       deliveryAddress: deliveryAddress || "",
       paymentTerms: paymentTerms || "Net 30",
+      requestedPayeeSupplier: supplier?.trim() || "",
+      supplier: supplier?.trim() || "Pending selection",
       notes: notes || "",
       workflowStages: requestWorkflowStages,
       currentStage: requestWorkflowStages[0],
@@ -350,6 +353,10 @@ router.patch("/purchase-requests/:id", async (req, res) => {
       }
       request[field] = req.body[field];
     }
+  }
+
+  if (req.user.role === "admin" && typeof req.body.supplier === "string") {
+    request.requestedPayeeSupplier = req.body.supplier.trim();
   }
 
   if (typeof req.body.amount !== "undefined") {

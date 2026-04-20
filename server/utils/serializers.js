@@ -43,6 +43,7 @@ export function serializePurchaseRequest(request) {
     dateNeeded: request.dateNeeded,
     deliveryAddress: request.deliveryAddress,
     paymentTerms: request.paymentTerms,
+    requestedPayeeSupplier: request.requestedPayeeSupplier,
     supplier: request.supplier,
     poNumber: request.poNumber,
     invoiceNumber: request.invoiceNumber,

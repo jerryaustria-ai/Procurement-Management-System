@@ -62,13 +62,15 @@ export default function Modal({ title, eyebrow, onClose, actions, children }) {
         className="modal-shell"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={title || eyebrow || "Dialog"}
       >
         <div className="modal-header">
-          <div>
-            {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-            <h2>{title}</h2>
-          </div>
+          {eyebrow || title ? (
+            <div>
+              {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+              {title ? <h2>{title}</h2> : null}
+            </div>
+          ) : <div />}
           <div className="modal-actions">
             {actions}
             <button className="modal-close" type="button" onClick={onClose}>
