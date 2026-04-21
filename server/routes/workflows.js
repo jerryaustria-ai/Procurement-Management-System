@@ -441,6 +441,12 @@ router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
     request.notes = req.body.notes;
   }
 
+  if (typeof req.body.supplier === "string") {
+    const trimmedSupplier = req.body.supplier.trim();
+    request.supplier = trimmedSupplier || request.supplier;
+    request.requestedPayeeSupplier = trimmedSupplier;
+  }
+
   await request.save();
   return res.json(serializePurchaseRequest(request));
 });

@@ -120,6 +120,8 @@ export default function CreateRequestForm({
         />
       </label>
 
+      <div className="create-request-divider" aria-hidden="true" />
+
       <div className="form-grid two-column">
         <label>
           Payee / Supplier

@@ -51,6 +51,21 @@ function getProcurementStatusLabel(item) {
   return `Current stage: ${item.currentStage}`;
 }
 
+function getSummaryPayee(item) {
+  const requestedPayeeSupplier = String(item?.requestedPayeeSupplier || "").trim();
+  const selectedSupplier = String(item?.supplier || "").trim();
+
+  if (requestedPayeeSupplier) {
+    return requestedPayeeSupplier;
+  }
+
+  if (selectedSupplier && selectedSupplier !== "Pending selection") {
+    return selectedSupplier;
+  }
+
+  return String(item?.requester || item?.requesterName || "Not set").trim() || "Not set";
+}
+
 export default function RequestSummary({
   item,
   apiOrigin = "",
@@ -78,6 +93,20 @@ export default function RequestSummary({
             <p className="eyebrow">Purchase Request</p>
             <h1>{item.requestNumber}</h1>
             <p className="summary-title">{item.title}</p>
+            <div className="summary-inline-details">
+              <p>
+                <strong>Payee:</strong> {getSummaryPayee(item)}
+              </p>
+              <p>
+                <strong>Particulars:</strong> {item.description || "Not set"}
+              </p>
+              <p>
+                <strong>Requester:</strong> {item.requester || item.requesterName || "Not set"}
+              </p>
+              <p>
+                <strong>Amount:</strong> {formatAmount(item.amount, item.currency)}
+              </p>
+            </div>
           </div>
           <div className="summary-header-actions">
             {showStagePill ? <span className="status-pill">{getDisplayStageLabel(item)}</span> : null}

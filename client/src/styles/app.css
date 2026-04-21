@@ -1031,6 +1031,23 @@ label,
   font-size: 1.08rem;
 }
 
+.summary-inline-details {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--text-soft);
+}
+
+.summary-inline-details p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.summary-inline-details strong {
+  color: var(--heading-color);
+}
+
 .summary-banner {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2439,6 +2456,13 @@ label,
 
 .stage-notes-panel {
   margin: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.stage-inline-field {
+  display: grid;
+  gap: 8px;
 }
 
 .stage-checkbox-row {
@@ -2471,6 +2495,19 @@ label,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.create-request-divider {
+  width: 100%;
+  height: 1px;
+  margin: 18px 0 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(213, 181, 108, 0.08) 0%,
+    rgba(213, 181, 108, 0.28) 18%,
+    rgba(213, 181, 108, 0.28) 82%,
+    rgba(213, 181, 108, 0.08) 100%
+  );
 }
 
 @media (max-width: 900px) {
@@ -2678,6 +2715,17 @@ label,
 
 .supplier-select-button {
   min-width: 104px;
+}
+
+.supplier-select-icon-button {
+  min-width: 56px;
+  padding-inline: 0;
+}
+
+.supplier-select-icon-button svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .supplier-picker-modal {

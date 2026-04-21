@@ -132,6 +132,7 @@ export default function ActionPanel({
   onReviewAttachmentFileChange,
   onClearReviewAttachment,
   onCreateSupplier = () => {},
+  onSupplierPick,
   onAdvance,
   onReject,
   onBack,
@@ -169,8 +170,10 @@ export default function ActionPanel({
   const canReject =
     ["Review", "Approval"].includes(item.currentStage) && canAdvance && !isRejectedWorkflow;
   const showSupplierSearchField = item.currentStage === "Prepare PO";
+  const showSupplierPickerField = item.currentStage === "Review";
   const showSupplierReadonlyField = ["Send PO"].includes(item.currentStage);
   const normalizedSupplier = supplierSearch.trim().toLowerCase();
+  const supplierFieldValue = form.supplier === "Pending selection" ? "" : form.supplier;
   const filteredSuppliers = suppliers.filter((supplier) =>
     normalizedSupplier
       ? [supplier.name, supplier.contactPerson, supplier.email, supplier.phone, supplier.address]
@@ -199,13 +202,18 @@ export default function ActionPanel({
   );
   const showReviewPoButton =
     item.currentStage === "Approve PO" && user.role === "approver";
-  function handleSupplierPick(value) {
-    onChange({
-      target: {
-        name: "supplier",
-        value
-      }
-    });
+  async function handleSupplierPick(value) {
+    if (typeof onSupplierPick === "function") {
+      await onSupplierPick(value);
+    } else {
+      onChange({
+        target: {
+          name: "supplier",
+          value
+        }
+      });
+    }
+
     setSupplierSearch("");
     setIsSupplierModalOpen(false);
   }
@@ -589,17 +597,51 @@ export default function ActionPanel({
             )}
           </div>
 
-          <label className="stage-notes-panel">
-            Stage notes
-            <textarea
-              name="notes"
-              value={form.notes}
-              onChange={onChange}
-              rows="4"
-              placeholder="Add reviewer, approver, or finance notes"
-              disabled={isRejectedWorkflow}
-            />
-          </label>
+          <div className="stage-notes-panel">
+            {item.currentStage === "Review" ? (
+              <label className="stage-inline-field">
+                Payee / Supplier
+                <div className="supplier-select-row">
+                  <input
+                    name="supplier"
+                    value={supplierFieldValue}
+                    onChange={onChange}
+                    placeholder="Enter payee or supplier name"
+                    disabled={isRejectedWorkflow}
+                  />
+                  <button
+                    className="ghost-button supplier-select-button supplier-select-icon-button"
+                    type="button"
+                    onClick={() => {
+                      setSupplierSearch("");
+                      setIsSupplierModalOpen(true);
+                    }}
+                    aria-label="Select supplier"
+                    title="Select supplier"
+                    disabled={isRejectedWorkflow}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="6" cy="12" r="1.8" fill="currentColor" />
+                      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                      <circle cx="18" cy="12" r="1.8" fill="currentColor" />
+                    </svg>
+                  </button>
+                </div>
+              </label>
+            ) : null}
+
+            <label>
+              Stage notes
+              <textarea
+                name="notes"
+                value={form.notes}
+                onChange={onChange}
+                rows="4"
+                placeholder="Add reviewer, approver, or finance notes"
+                disabled={isRejectedWorkflow}
+              />
+            </label>
+          </div>
         </div>
       ) : (
         <label>
@@ -695,9 +737,9 @@ export default function ActionPanel({
       ) : null}
       {error ? <p className="error-text">{error}</p> : null}
 
-      {showSupplierSearchField && isSupplierModalOpen ? (
+      {(showSupplierSearchField || showSupplierPickerField) && isSupplierModalOpen ? (
         <Modal
-          eyebrow="Prepare PO"
+          eyebrow={item.currentStage}
           title="Select Supplier"
           onClose={() => setIsSupplierModalOpen(false)}
           actions={

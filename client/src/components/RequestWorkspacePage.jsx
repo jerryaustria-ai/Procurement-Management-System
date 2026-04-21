@@ -24,6 +24,7 @@ export default function RequestWorkspacePage({
   onClearReviewAttachment,
   onUpload,
   onCreateSupplier,
+  onSupplierPick,
   onAdvance,
   onReject,
   onBack,
@@ -166,6 +167,7 @@ export default function RequestWorkspacePage({
                 onClearReviewAttachment={onClearReviewAttachment}
                 onUpload={onUpload}
                 onCreateSupplier={onCreateSupplier}
+                onSupplierPick={onSupplierPick}
                 onAdvance={onAdvance}
                 onReject={onReject}
                 onBack={onBack}

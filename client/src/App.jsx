@@ -433,7 +433,9 @@ function getInitialPurchaseOrderForm() {
 function getPurchaseOrderDraft(item, items) {
   if (item?.poDraft) {
     return {
-      supplier: item.poDraft.supplier ?? '',
+      supplier:
+        item.poDraft.supplier ||
+        (item?.supplier === 'Pending selection' ? '' : item?.supplier || ''),
       poNumber:
         item.poDraft.poNumber || getAssignedPurchaseOrderNumber(item, items),
       notes: item.poDraft.notes ?? '',
@@ -554,7 +556,7 @@ function canAccessRequestForPayment(item) {
     return false
   }
 
-  if (['completed', 'rejected'].includes(item.status) || item.filingCompleted) {
+  if (item.status === 'rejected') {
     return false
   }
 
@@ -569,7 +571,21 @@ function canAccessRequestForPayment(item) {
     'Filing',
   ])
 
+  const hasSavedRfpDraft = Boolean(
+    item.rfpDraft?.payee ||
+      item.rfpDraft?.tinNumber ||
+      item.rfpDraft?.invoiceNumber ||
+      item.rfpDraft?.amountRequested ||
+      item.rfpDraft?.dueDate ||
+      item.rfpDraft?.notes,
+  )
+  const hasRfpHistory = Array.isArray(item.history)
+    ? item.history.some((entry) => requestForPaymentStages.has(entry.stage))
+    : false
+
   return (
+    hasSavedRfpDraft ||
+    hasRfpHistory ||
     Boolean(item.requestForPaymentEnabled) ||
     requestForPaymentStages.has(item.currentStage)
   )
@@ -754,6 +770,123 @@ function getDashboardStats(items) {
         currency: 'PHP',
         maximumFractionDigits: 0,
       }).format(totalAmount),
+    },
+  ]
+}
+
+function formatDashboardCurrency(value) {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function isTerminalRequest(item) {
+  return (
+    !item ||
+    ['completed', 'rejected'].includes(item.status) ||
+    item.filingCompleted
+  )
+}
+
+function getWorkflowStageIndex(item, stageName) {
+  const stages =
+    Array.isArray(item?.workflowStages) && item.workflowStages.length
+      ? item.workflowStages
+      : workflowStages
+
+  return stages.indexOf(stageName)
+}
+
+function getStageCompletionDate(item, stageNames) {
+  if (!Array.isArray(item?.history) || !item.history.length) {
+    return null
+  }
+
+  const matchingEntries = item.history
+    .filter(
+      (entry) =>
+        stageNames.includes(entry.stage) &&
+        ['completed', 'current'].includes(entry.status) &&
+        entry.updatedAt,
+    )
+    .sort(
+      (left, right) =>
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+    )
+
+  return matchingEntries[0]?.updatedAt
+    ? new Date(matchingEntries[0].updatedAt)
+    : null
+}
+
+function getAccountantDashboardStats(items, referenceDate = new Date()) {
+  const currentMonth = referenceDate.getMonth()
+  const currentYear = referenceDate.getFullYear()
+
+  const forApprovalCount = items.filter(
+    (item) => !isTerminalRequest(item) && item.currentStage === 'Approval',
+  ).length
+
+  const forPaymentItems = items.filter((item) => {
+    if (isTerminalRequest(item)) {
+      return false
+    }
+
+    const approvalIndex = getWorkflowStageIndex(item, 'Approval')
+    const currentStageIndex = getWorkflowStageIndex(item, item.currentStage)
+    const filingIndex = getWorkflowStageIndex(item, 'Filing')
+
+    if (approvalIndex === -1 || currentStageIndex === -1) {
+      return false
+    }
+
+    if (currentStageIndex <= approvalIndex) {
+      return false
+    }
+
+    if (filingIndex !== -1 && currentStageIndex >= filingIndex) {
+      return false
+    }
+
+    return true
+  })
+
+  const paidThisMonthCount = items.filter((item) => {
+    const paidDate =
+      getStageCompletionDate(item, ['Payment', 'Filing']) ||
+      ((item.status === 'completed' || item.filingCompleted) && item.updatedAt
+        ? new Date(item.updatedAt)
+        : null)
+
+    return (
+      paidDate &&
+      paidDate.getMonth() === currentMonth &&
+      paidDate.getFullYear() === currentYear
+    )
+  }).length
+
+  const totalAmountPending = items
+    .filter((item) => !isTerminalRequest(item))
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+
+  return [
+    {
+      label: 'For Approval',
+      value: String(forApprovalCount).padStart(2, '0'),
+    },
+    {
+      label: 'For Payment',
+      value: String(forPaymentItems.length).padStart(2, '0'),
+    },
+    {
+      label: 'Paid (This Month)',
+      value: String(paidThisMonthCount).padStart(2, '0'),
+    },
+    {
+      label: 'Total Amount Pending',
+      value: formatDashboardCurrency(totalAmountPending),
     },
   ]
 }
@@ -1277,6 +1410,7 @@ export default function App() {
   const dashboardRefreshInFlight = useRef(false)
 
   const isAdmin = session?.user?.role === 'admin'
+  const isAccountant = session?.user?.role === 'accountant'
   const branchOptions = Array.from(
     new Set([
       companySettings.companyName,
@@ -1305,13 +1439,19 @@ export default function App() {
     requestSearchQuery,
   )
   const selectedItem =
-    filteredItems.find((item) => item.id === selectedId) ??
+    items.find((item) => item.id === selectedId) ??
     filteredItems[0] ??
     null
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null
   const selectedSupplier =
     suppliers.find((supplier) => supplier.id === selectedSupplierId) ?? null
-  const dashboardStats = getDashboardStats(items).map((stat) => {
+  const dashboardStats = (
+    isAccountant ? getAccountantDashboardStats(items) : getDashboardStats(items)
+  ).map((stat) => {
+    if (isAccountant) {
+      return stat
+    }
+
     if (stat.label === 'Open Requests') {
       return {
         ...stat,
@@ -1506,14 +1646,15 @@ export default function App() {
       return
     }
 
+    const nextSupplier =
+      selectedItem.supplier === 'Pending selection'
+        ? ''
+        : selectedItem.supplier
+    const savedDraft =
+      purchaseOrderDrafts[selectedItem.id] ??
+      getPurchaseOrderDraft(selectedItem, items)
+
     setActionForm((current) => {
-      const nextSupplier =
-        selectedItem.supplier === 'Pending selection'
-          ? ''
-          : selectedItem.supplier
-      const savedDraft =
-        purchaseOrderDrafts[selectedItem.id] ??
-        getPurchaseOrderDraft(selectedItem, items)
       const selectedIdChanged = current.selectedItemId !== selectedItem.id
       const selectedStageChanged =
         current.selectedItemStage !== selectedItem.currentStage
@@ -1553,10 +1694,16 @@ export default function App() {
     setRequestAdminForm(
       getRequestAdminForm(selectedItem, companySettings.companyName),
     )
-    setPurchaseOrderForm(
-      purchaseOrderDrafts[selectedItem.id] ??
-        getPurchaseOrderDraft(selectedItem, items),
-    )
+    setPurchaseOrderForm(() => {
+      const nextDraft =
+        purchaseOrderDrafts[selectedItem.id] ??
+        getPurchaseOrderDraft(selectedItem, items)
+
+      return {
+        ...nextDraft,
+        supplier: nextDraft.supplier || savedDraft.supplier || nextSupplier || '',
+      }
+    })
     setUploadForm((current) => ({
       ...current,
       label: '',
@@ -2199,6 +2346,94 @@ export default function App() {
       [name]: nextValue,
     }))
 
+  }
+
+  async function handleReviewSupplierPick(value) {
+    if (!selectedItem || !session?.token) {
+      return
+    }
+
+    const nextSupplier = String(value ?? '').trim()
+    const previousActionSupplier = actionForm.supplier
+    const previousPurchaseOrderForm = purchaseOrderForm
+
+    setActionError('')
+    setActionForm((current) => ({
+      ...current,
+      supplier: nextSupplier,
+    }))
+    setPurchaseOrderForm((current) => ({
+      ...current,
+      supplier: nextSupplier,
+    }))
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}/po-draft`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: JSON.stringify({
+            ...previousPurchaseOrderForm,
+            supplier: nextSupplier,
+          }),
+        },
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update supplier.')
+      }
+
+      const normalizedSupplier =
+        data.poDraft?.supplier ||
+        (data.supplier === 'Pending selection' ? '' : data.supplier) ||
+        nextSupplier
+
+      setItems((current) =>
+        current.map((item) => (item.id === data.id ? data : item)),
+      )
+      setPurchaseOrderDrafts((current) => ({
+        ...current,
+        [data.id]: {
+          ...(data.poDraft ?? previousPurchaseOrderForm),
+          supplier: normalizedSupplier,
+        },
+      }))
+      setActionForm((current) => ({
+        ...current,
+        supplier: normalizedSupplier,
+      }))
+      setPurchaseOrderForm((current) => ({
+        ...current,
+        ...(data.poDraft ?? {}),
+        supplier: normalizedSupplier,
+      }))
+
+      pushToast({
+        title: 'Supplier updated',
+        message: normalizedSupplier
+          ? `${data.requestNumber} supplier saved.`
+          : `${data.requestNumber} supplier cleared.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      setActionError(error.message)
+      setActionForm((current) => ({
+        ...current,
+        supplier: previousActionSupplier,
+      }))
+      setPurchaseOrderForm(previousPurchaseOrderForm)
+      pushToast({
+        title: 'Supplier update failed',
+        message: error.message,
+        variant: 'error',
+        duration: 4200,
+      })
+    }
   }
 
   function handleUploadFormChange(event) {
@@ -3301,7 +3536,14 @@ export default function App() {
         )
         setPurchaseOrderDrafts((drafts) => ({
           ...drafts,
-          [data.id]: data.poDraft ?? purchaseOrderForm,
+          [data.id]: {
+            ...(data.poDraft ?? purchaseOrderForm),
+            supplier:
+              data.poDraft?.supplier ||
+              data.supplier ||
+              purchaseOrderForm.supplier ||
+              '',
+          },
         }))
         setActionForm((current) => ({
           ...current,
@@ -3956,7 +4198,14 @@ export default function App() {
       )
       setPurchaseOrderDrafts((current) => ({
         ...current,
-        [data.id]: data.poDraft ?? purchaseOrderForm,
+        [data.id]: {
+          ...(data.poDraft ?? purchaseOrderForm),
+          supplier:
+            data.poDraft?.supplier ||
+            data.supplier ||
+            purchaseOrderForm.supplier ||
+            '',
+        },
       }))
       const preserveNotifyApproverForRfp =
         selectedItem.currentStage === 'Review' &&
@@ -4030,6 +4279,7 @@ export default function App() {
             Authorization: `Bearer ${session.token}`,
           },
           body: JSON.stringify({
+            supplier: actionForm.supplier || undefined,
             notes: actionForm.notes,
             comment: stageComment,
           }),
@@ -4046,6 +4296,7 @@ export default function App() {
       )
       setActionForm((current) => ({
         ...current,
+        supplier: data.supplier || current.supplier,
         skipToRfp: false,
         notes: '',
       }))
@@ -6459,6 +6710,7 @@ export default function App() {
           onClearReviewAttachment={handleClearReviewApprovalFile}
           onUpload={handleUploadDocument}
           onCreateSupplier={openCreateSupplierModal}
+          onSupplierPick={handleReviewSupplierPick}
           onAdvance={handleAdvance}
           onReject={handleReject}
           onBack={handleRevert}
@@ -6827,6 +7079,7 @@ export default function App() {
               onClearReviewAttachment={handleClearReviewApprovalFile}
               onUpload={handleUploadDocument}
               onCreateSupplier={openCreateSupplierModal}
+              onSupplierPick={handleReviewSupplierPick}
               onAdvance={handleAdvance}
               onReject={handleReject}
               onBack={handleRevert}

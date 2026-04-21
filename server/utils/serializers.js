@@ -87,6 +87,7 @@ export function serializePurchaseRequest(request) {
     filingCompleted: Boolean(request.filingCompleted),
     status: request.status,
     notes: request.notes,
+    updatedAt: request.updatedAt,
     progressIndex: requestWorkflowStages.indexOf(request.currentStage),
     allowedRoles: getAllowedRoles(request.currentStage),
     allowedRoleLabels: getAllowedRoles(request.currentStage).map((role) => roleLabels[role] ?? role),
