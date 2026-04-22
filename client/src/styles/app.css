@@ -414,6 +414,31 @@ textarea {
   flex-wrap: wrap;
 }
 
+.rfp-status-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rfp-status-select {
+  min-width: 168px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--ghost-button-border);
+  background: var(--card-bg);
+  color: var(--heading-color);
+  font: inherit;
+  box-shadow: none;
+}
+
+.rfp-status-select:focus {
+  outline: none;
+  border-color: rgba(213, 181, 108, 0.42);
+  box-shadow: 0 0 0 3px rgba(213, 181, 108, 0.12);
+}
+
 .hero {
   margin-bottom: 28px;
   padding: 26px 0 18px;
@@ -3565,6 +3590,21 @@ label,
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.invoice-upload-current {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}
+
+.invoice-upload-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .settings-identity-list {

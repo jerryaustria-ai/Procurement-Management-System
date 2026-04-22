@@ -67,10 +67,11 @@ export function serializePurchaseRequest(request) {
         }
       : null,
     rfpDraft: request.rfpDraft
-      ? {
+        ? {
           payee: request.rfpDraft.payee ?? "",
           tinNumber: request.rfpDraft.tinNumber ?? "",
           invoiceNumber: request.rfpDraft.invoiceNumber ?? "",
+          paymentStatus: request.rfpDraft.paymentStatus ?? "",
           amountRequested: request.rfpDraft.amountRequested ?? "",
           dueDate: request.rfpDraft.dueDate ?? "",
           notes: request.rfpDraft.notes ?? ""

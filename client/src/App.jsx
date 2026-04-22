@@ -467,6 +467,7 @@ function getInitialRequestForPaymentForm() {
     payee: '',
     tinNumber: '',
     invoiceNumber: '',
+    paymentStatus: '',
     paymentReference: '',
     amountRequested: '',
     dueDate: '',
@@ -539,6 +540,7 @@ function getRequestForPaymentFormFromItem(item) {
     payee: getEffectiveRequestForPaymentPayee(item),
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
+    paymentStatus: savedRfpDraft.paymentStatus || '',
     paymentReference: savedRfpDraft.paymentReference || '',
     amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
     dueDate: savedRfpDraft.dueDate || getDefaultRequestForPaymentDueDate(item),
@@ -3449,6 +3451,74 @@ export default function App() {
     return data
   }
 
+  async function handleSaveRfpPaymentStatus(record, paymentStatus) {
+    if (!record || !session?.token) {
+      return null
+    }
+
+    const normalizedPaymentStatus = String(paymentStatus || '').trim()
+    const updated = await patchRequestForPaymentDraft(record, {
+      ...getRequestForPaymentFormFromItem(record),
+      paymentStatus: normalizedPaymentStatus,
+    })
+
+    setItems((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    )
+
+    if (selectedId === updated.id) {
+      setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
+    }
+
+    pushToast({
+      title: 'Payment status saved',
+      message: `${updated.requestNumber} was marked as ${normalizedPaymentStatus || 'updated'}.`,
+      variant: 'success',
+    })
+
+    return updated
+  }
+
+  function getInvoiceDocuments(record) {
+    return (record?.documents || []).filter(
+      (document) => document.type === 'invoice',
+    )
+  }
+
+  function getCurrentInvoiceDocument(record) {
+    const invoiceDocuments = getInvoiceDocuments(record)
+    return invoiceDocuments[invoiceDocuments.length - 1] || null
+  }
+
+  async function removeInvoiceDocuments(record) {
+    const invoiceDocuments = getInvoiceDocuments(record)
+
+    for (const document of invoiceDocuments) {
+      const response = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${record.id}/documents/${document.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        let message = 'Failed to delete invoice.'
+
+        try {
+          const data = await response.json()
+          message = data.message || message
+        } catch {
+          // Ignore JSON parse issues for empty delete responses.
+        }
+
+        throw new Error(message)
+      }
+    }
+  }
+
   async function handleSubmitInvoiceUpload() {
     if (!invoiceUploadRecord || !session?.token) {
       return
@@ -3459,7 +3529,9 @@ export default function App() {
       return
     }
 
-    if (!invoiceUploadForm.file) {
+    const hasCurrentInvoice = Boolean(getCurrentInvoiceDocument(invoiceUploadRecord))
+
+    if (!invoiceUploadForm.file && !hasCurrentInvoice) {
       setInvoiceUploadError('Invoice file is required.')
       return
     }
@@ -3468,32 +3540,40 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
-      const optimizedInvoiceFile = await optimizeDocumentFile(
-        invoiceUploadForm.file,
-      )
-      const formData = new FormData()
-      formData.append('type', 'invoice')
-      formData.append('label', invoiceUploadForm.invoiceNumber.trim())
-      formData.append('document', optimizedInvoiceFile)
+      let baseRecord = invoiceUploadRecord
 
-      const uploadResponse = await fetch(
-        `${API_BASE_URL}/workflows/purchase-requests/${invoiceUploadRecord.id}/documents`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.token}`,
+      if (invoiceUploadForm.file) {
+        await removeInvoiceDocuments(invoiceUploadRecord)
+
+        const optimizedInvoiceFile = await optimizeDocumentFile(
+          invoiceUploadForm.file,
+        )
+        const formData = new FormData()
+        formData.append('type', 'invoice')
+        formData.append('label', invoiceUploadForm.invoiceNumber.trim())
+        formData.append('document', optimizedInvoiceFile)
+
+        const uploadResponse = await fetch(
+          `${API_BASE_URL}/workflows/purchase-requests/${invoiceUploadRecord.id}/documents`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session.token}`,
+            },
+            body: formData,
           },
-          body: formData,
-        },
-      )
+        )
 
-      const uploadData = await uploadResponse.json()
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.message || 'Failed to upload invoice.')
+        const uploadData = await uploadResponse.json()
+        if (!uploadResponse.ok) {
+          throw new Error(uploadData.message || 'Failed to upload invoice.')
+        }
+
+        baseRecord = uploadData
       }
 
-      const updated = await patchRequestForPaymentDraft(uploadData, {
-        ...getRequestForPaymentFormFromItem(uploadData),
+      const updated = await patchRequestForPaymentDraft(baseRecord, {
+        ...getRequestForPaymentFormFromItem(baseRecord),
         invoiceNumber: invoiceUploadForm.invoiceNumber.trim(),
       })
 
@@ -3506,7 +3586,7 @@ export default function App() {
       }
 
       pushToast({
-        title: 'Invoice uploaded',
+        title: invoiceUploadForm.file ? 'Invoice uploaded' : 'Invoice updated',
         message: `${updated.requestNumber} invoice details were updated.`,
         variant: 'success',
       })
@@ -3516,6 +3596,57 @@ export default function App() {
       setInvoiceUploadError(message)
       pushToast({
         title: 'Invoice upload failed',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleDeleteInvoiceUpload() {
+    if (!invoiceUploadRecord || !session?.token) {
+      return
+    }
+
+    const currentInvoiceDocument = getCurrentInvoiceDocument(invoiceUploadRecord)
+
+    if (!currentInvoiceDocument) {
+      setInvoiceUploadError('No uploaded invoice file was found.')
+      return
+    }
+
+    setInvoiceUploadError('')
+    setIsSubmitting(true)
+
+    try {
+      await removeInvoiceDocuments(invoiceUploadRecord)
+
+      const updated = await patchRequestForPaymentDraft(invoiceUploadRecord, {
+        ...getRequestForPaymentFormFromItem(invoiceUploadRecord),
+        invoiceNumber: '',
+      })
+
+      setItems((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      )
+
+      if (selectedId === updated.id) {
+        setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
+      }
+
+      pushToast({
+        title: 'Invoice deleted',
+        message: `${updated.requestNumber} invoice file was removed.`,
+        variant: 'success',
+      })
+      closeInvoiceUploadModal()
+    } catch (error) {
+      const message = error.message || 'Failed to delete invoice.'
+      setInvoiceUploadError(message)
+      pushToast({
+        title: 'Delete failed',
         message,
         variant: 'error',
         duration: 4200,
@@ -6523,12 +6654,17 @@ export default function App() {
             onPreview={handlePreviewRequestForPaymentRecord}
             onPrint={handlePrintRequestForPaymentRecord}
             onUploadInvoice={openInvoiceUploadModal}
+            onSavePaymentStatus={handleSaveRfpPaymentStatus}
           />
         </section>
         {invoiceUploadRecord ? (
           <Modal
             eyebrow='Invoice'
-            title='Upload the Invoice'
+            title={
+              getCurrentInvoiceDocument(invoiceUploadRecord)
+                ? 'Manage invoice'
+                : 'Upload the Invoice'
+            }
             onClose={closeInvoiceUploadModal}
           >
             <form
@@ -6548,8 +6684,24 @@ export default function App() {
                 />
               </label>
 
+              {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
+                <div className='invoice-upload-current'>
+                  <p className='invoice-upload-caption'>Current invoice file</p>
+                  <a
+                    className='audit-trail-link'
+                    href={getCurrentInvoiceDocument(invoiceUploadRecord).filePath}
+                    target='_blank'
+                    rel='noreferrer'
+                  >
+                    Open current invoice
+                  </a>
+                </div>
+              ) : null}
+
               <label>
-                Invoice file
+                {getCurrentInvoiceDocument(invoiceUploadRecord)
+                  ? 'Replace invoice file'
+                  : 'Invoice file'}
                 <input
                   type='file'
                   accept='.pdf,.jpg,.jpeg,.png,.webp'
@@ -6569,8 +6721,22 @@ export default function App() {
                 >
                   Cancel
                 </button>
+                {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
+                  <button
+                    className='ghost-button danger-link'
+                    type='button'
+                    onClick={() => {
+                      void handleDeleteInvoiceUpload()
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Delete invoice
+                  </button>
+                ) : null}
                 <button type='submit' disabled={isSubmitting}>
-                  Upload invoice
+                  {getCurrentInvoiceDocument(invoiceUploadRecord)
+                    ? 'Save / replace'
+                    : 'Upload invoice'}
                 </button>
               </div>
             </form>

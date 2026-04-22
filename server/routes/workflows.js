@@ -466,6 +466,7 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
     payee: String(req.body.payee ?? ""),
     tinNumber: String(req.body.tinNumber ?? ""),
     invoiceNumber: String(req.body.invoiceNumber ?? ""),
+    paymentStatus: String(req.body.paymentStatus ?? ""),
     amountRequested: String(req.body.amountRequested ?? ""),
     dueDate: String(req.body.dueDate ?? ""),
     notes: String(req.body.notes ?? "")
@@ -927,19 +928,23 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
     return res.status(404).json({ message: "Purchase request not found." });
   }
 
-  if (!isRequesterAccessingOwnRequest(req, request)) {
-    return res.status(403).json({ message: "You can only access your own purchase requests." });
-  }
-
   const document = request.documents.id(req.params.documentId);
   if (!document) {
     return res.status(404).json({ message: "Document not found." });
   }
 
+  const canAccessInvoiceDocument =
+    document.type === "invoice" && canManageRequestForPaymentDraft(req, request);
+
+  if (!isRequesterAccessingOwnRequest(req, request) && !canAccessInvoiceDocument && req.user.role !== "admin") {
+    return res.status(403).json({ message: "You can only access your own purchase requests." });
+  }
+
   const canDelete =
     req.user.role === "admin" ||
     document.uploadedBy === req.user.name ||
-    getAllowedRoles(request.currentStage).includes(req.user.role);
+    getAllowedRoles(request.currentStage).includes(req.user.role) ||
+    canAccessInvoiceDocument;
 
   if (!canDelete) {
     return res.status(403).json({ message: "Your role cannot delete this document." });
