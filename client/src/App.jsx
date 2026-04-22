@@ -12,6 +12,7 @@ import Modal from './components/Modal.jsx'
 import PanelExpandButton from './components/PanelExpandButton.jsx'
 import PurchaseOrderDirectoryPage from './components/PurchaseOrderDirectoryPage.jsx'
 import PurchaseOrderPage from './components/PurchaseOrderPage.jsx'
+import RfpDirectoryPage from './components/RfpDirectoryPage.jsx'
 import RequestForPaymentPage from './components/RequestForPaymentPage.jsx'
 import RequestAdminPanel from './components/RequestAdminPanel.jsx'
 import RequestList from './components/RequestList.jsx'
@@ -477,12 +478,50 @@ function getDefaultRequestForPaymentPayee(item) {
   const requestedPayeeSupplier = String(
     item?.requestedPayeeSupplier || '',
   ).trim()
+  const selectedSupplier = String(
+    item?.supplier === 'Pending selection' ? '' : item?.supplier || '',
+  ).trim()
 
   if (requestedPayeeSupplier) {
     return requestedPayeeSupplier
   }
 
+  if (selectedSupplier) {
+    return selectedSupplier
+  }
+
   return String(item?.requester || item?.requesterName || '').trim()
+}
+
+function getEffectiveRequestForPaymentPayee(item) {
+  const requestedPayeeSupplier = String(
+    item?.requestedPayeeSupplier || '',
+  ).trim()
+  const savedPayee = String(item?.rfpDraft?.payee || '').trim()
+  const selectedSupplier = String(
+    item?.supplier === 'Pending selection' ? '' : item?.supplier || '',
+  ).trim()
+  const requester = String(item?.requester || item?.requesterName || '').trim()
+
+  if (requestedPayeeSupplier) {
+    return requestedPayeeSupplier
+  }
+
+  if (selectedSupplier) {
+    const normalizedSavedPayee = savedPayee.toLowerCase()
+    const normalizedSelectedSupplier = selectedSupplier.toLowerCase()
+    const normalizedRequester = requester.toLowerCase()
+
+    if (
+      !savedPayee ||
+      normalizedSavedPayee === normalizedSelectedSupplier ||
+      normalizedSavedPayee === normalizedRequester
+    ) {
+      return selectedSupplier
+    }
+  }
+
+  return savedPayee || requester
 }
 
 function getDefaultRequestForPaymentAmount(item) {
@@ -495,23 +534,9 @@ function getDefaultRequestForPaymentDueDate(item) {
 
 function getRequestForPaymentFormFromItem(item) {
   const savedRfpDraft = item?.rfpDraft ?? {}
-  const savedPayee = String(savedRfpDraft.payee || '').trim()
-  const currentSupplier = String(item?.supplier || '').trim()
-  const hasOriginalPayeeSupplier = Boolean(
-    String(item?.requestedPayeeSupplier || '').trim(),
-  )
-  const shouldReplaceLegacySupplierPayee =
-    !hasOriginalPayeeSupplier &&
-    savedPayee &&
-    currentSupplier &&
-    currentSupplier !== 'Pending selection' &&
-    savedPayee.toLowerCase() === currentSupplier.toLowerCase()
 
   return {
-    payee:
-      shouldReplaceLegacySupplierPayee || !savedPayee
-        ? getDefaultRequestForPaymentPayee(item)
-        : savedPayee,
+    payee: getEffectiveRequestForPaymentPayee(item),
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
     paymentReference: savedRfpDraft.paymentReference || '',
@@ -829,29 +854,7 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
     (item) => !isTerminalRequest(item) && item.currentStage === 'Approval',
   ).length
 
-  const forPaymentItems = items.filter((item) => {
-    if (isTerminalRequest(item)) {
-      return false
-    }
-
-    const approvalIndex = getWorkflowStageIndex(item, 'Approval')
-    const currentStageIndex = getWorkflowStageIndex(item, item.currentStage)
-    const filingIndex = getWorkflowStageIndex(item, 'Filing')
-
-    if (approvalIndex === -1 || currentStageIndex === -1) {
-      return false
-    }
-
-    if (currentStageIndex <= approvalIndex) {
-      return false
-    }
-
-    if (filingIndex !== -1 && currentStageIndex >= filingIndex) {
-      return false
-    }
-
-    return true
-  })
+  const forPaymentItems = getAccountantForPaymentItems(items)
 
   const paidThisMonthCount = items.filter((item) => {
     const paidDate =
@@ -879,6 +882,7 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
     {
       label: 'For Payment',
       value: String(forPaymentItems.length).padStart(2, '0'),
+      actionKey: 'for-payment',
     },
     {
       label: 'Paid (This Month)',
@@ -889,6 +893,32 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
       value: formatDashboardCurrency(totalAmountPending),
     },
   ]
+}
+
+function getAccountantForPaymentItems(items) {
+  return items.filter((item) => {
+    if (isTerminalRequest(item)) {
+      return false
+    }
+
+    const approvalIndex = getWorkflowStageIndex(item, 'Approval')
+    const currentStageIndex = getWorkflowStageIndex(item, item.currentStage)
+    const filingIndex = getWorkflowStageIndex(item, 'Filing')
+
+    if (approvalIndex === -1 || currentStageIndex === -1) {
+      return false
+    }
+
+    if (currentStageIndex <= approvalIndex) {
+      return false
+    }
+
+    if (filingIndex !== -1 && currentStageIndex >= filingIndex) {
+      return false
+    }
+
+    return true
+  })
 }
 
 function filterRequests(items, filter) {
@@ -1232,7 +1262,10 @@ function CompanyHeader({
                               {record.title}
                             </div>
                           </td>
-                          <td>{record.rfpDraft?.payee || 'Not set'}</td>
+                          <td>
+                            {getRequestForPaymentFormFromItem(record).payee ||
+                              'Not set'}
+                          </td>
                           <td>{record.rfpDraft?.invoiceNumber || 'Not set'}</td>
                           <td>{record.rfpDraft?.dueDate || 'Not set'}</td>
                           <td>
@@ -1368,6 +1401,13 @@ export default function App() {
   const [isPurchaseOrderDirectoryOpen, setIsPurchaseOrderDirectoryOpen] =
     useState(false)
   const [isRfpDirectoryOpen, setIsRfpDirectoryOpen] = useState(false)
+  const [accountantDashboardPage, setAccountantDashboardPage] = useState('')
+  const [invoiceUploadRecord, setInvoiceUploadRecord] = useState(null)
+  const [invoiceUploadForm, setInvoiceUploadForm] = useState({
+    invoiceNumber: '',
+    file: null,
+  })
+  const [invoiceUploadError, setInvoiceUploadError] = useState('')
   const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] =
     useState(false)
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(
@@ -1476,6 +1516,9 @@ export default function App() {
   const requestForPaymentRecords = items.filter((item) =>
     canAccessRequestForPayment(item),
   )
+  const accountantForPaymentRecords = isAccountant
+    ? getAccountantForPaymentItems(requestForPaymentRecords)
+    : []
   const canOpenRequestForPaymentMenu = items.some((item) =>
     canAccessRequestForPayment(item),
   )
@@ -3382,6 +3425,10 @@ export default function App() {
   }
 
   async function saveRequestForPaymentDraft(targetItem = selectedItem) {
+    return patchRequestForPaymentDraft(targetItem, requestForPaymentForm)
+  }
+
+  async function patchRequestForPaymentDraft(targetItem, payload) {
     const response = await fetch(
       `${API_BASE_URL}/workflows/purchase-requests/${targetItem.id}/rfp-draft`,
       {
@@ -3390,7 +3437,7 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.token}`,
         },
-        body: JSON.stringify(requestForPaymentForm),
+        body: JSON.stringify(payload),
       },
     )
 
@@ -3400,6 +3447,82 @@ export default function App() {
     }
 
     return data
+  }
+
+  async function handleSubmitInvoiceUpload() {
+    if (!invoiceUploadRecord || !session?.token) {
+      return
+    }
+
+    if (!invoiceUploadForm.invoiceNumber.trim()) {
+      setInvoiceUploadError('Invoice number is required.')
+      return
+    }
+
+    if (!invoiceUploadForm.file) {
+      setInvoiceUploadError('Invoice file is required.')
+      return
+    }
+
+    setInvoiceUploadError('')
+    setIsSubmitting(true)
+
+    try {
+      const optimizedInvoiceFile = await optimizeDocumentFile(
+        invoiceUploadForm.file,
+      )
+      const formData = new FormData()
+      formData.append('type', 'invoice')
+      formData.append('label', invoiceUploadForm.invoiceNumber.trim())
+      formData.append('document', optimizedInvoiceFile)
+
+      const uploadResponse = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${invoiceUploadRecord.id}/documents`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: formData,
+        },
+      )
+
+      const uploadData = await uploadResponse.json()
+      if (!uploadResponse.ok) {
+        throw new Error(uploadData.message || 'Failed to upload invoice.')
+      }
+
+      const updated = await patchRequestForPaymentDraft(uploadData, {
+        ...getRequestForPaymentFormFromItem(uploadData),
+        invoiceNumber: invoiceUploadForm.invoiceNumber.trim(),
+      })
+
+      setItems((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      )
+
+      if (selectedId === updated.id) {
+        setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
+      }
+
+      pushToast({
+        title: 'Invoice uploaded',
+        message: `${updated.requestNumber} invoice details were updated.`,
+        variant: 'success',
+      })
+      closeInvoiceUploadModal()
+    } catch (error) {
+      const message = error.message || 'Failed to upload invoice.'
+      setInvoiceUploadError(message)
+      pushToast({
+        title: 'Invoice upload failed',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   async function handleSubmitRequestForPaymentToApproval() {
@@ -5108,6 +5231,7 @@ export default function App() {
     setIsUserDirectoryOpen(false)
     setIsPurchaseOrderDirectoryOpen(false)
     setIsRfpDirectoryOpen(false)
+    setAccountantDashboardPage('')
     setIsPurchaseOrderPageOpen(false)
     setIsRequestForPaymentPageOpen(false)
     setIsAuditTrailPageOpen(false)
@@ -5166,17 +5290,30 @@ export default function App() {
     }
 
     setIsRfpDirectoryOpen(false)
+    setAccountantDashboardPage('')
     openRequestForPaymentPage(record)
   }
 
-  function handlePrintRequestForPaymentRecord(record) {
+  function handleOpenAccountantForPaymentPage() {
+    closeHeaderMenuPages()
+    setAccountantDashboardPage('for-payment')
+  }
+
+  function closeAccountantDashboardPage() {
+    setAccountantDashboardPage('')
+  }
+
+  function openRequestForPaymentPreviewWindow(
+    record,
+    { autoPrint = false } = {},
+  ) {
     if (!record) {
       return
     }
 
     const draft = record.rfpDraft ?? {}
     const validationPayload = {
-      payee: draft.payee || getDefaultRequestForPaymentPayee(record),
+      payee: getEffectiveRequestForPaymentPayee(record),
       amountRequested:
         draft.amountRequested || getDefaultRequestForPaymentAmount(record),
     }
@@ -5185,22 +5322,26 @@ export default function App() {
       pushToast({
         title: 'Missing required fields',
         message:
-          'Payee / supplier and Amount requested are required before printing.',
+          autoPrint
+            ? 'Payee / supplier and Amount requested are required before printing.'
+            : 'Payee / supplier and Amount requested are required before previewing.',
         variant: 'error',
         duration: 4200,
       })
-      return
+      return null
     }
 
     const printWindow = window.open('', '_blank', 'width=1100,height=900')
     if (!printWindow) {
       pushToast({
         title: 'Popup blocked',
-        message: 'Allow popups to print the request for payment.',
+        message: autoPrint
+          ? 'Allow popups to print the request for payment.'
+          : 'Allow popups to preview the request for payment.',
         variant: 'error',
         duration: 4200,
       })
-      return
+      return null
     }
 
     const currency = record.currency || 'PHP'
@@ -5214,7 +5355,7 @@ export default function App() {
     const amountRequested =
       record.rfpDraft?.amountRequested || String(record.amount || '')
     const description = record.rfpDraft?.notes || record.description || ''
-    const payee = record.rfpDraft?.payee || getDefaultRequestForPaymentPayee(record) || 'Not set'
+    const payee = getEffectiveRequestForPaymentPayee(record) || 'Not set'
     const tinNumber = record.rfpDraft?.tinNumber || 'Not set'
     const invoiceNumber = record.rfpDraft?.invoiceNumber || 'Not set'
     const matchedSupplier = suppliers.find(
@@ -5658,16 +5799,66 @@ export default function App() {
               </div>
             </div>
           </div>
-          <script>
+          ${
+            autoPrint
+              ? `<script>
             window.onload = function () {
               window.print();
               window.onafterprint = function () { window.close(); };
             };
-          </script>
+          </script>`
+              : ''
+          }
         </body>
       </html>
     `)
     printWindow.document.close()
+    printWindow.focus()
+    return printWindow
+  }
+
+  function handlePreviewRequestForPaymentRecord(record) {
+    openRequestForPaymentPreviewWindow(record)
+  }
+
+  function handlePrintRequestForPaymentRecord(record) {
+    openRequestForPaymentPreviewWindow(record, { autoPrint: true })
+  }
+
+  function openInvoiceUploadModal(record) {
+    setInvoiceUploadRecord(record)
+    setInvoiceUploadForm({
+      invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
+      file: null,
+    })
+    setInvoiceUploadError('')
+  }
+
+  function closeInvoiceUploadModal() {
+    setInvoiceUploadRecord(null)
+    setInvoiceUploadForm({
+      invoiceNumber: '',
+      file: null,
+    })
+    setInvoiceUploadError('')
+  }
+
+  function handleInvoiceUploadFormChange(event) {
+    const { name, value } = event.target
+
+    setInvoiceUploadForm((current) => ({
+      ...current,
+      [name]: value,
+    }))
+  }
+
+  function handleInvoiceUploadFileChange(event) {
+    const [file] = Array.from(event.target.files || [])
+
+    setInvoiceUploadForm((current) => ({
+      ...current,
+      file: file || null,
+    }))
   }
 
   function closeSupplierDirectory() {
@@ -6281,6 +6472,114 @@ export default function App() {
     )
   }
 
+  if (accountantDashboardPage === 'for-payment') {
+    return (
+      <main className='app-shell'>
+        <LoadingOverlay visible={isSubmitting || isLoading} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <CompanyHeader
+          isAuthenticated
+          user={session.user}
+          onLogout={handleLogout}
+          theme={theme}
+          onThemeChange={setTheme}
+          requestSearchQuery={requestSearchQuery}
+          onRequestSearchChange={setRequestSearchQuery}
+          onOpenSuppliers={handleOpenSuppliersMenu}
+          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
+          onOpenRfpRecord={handleOpenSavedRfpRecord}
+          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
+          onOpenAuditTrail={handleOpenAuditTrailPage}
+          onOpenUsers={handleOpenUsersDirectory}
+          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
+          onOpenSettings={handleOpenSettingsPage}
+          canOpenRfp={canOpenRequestForPaymentMenu}
+          rfpItems={requestForPaymentRecords}
+          companySettings={companySettings}
+        />
+        <section className='po-page'>
+          <div className='po-page-header'>
+            <div>
+              <p className='eyebrow'>Request for Payment</p>
+              <h1>For Payment</h1>
+              <p className='hero-copy'>
+                View all request-for-payment records that are approved and still
+                waiting for payment processing.
+              </p>
+            </div>
+            <div className='po-page-actions'>
+              <button
+                className='ghost-button'
+                type='button'
+                onClick={closeAccountantDashboardPage}
+              >
+                Back to dashboard
+              </button>
+            </div>
+          </div>
+          <RfpDirectoryPage
+            items={accountantForPaymentRecords}
+            onOpen={handleOpenSavedRfpRecord}
+            onPreview={handlePreviewRequestForPaymentRecord}
+            onPrint={handlePrintRequestForPaymentRecord}
+            onUploadInvoice={openInvoiceUploadModal}
+          />
+        </section>
+        {invoiceUploadRecord ? (
+          <Modal
+            eyebrow='Invoice'
+            title='Upload the Invoice'
+            onClose={closeInvoiceUploadModal}
+          >
+            <form
+              className='modal-form'
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleSubmitInvoiceUpload()
+              }}
+            >
+              <label>
+                Invoice number
+                <input
+                  name='invoiceNumber'
+                  value={invoiceUploadForm.invoiceNumber}
+                  onChange={handleInvoiceUploadFormChange}
+                  placeholder='Enter invoice number'
+                />
+              </label>
+
+              <label>
+                Invoice file
+                <input
+                  type='file'
+                  accept='.pdf,.jpg,.jpeg,.png,.webp'
+                  onChange={handleInvoiceUploadFileChange}
+                />
+              </label>
+
+              {invoiceUploadError ? (
+                <p className='error-text'>{invoiceUploadError}</p>
+              ) : null}
+
+              <div className='modal-form-actions'>
+                <button
+                  className='ghost-button'
+                  type='button'
+                  onClick={closeInvoiceUploadModal}
+                >
+                  Cancel
+                </button>
+                <button type='submit' disabled={isSubmitting}>
+                  Upload invoice
+                </button>
+              </div>
+            </form>
+          </Modal>
+        ) : null}
+      </main>
+    )
+  }
+
   if (isSupplierDirectoryOpen) {
     return (
       <main className='app-shell'>
@@ -6812,19 +7111,26 @@ export default function App() {
           {dashboardStats.map((stat) => (
             <article
               className={`panel stat-card ${stat.isActive ? 'active' : ''} ${
-                stat.filterKey ? 'filterable' : ''
+                stat.filterKey || stat.actionKey ? 'filterable' : ''
               }`}
               key={stat.label}
             >
-              {stat.filterKey ? (
+              {stat.filterKey || stat.actionKey ? (
                 <button
                   className='stat-card-button'
                   type='button'
-                  onClick={() =>
-                    setRequestRegistryFilter((current) =>
-                      current === stat.filterKey ? 'all' : stat.filterKey,
-                    )
-                  }
+                  onClick={() => {
+                    if (stat.filterKey) {
+                      setRequestRegistryFilter((current) =>
+                        current === stat.filterKey ? 'all' : stat.filterKey,
+                      )
+                      return
+                    }
+
+                    if (isAccountant && stat.actionKey === 'for-payment') {
+                      handleOpenAccountantForPaymentPage()
+                    }
+                  }}
                 >
                   <span>{stat.label}</span>
                   <strong>{stat.value}</strong>

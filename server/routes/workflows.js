@@ -94,7 +94,7 @@ function canManageRequestDrafts(req, request) {
 }
 
 function canManageRequestForPaymentDraft(req, request) {
-  if (req.user.role === "admin") {
+  if (req.user.role === "admin" || req.user.role === "accountant") {
     return true;
   }
 
@@ -844,12 +844,9 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     return res.status(404).json({ message: "Purchase request not found." });
   }
 
-  if (!isRequesterAccessingOwnRequest(req, request)) {
-    return res.status(403).json({ message: "You can only access your own purchase requests." });
-  }
-
   const canUpload =
     req.user.role === "admin" ||
+    req.user.role === "accountant" ||
     req.user.email === request.requesterEmail ||
     getAllowedRoles(request.currentStage).includes(req.user.role);
 
