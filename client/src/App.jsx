@@ -533,6 +533,10 @@ function getDefaultRequestForPaymentDueDate(item) {
   return item?.dateNeeded ? String(item.dateNeeded).slice(0, 10) : ''
 }
 
+function getRecordAmount(record) {
+  return parseAmountValue(record?.rfpDraft?.amountRequested || record?.amount)
+}
+
 function getRequestForPaymentFormFromItem(item) {
   const savedRfpDraft = item?.rfpDraft ?? {}
 
@@ -848,6 +852,12 @@ function getStageCompletionDate(item, stageNames) {
     : null
 }
 
+function getNormalizedPaymentStatus(item) {
+  return String(item?.rfpDraft?.paymentStatus || '')
+    .trim()
+    .toLowerCase()
+}
+
 function getAccountantDashboardStats(items, referenceDate = new Date()) {
   const currentMonth = referenceDate.getMonth()
   const currentYear = referenceDate.getFullYear()
@@ -857,29 +867,19 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
   ).length
 
   const forPaymentItems = getAccountantForPaymentItems(items)
+  const paidThisMonthItems = getAccountantPaidThisMonthItems(
+    items,
+    referenceDate,
+  )
 
-  const paidThisMonthCount = items.filter((item) => {
-    const paidDate =
-      getStageCompletionDate(item, ['Payment', 'Filing']) ||
-      ((item.status === 'completed' || item.filingCompleted) && item.updatedAt
-        ? new Date(item.updatedAt)
-        : null)
-
-    return (
-      paidDate &&
-      paidDate.getMonth() === currentMonth &&
-      paidDate.getFullYear() === currentYear
-    )
-  }).length
-
-  const totalAmountPending = items
-    .filter((item) => !isTerminalRequest(item))
+  const totalAmountPending = forPaymentItems
     .reduce((sum, item) => sum + Number(item.amount || 0), 0)
 
   return [
     {
       label: 'For Approval',
       value: String(forApprovalCount).padStart(2, '0'),
+      actionKey: 'for-approval',
     },
     {
       label: 'For Payment',
@@ -888,7 +888,8 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
     },
     {
       label: 'Paid (This Month)',
-      value: String(paidThisMonthCount).padStart(2, '0'),
+      value: String(paidThisMonthItems.length).padStart(2, '0'),
+      actionKey: 'paid-this-month',
     },
     {
       label: 'Total Amount Pending',
@@ -900,6 +901,10 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
 function getAccountantForPaymentItems(items) {
   return items.filter((item) => {
     if (isTerminalRequest(item)) {
+      return false
+    }
+
+    if (getNormalizedPaymentStatus(item) === 'paid') {
       return false
     }
 
@@ -920,6 +925,41 @@ function getAccountantForPaymentItems(items) {
     }
 
     return true
+  })
+}
+
+function getAccountantPaidThisMonthItems(items, referenceDate = new Date()) {
+  const currentMonth = referenceDate.getMonth()
+  const currentYear = referenceDate.getFullYear()
+
+  return items.filter((item) => {
+    const normalizedPaymentStatus = getNormalizedPaymentStatus(item)
+    const hasExplicitPaidStatus = normalizedPaymentStatus === 'paid'
+    const paidDate = hasExplicitPaidStatus
+      ? item.updatedAt
+        ? new Date(item.updatedAt)
+        : null
+      : getStageCompletionDate(item, ['Payment', 'Filing']) ||
+        ((item.status === 'completed' || item.filingCompleted) && item.updatedAt
+          ? new Date(item.updatedAt)
+          : null)
+
+    if (!paidDate) {
+      return false
+    }
+
+    if (
+      !hasExplicitPaidStatus &&
+      item.status !== 'completed' &&
+      !item.filingCompleted
+    ) {
+      return false
+    }
+
+    return (
+      paidDate.getMonth() === currentMonth &&
+      paidDate.getFullYear() === currentYear
+    )
   })
 }
 
@@ -1410,6 +1450,13 @@ export default function App() {
     file: null,
   })
   const [invoiceUploadError, setInvoiceUploadError] = useState('')
+  const [rfpPreviewRecord, setRfpPreviewRecord] = useState(null)
+  const [rfpPreviewForm, setRfpPreviewForm] = useState({
+    invoiceNumber: '',
+    file: null,
+    paymentStatus: '',
+  })
+  const [rfpPreviewError, setRfpPreviewError] = useState('')
   const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] =
     useState(false)
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(
@@ -1427,6 +1474,7 @@ export default function App() {
   )
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isRfpPreviewSubmitting, setIsRfpPreviewSubmitting] = useState(false)
   const [authError, setAuthError] = useState('')
   const [actionError, setActionError] = useState('')
   const [uploadError, setUploadError] = useState('')
@@ -1461,7 +1509,7 @@ export default function App() {
         .filter(Boolean),
     ]),
   )
-  const canCreateRequest = ['requester', 'approver', 'admin'].includes(
+  const canCreateRequest = ['requester', 'approver', 'admin', 'accountant'].includes(
     session?.user?.role,
   )
   const requesterOptions = users
@@ -1518,8 +1566,19 @@ export default function App() {
   const requestForPaymentRecords = items.filter((item) =>
     canAccessRequestForPayment(item),
   )
+  const accountantForApprovalRecords = isAccountant
+    ? requestForPaymentRecords.filter(
+        (item) => !isTerminalRequest(item) && item.currentStage === 'Approval',
+      )
+    : []
   const accountantForPaymentRecords = isAccountant
     ? getAccountantForPaymentItems(requestForPaymentRecords)
+    : []
+  const accountantPaidThisMonthRecords = isAccountant
+    ? getAccountantPaidThisMonthItems(requestForPaymentRecords)
+    : []
+  const accountantDashboardRecords = isAccountant
+    ? requestForPaymentRecords
     : []
   const canOpenRequestForPaymentMenu = items.some((item) =>
     canAccessRequestForPayment(item),
@@ -3451,7 +3510,11 @@ export default function App() {
     return data
   }
 
-  async function handleSaveRfpPaymentStatus(record, paymentStatus) {
+  async function saveRfpPaymentStatusForRecord(
+    record,
+    paymentStatus,
+    { silent = false } = {},
+  ) {
     if (!record || !session?.token) {
       return null
     }
@@ -3470,13 +3533,19 @@ export default function App() {
       setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
     }
 
-    pushToast({
-      title: 'Payment status saved',
-      message: `${updated.requestNumber} was marked as ${normalizedPaymentStatus || 'updated'}.`,
-      variant: 'success',
-    })
+    if (!silent) {
+      pushToast({
+        title: 'Payment status saved',
+        message: `${updated.requestNumber} was marked as ${normalizedPaymentStatus || 'updated'}.`,
+        variant: 'success',
+      })
+    }
 
     return updated
+  }
+
+  async function handleSaveRfpPaymentStatus(record, paymentStatus) {
+    return saveRfpPaymentStatusForRecord(record, paymentStatus)
   }
 
   function getInvoiceDocuments(record) {
@@ -3519,20 +3588,114 @@ export default function App() {
     }
   }
 
+  async function saveInvoiceDetailsForRecord(
+    record,
+    form,
+    { silent = false } = {},
+  ) {
+    if (!record || !session?.token) {
+      return null
+    }
+
+    const invoiceNumber = String(form?.invoiceNumber || '').trim()
+    const file = form?.file || null
+
+    let baseRecord = record
+
+    if (file) {
+      await removeInvoiceDocuments(record)
+
+      const optimizedInvoiceFile = await optimizeDocumentFile(file)
+      const formData = new FormData()
+      formData.append('type', 'invoice')
+      formData.append(
+        'label',
+        invoiceNumber || file?.name || 'Invoice',
+      )
+      formData.append('document', optimizedInvoiceFile)
+
+      const uploadResponse = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${record.id}/documents`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: formData,
+        },
+      )
+
+      const uploadData = await uploadResponse.json()
+      if (!uploadResponse.ok) {
+        throw new Error(uploadData.message || 'Failed to upload invoice.')
+      }
+
+      baseRecord = uploadData
+    }
+
+    const updated = await patchRequestForPaymentDraft(baseRecord, {
+      ...getRequestForPaymentFormFromItem(baseRecord),
+      invoiceNumber,
+    })
+
+    setItems((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    )
+
+    if (selectedId === updated.id) {
+      setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
+    }
+
+    if (!silent) {
+      pushToast({
+        title: file ? 'Invoice uploaded' : 'Invoice updated',
+        message: `${updated.requestNumber} invoice details were updated.`,
+        variant: 'success',
+      })
+    }
+
+    return updated
+  }
+
+  async function deleteInvoiceForRecord(record, { silent = false } = {}) {
+    if (!record || !session?.token) {
+      return null
+    }
+
+    const currentInvoiceDocument = getCurrentInvoiceDocument(record)
+
+    if (!currentInvoiceDocument) {
+      throw new Error('No uploaded invoice file was found.')
+    }
+
+    await removeInvoiceDocuments(record)
+
+    const updated = await patchRequestForPaymentDraft(record, {
+      ...getRequestForPaymentFormFromItem(record),
+      invoiceNumber: '',
+    })
+
+    setItems((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    )
+
+    if (selectedId === updated.id) {
+      setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
+    }
+
+    if (!silent) {
+      pushToast({
+        title: 'Invoice deleted',
+        message: `${updated.requestNumber} invoice file was removed.`,
+        variant: 'success',
+      })
+    }
+
+    return updated
+  }
+
   async function handleSubmitInvoiceUpload() {
     if (!invoiceUploadRecord || !session?.token) {
-      return
-    }
-
-    if (!invoiceUploadForm.invoiceNumber.trim()) {
-      setInvoiceUploadError('Invoice number is required.')
-      return
-    }
-
-    const hasCurrentInvoice = Boolean(getCurrentInvoiceDocument(invoiceUploadRecord))
-
-    if (!invoiceUploadForm.file && !hasCurrentInvoice) {
-      setInvoiceUploadError('Invoice file is required.')
       return
     }
 
@@ -3540,56 +3703,7 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
-      let baseRecord = invoiceUploadRecord
-
-      if (invoiceUploadForm.file) {
-        await removeInvoiceDocuments(invoiceUploadRecord)
-
-        const optimizedInvoiceFile = await optimizeDocumentFile(
-          invoiceUploadForm.file,
-        )
-        const formData = new FormData()
-        formData.append('type', 'invoice')
-        formData.append('label', invoiceUploadForm.invoiceNumber.trim())
-        formData.append('document', optimizedInvoiceFile)
-
-        const uploadResponse = await fetch(
-          `${API_BASE_URL}/workflows/purchase-requests/${invoiceUploadRecord.id}/documents`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${session.token}`,
-            },
-            body: formData,
-          },
-        )
-
-        const uploadData = await uploadResponse.json()
-        if (!uploadResponse.ok) {
-          throw new Error(uploadData.message || 'Failed to upload invoice.')
-        }
-
-        baseRecord = uploadData
-      }
-
-      const updated = await patchRequestForPaymentDraft(baseRecord, {
-        ...getRequestForPaymentFormFromItem(baseRecord),
-        invoiceNumber: invoiceUploadForm.invoiceNumber.trim(),
-      })
-
-      setItems((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      )
-
-      if (selectedId === updated.id) {
-        setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
-      }
-
-      pushToast({
-        title: invoiceUploadForm.file ? 'Invoice uploaded' : 'Invoice updated',
-        message: `${updated.requestNumber} invoice details were updated.`,
-        variant: 'success',
-      })
+      await saveInvoiceDetailsForRecord(invoiceUploadRecord, invoiceUploadForm)
       closeInvoiceUploadModal()
     } catch (error) {
       const message = error.message || 'Failed to upload invoice.'
@@ -3621,26 +3735,7 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
-      await removeInvoiceDocuments(invoiceUploadRecord)
-
-      const updated = await patchRequestForPaymentDraft(invoiceUploadRecord, {
-        ...getRequestForPaymentFormFromItem(invoiceUploadRecord),
-        invoiceNumber: '',
-      })
-
-      setItems((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      )
-
-      if (selectedId === updated.id) {
-        setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
-      }
-
-      pushToast({
-        title: 'Invoice deleted',
-        message: `${updated.requestNumber} invoice file was removed.`,
-        variant: 'success',
-      })
+      await deleteInvoiceForRecord(invoiceUploadRecord)
       closeInvoiceUploadModal()
     } catch (error) {
       const message = error.message || 'Failed to delete invoice.'
@@ -5430,6 +5525,11 @@ export default function App() {
     setAccountantDashboardPage('for-payment')
   }
 
+  function handleOpenAccountantPaidThisMonthPage() {
+    closeHeaderMenuPages()
+    setAccountantDashboardPage('paid-this-month')
+  }
+
   function closeAccountantDashboardPage() {
     setAccountantDashboardPage('')
   }
@@ -5949,11 +6049,31 @@ export default function App() {
   }
 
   function handlePreviewRequestForPaymentRecord(record) {
-    openRequestForPaymentPreviewWindow(record)
+    if (!record) {
+      return
+    }
+
+    setRfpPreviewRecord(record)
+    setRfpPreviewForm({
+      invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
+      file: null,
+      paymentStatus: String(record?.rfpDraft?.paymentStatus || '').trim(),
+    })
+    setRfpPreviewError('')
   }
 
   function handlePrintRequestForPaymentRecord(record) {
     openRequestForPaymentPreviewWindow(record, { autoPrint: true })
+  }
+
+  function closeRfpPreviewModal() {
+    setRfpPreviewRecord(null)
+    setRfpPreviewForm({
+      invoiceNumber: '',
+      file: null,
+      paymentStatus: '',
+    })
+    setRfpPreviewError('')
   }
 
   function openInvoiceUploadModal(record) {
@@ -5990,6 +6110,131 @@ export default function App() {
       ...current,
       file: file || null,
     }))
+  }
+
+  function handleRfpPreviewFormChange(event) {
+    const { name, value } = event.target
+
+    setRfpPreviewForm((current) => ({
+      ...current,
+      [name]: value,
+    }))
+  }
+
+  function handleRfpPreviewFileChange(event) {
+    const [file] = Array.from(event.target.files || [])
+
+    setRfpPreviewForm((current) => ({
+      ...current,
+      file: file || null,
+    }))
+  }
+
+  async function handleSubmitRfpPreview(event) {
+    event.preventDefault()
+
+    if (!rfpPreviewRecord || !session?.token) {
+      return
+    }
+
+    if (!String(rfpPreviewForm.paymentStatus || '').trim()) {
+      setRfpPreviewError('Payment status is required.')
+      return
+    }
+
+    setRfpPreviewError('')
+    setIsRfpPreviewSubmitting(true)
+
+    try {
+      let updatedRecord = await saveInvoiceDetailsForRecord(
+        rfpPreviewRecord,
+        rfpPreviewForm,
+        { silent: true },
+      )
+
+      updatedRecord =
+        (await saveRfpPaymentStatusForRecord(
+          updatedRecord || rfpPreviewRecord,
+          rfpPreviewForm.paymentStatus,
+          { silent: true },
+        )) || updatedRecord
+
+      if (updatedRecord) {
+        setRfpPreviewRecord(updatedRecord)
+        setRfpPreviewForm({
+          invoiceNumber: updatedRecord?.rfpDraft?.invoiceNumber || '',
+          file: null,
+          paymentStatus: String(
+            updatedRecord?.rfpDraft?.paymentStatus || '',
+          ).trim(),
+        })
+      }
+
+      pushToast({
+        title: 'RFP updated',
+        message: `${(updatedRecord || rfpPreviewRecord).requestNumber} invoice and payment details were saved.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      const message = error.message || 'Failed to update Request for Payment.'
+      setRfpPreviewError(message)
+      pushToast({
+        title: 'RFP update failed',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsRfpPreviewSubmitting(false)
+    }
+  }
+
+  async function handleDeleteRfpPreviewInvoice() {
+    if (!rfpPreviewRecord || !session?.token) {
+      return
+    }
+
+    const currentInvoiceDocument = getCurrentInvoiceDocument(rfpPreviewRecord)
+
+    if (!currentInvoiceDocument) {
+      setRfpPreviewError('No uploaded invoice file was found.')
+      return
+    }
+
+    setRfpPreviewError('')
+    setIsRfpPreviewSubmitting(true)
+
+    try {
+      const updatedRecord = await deleteInvoiceForRecord(rfpPreviewRecord, {
+        silent: true,
+      })
+
+      if (updatedRecord) {
+        setRfpPreviewRecord(updatedRecord)
+        setRfpPreviewForm((current) => ({
+          ...current,
+          invoiceNumber: '',
+          file: null,
+        }))
+      }
+
+      pushToast({
+        title: 'Invoice deleted',
+        message: `${(updatedRecord || rfpPreviewRecord).requestNumber} invoice file was removed.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      const message = error.message || 'Failed to delete invoice.'
+      setRfpPreviewError(message)
+      pushToast({
+        title: 'Delete failed',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+    } finally {
+      setIsRfpPreviewSubmitting(false)
+    }
   }
 
   function closeSupplierDirectory() {
@@ -6603,149 +6848,6 @@ export default function App() {
     )
   }
 
-  if (accountantDashboardPage === 'for-payment') {
-    return (
-      <main className='app-shell'>
-        <LoadingOverlay visible={isSubmitting || isLoading} />
-        <ToastStack toasts={toasts} onDismiss={dismissToast} />
-        <CompanyHeader
-          isAuthenticated
-          user={session.user}
-          onLogout={handleLogout}
-          theme={theme}
-          onThemeChange={setTheme}
-          requestSearchQuery={requestSearchQuery}
-          onRequestSearchChange={setRequestSearchQuery}
-          onOpenSuppliers={handleOpenSuppliersMenu}
-          onOpenRfpDirectory={handleOpenRfpDirectoryMenu}
-          onOpenRfpRecord={handleOpenSavedRfpRecord}
-          onPrintRfpRecord={handlePrintRequestForPaymentRecord}
-          onOpenAuditTrail={handleOpenAuditTrailPage}
-          onOpenUsers={handleOpenUsersDirectory}
-          onOpenPurchaseOrder={handleOpenPurchaseOrderMenu}
-          onOpenSettings={handleOpenSettingsPage}
-          canOpenRfp={canOpenRequestForPaymentMenu}
-          rfpItems={requestForPaymentRecords}
-          companySettings={companySettings}
-        />
-        <section className='po-page'>
-          <div className='po-page-header'>
-            <div>
-              <p className='eyebrow'>Request for Payment</p>
-              <h1>For Payment</h1>
-              <p className='hero-copy'>
-                View all request-for-payment records that are approved and still
-                waiting for payment processing.
-              </p>
-            </div>
-            <div className='po-page-actions'>
-              <button
-                className='ghost-button'
-                type='button'
-                onClick={closeAccountantDashboardPage}
-              >
-                Back to dashboard
-              </button>
-            </div>
-          </div>
-          <RfpDirectoryPage
-            items={accountantForPaymentRecords}
-            onOpen={handleOpenSavedRfpRecord}
-            onPreview={handlePreviewRequestForPaymentRecord}
-            onPrint={handlePrintRequestForPaymentRecord}
-            onUploadInvoice={openInvoiceUploadModal}
-            onSavePaymentStatus={handleSaveRfpPaymentStatus}
-          />
-        </section>
-        {invoiceUploadRecord ? (
-          <Modal
-            eyebrow='Invoice'
-            title={
-              getCurrentInvoiceDocument(invoiceUploadRecord)
-                ? 'Manage invoice'
-                : 'Upload the Invoice'
-            }
-            onClose={closeInvoiceUploadModal}
-          >
-            <form
-              className='modal-form'
-              onSubmit={(event) => {
-                event.preventDefault()
-                void handleSubmitInvoiceUpload()
-              }}
-            >
-              <label>
-                Invoice number
-                <input
-                  name='invoiceNumber'
-                  value={invoiceUploadForm.invoiceNumber}
-                  onChange={handleInvoiceUploadFormChange}
-                  placeholder='Enter invoice number'
-                />
-              </label>
-
-              {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
-                <div className='invoice-upload-current'>
-                  <p className='invoice-upload-caption'>Current invoice file</p>
-                  <a
-                    className='audit-trail-link'
-                    href={getCurrentInvoiceDocument(invoiceUploadRecord).filePath}
-                    target='_blank'
-                    rel='noreferrer'
-                  >
-                    Open current invoice
-                  </a>
-                </div>
-              ) : null}
-
-              <label>
-                {getCurrentInvoiceDocument(invoiceUploadRecord)
-                  ? 'Replace invoice file'
-                  : 'Invoice file'}
-                <input
-                  type='file'
-                  accept='.pdf,.jpg,.jpeg,.png,.webp'
-                  onChange={handleInvoiceUploadFileChange}
-                />
-              </label>
-
-              {invoiceUploadError ? (
-                <p className='error-text'>{invoiceUploadError}</p>
-              ) : null}
-
-              <div className='modal-form-actions'>
-                <button
-                  className='ghost-button'
-                  type='button'
-                  onClick={closeInvoiceUploadModal}
-                >
-                  Cancel
-                </button>
-                {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
-                  <button
-                    className='ghost-button danger-link'
-                    type='button'
-                    onClick={() => {
-                      void handleDeleteInvoiceUpload()
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    Delete invoice
-                  </button>
-                ) : null}
-                <button type='submit' disabled={isSubmitting}>
-                  {getCurrentInvoiceDocument(invoiceUploadRecord)
-                    ? 'Save / replace'
-                    : 'Upload invoice'}
-                </button>
-              </div>
-            </form>
-          </Modal>
-        ) : null}
-      </main>
-    )
-  }
-
   if (isSupplierDirectoryOpen) {
     return (
       <main className='app-shell'>
@@ -7277,11 +7379,11 @@ export default function App() {
           {dashboardStats.map((stat) => (
             <article
               className={`panel stat-card ${stat.isActive ? 'active' : ''} ${
-                stat.filterKey || stat.actionKey ? 'filterable' : ''
+                stat.filterKey ? 'filterable' : ''
               }`}
               key={stat.label}
             >
-              {stat.filterKey || stat.actionKey ? (
+              {stat.filterKey ? (
                 <button
                   className='stat-card-button'
                   type='button'
@@ -7290,11 +7392,6 @@ export default function App() {
                       setRequestRegistryFilter((current) =>
                         current === stat.filterKey ? 'all' : stat.filterKey,
                       )
-                      return
-                    }
-
-                    if (isAccountant && stat.actionKey === 'for-payment') {
-                      handleOpenAccountantForPaymentPage()
                     }
                   }}
                 >
@@ -7319,6 +7416,18 @@ export default function App() {
 
       {isMobileViewport && isCreateRequestModalOpen ? (
         renderCreateRequestPage()
+      ) : isAccountant ? (
+        <RfpDirectoryPage
+          items={accountantDashboardRecords}
+          onCreateNew={openCreateRequestModal}
+          canCreateNew={canCreateRequest}
+          onOpen={handleOpenSavedRfpRecord}
+          onPreview={handlePreviewRequestForPaymentRecord}
+          onPrint={handlePrintRequestForPaymentRecord}
+          onUploadInvoice={openInvoiceUploadModal}
+          activeScope=''
+          onSavePaymentStatus={handleSaveRfpPaymentStatus}
+        />
       ) : session.user.role === 'requester' ? (
         <div>
           {canCreateRequest ? (
@@ -7422,6 +7531,231 @@ export default function App() {
           />
         </div>
       )}
+
+      {rfpPreviewRecord ? (
+        <Modal
+          eyebrow='Request for Payment'
+          title={rfpPreviewRecord.requestNumber}
+          onClose={closeRfpPreviewModal}
+          actions={
+            <button
+              className='ghost-button'
+              type='button'
+              onClick={() => {
+                handlePrintRequestForPaymentRecord(rfpPreviewRecord)
+              }}
+            >
+              Print
+            </button>
+          }
+        >
+          <form className='modal-form rfp-preview-modal' onSubmit={handleSubmitRfpPreview}>
+            <div className='rfp-preview-summary'>
+              <div className='rfp-preview-summary-head'>
+                <strong>{rfpPreviewRecord.title}</strong>
+                <span>{getEffectiveRequestForPaymentPayee(rfpPreviewRecord)}</span>
+              </div>
+              <div className='rfp-preview-meta'>
+                <div>
+                  <span>Requester</span>
+                  <strong>{rfpPreviewRecord.requester || rfpPreviewRecord.requesterName || 'Not set'}</strong>
+                </div>
+                <div>
+                  <span>Due date</span>
+                  <strong>{rfpPreviewRecord.rfpDraft?.dueDate || getDefaultRequestForPaymentDueDate(rfpPreviewRecord) || 'Not set'}</strong>
+                </div>
+                <div>
+                  <span>Amount requested</span>
+                  <strong>{formatCurrencyValue(getRecordAmount(rfpPreviewRecord))}</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>{rfpPreviewRecord.rfpDraft?.paymentStatus || 'Not set'}</strong>
+                </div>
+              </div>
+              <div className='rfp-preview-notes'>
+                <span>Description</span>
+                <p>{rfpPreviewRecord.rfpDraft?.notes || rfpPreviewRecord.description || 'No description provided.'}</p>
+              </div>
+            </div>
+
+            <div className='rfp-preview-form-grid'>
+              <label>
+                Invoice number
+                <input
+                  name='invoiceNumber'
+                  value={rfpPreviewForm.invoiceNumber}
+                  onChange={handleRfpPreviewFormChange}
+                  placeholder='Enter invoice number'
+                />
+              </label>
+
+              <label>
+                Payment status
+                <select
+                  name='paymentStatus'
+                  value={rfpPreviewForm.paymentStatus}
+                  onChange={handleRfpPreviewFormChange}
+                >
+                  <option value=''>Select status</option>
+                  <option value='Processing'>Processing</option>
+                  <option value='Paid'>Paid</option>
+                  <option value='Hold'>Hold</option>
+                  <option value='Decline'>Decline</option>
+                </select>
+              </label>
+            </div>
+
+            {getCurrentInvoiceDocument(rfpPreviewRecord) ? (
+              <div className='invoice-upload-current'>
+                <p className='invoice-upload-caption'>Current invoice file</p>
+                <a
+                  className='audit-trail-link'
+                  href={getCurrentInvoiceDocument(rfpPreviewRecord).filePath}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  Open current invoice
+                </a>
+              </div>
+            ) : null}
+
+            <label>
+              {getCurrentInvoiceDocument(rfpPreviewRecord)
+                ? 'Replace invoice file'
+                : 'Invoice file'}
+              <input
+                type='file'
+                accept='.pdf,.jpg,.jpeg,.png,.webp'
+                onChange={handleRfpPreviewFileChange}
+              />
+            </label>
+
+            {rfpPreviewError ? (
+              <p className='error-text'>{rfpPreviewError}</p>
+            ) : null}
+
+            <div className='modal-form-actions'>
+              {getCurrentInvoiceDocument(rfpPreviewRecord) ? (
+                <button
+                  className='danger-button'
+                  type='button'
+                  onClick={() => {
+                    void handleDeleteRfpPreviewInvoice()
+                  }}
+                  disabled={isRfpPreviewSubmitting}
+                >
+                  Delete invoice
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className='rfp-preview-action-buttons'>
+                <button
+                  className='ghost-button'
+                  type='button'
+                  onClick={closeRfpPreviewModal}
+                  disabled={isRfpPreviewSubmitting}
+                >
+                  Close
+                </button>
+                <button type='submit' disabled={isRfpPreviewSubmitting}>
+                  {isRfpPreviewSubmitting ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {invoiceUploadRecord ? (
+        <Modal
+          eyebrow='Invoice'
+          title={
+            getCurrentInvoiceDocument(invoiceUploadRecord)
+              ? 'Manage invoice'
+              : 'Upload the Invoice'
+          }
+          onClose={closeInvoiceUploadModal}
+        >
+          <form
+            className='modal-form'
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSubmitInvoiceUpload()
+            }}
+          >
+            <label>
+              Invoice number
+              <input
+                name='invoiceNumber'
+                value={invoiceUploadForm.invoiceNumber}
+                onChange={handleInvoiceUploadFormChange}
+                placeholder='Enter invoice number'
+              />
+            </label>
+
+            {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
+              <div className='invoice-upload-current'>
+                <p className='invoice-upload-caption'>Current invoice file</p>
+                <a
+                  className='audit-trail-link'
+                  href={getCurrentInvoiceDocument(invoiceUploadRecord).filePath}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  Open current invoice
+                </a>
+              </div>
+            ) : null}
+
+            <label>
+              {getCurrentInvoiceDocument(invoiceUploadRecord)
+                ? 'Replace invoice file'
+                : 'Invoice file'}
+              <input
+                type='file'
+                accept='.pdf,.jpg,.jpeg,.png,.webp'
+                onChange={handleInvoiceUploadFileChange}
+              />
+            </label>
+
+            {invoiceUploadError ? (
+              <p className='error-text'>{invoiceUploadError}</p>
+            ) : null}
+
+            <div className='modal-form-actions'>
+              {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
+                <button
+                  className='danger-button'
+                  type='button'
+                  onClick={() => {
+                    void handleDeleteInvoiceUpload()
+                  }}
+                  disabled={isInvoiceUploadSubmitting}
+                >
+                  {isInvoiceUploadSubmitting ? 'Deleting…' : 'Delete invoice'}
+                </button>
+              ) : null}
+              <button
+                className='ghost-button'
+                type='button'
+                onClick={closeInvoiceUploadModal}
+                disabled={isInvoiceUploadSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                className='primary-button'
+                type='submit'
+                disabled={isInvoiceUploadSubmitting}
+              >
+                {isInvoiceUploadSubmitting ? 'Saving…' : 'Save invoice'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
 
       {isCreateRequestModalOpen && !isMobileViewport ? (
         <Modal
