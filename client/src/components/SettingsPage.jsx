@@ -75,7 +75,7 @@ export default function SettingsPage({
           </div>
         </div>
 
-        <section className='panel action-panel'>
+        <section className='panel action-panel settings-profile-panel'>
           <div className='panel-heading'>
             <div>
               <p className='eyebrow'>Profile</p>
@@ -86,28 +86,27 @@ export default function SettingsPage({
             </div>
           </div>
 
-          <div className='form-grid two-column'>
-            <label>
-              Current password
-              <input
-                name='currentPassword'
-                type='password'
-                value={requesterForm.currentPassword}
-                onChange={onRequesterChange}
-                placeholder='Enter current password'
-              />
-            </label>
-            <label>
-              New password
-              <input
-                name='newPassword'
-                type='password'
-                value={requesterForm.newPassword}
-                onChange={onRequesterChange}
-                placeholder='Enter new password'
-              />
-            </label>
-          </div>
+          <label>
+            Current password
+            <input
+              name='currentPassword'
+              type='password'
+              value={requesterForm.currentPassword}
+              onChange={onRequesterChange}
+              placeholder='Enter current password'
+            />
+          </label>
+
+          <label>
+            New password
+            <input
+              name='newPassword'
+              type='password'
+              value={requesterForm.newPassword}
+              onChange={onRequesterChange}
+              placeholder='Enter new password'
+            />
+          </label>
 
           <label>
             Confirm new password
