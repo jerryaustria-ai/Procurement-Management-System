@@ -1155,6 +1155,13 @@ function getAttachmentViewerType(document) {
   return 'file'
 }
 
+function isLegacyBlockedCloudinaryPdf(document) {
+  return (
+    getAttachmentViewerType(document) === 'pdf' &&
+    String(document?.cloudinaryResourceType || '').toLowerCase() === 'image'
+  )
+}
+
 function CompanyHeader({
   isAuthenticated,
   user,
@@ -2273,6 +2280,15 @@ export default function App() {
     }
 
     const viewerUrl = getAttachmentViewerUrl(attachmentViewerDocument)
+
+    if (isLegacyBlockedCloudinaryPdf(attachmentViewerDocument)) {
+      setAttachmentViewerError(
+        'This older PDF was uploaded with a blocked Cloudinary delivery type. Please re-upload the file to enable in-app preview.',
+      )
+      setAttachmentViewerObjectUrl('')
+      setIsAttachmentViewerLoading(false)
+      return undefined
+    }
 
     if (!viewerUrl) {
       setAttachmentViewerError('Unable to load this attachment.')

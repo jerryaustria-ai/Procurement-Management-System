@@ -1049,6 +1049,17 @@ router.get("/purchase-requests/:id/documents/:documentId/view", async (req, res)
 
   const mimeType = document.mimeType || "application/octet-stream";
   const fileName = document.originalName || document.label || "attachment";
+
+  if (
+    mimeType === "application/pdf" &&
+    String(document.cloudinaryResourceType || "").toLowerCase() === "image"
+  ) {
+    return res.status(409).json({
+      message:
+        "This older PDF was uploaded with a blocked Cloudinary delivery type. Please re-upload the file to enable preview."
+    });
+  }
+
   const candidateUrls = [
     document.filePath,
     document.cloudinaryPublicId ? getCloudinaryRawDocumentUrl(document.cloudinaryPublicId) : ""
