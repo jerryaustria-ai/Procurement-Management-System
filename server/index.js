@@ -40,6 +40,23 @@ const allowedOrigins = (process.env.CLIENT_ORIGIN || "")
   .map((origin) => normalizeOrigin(origin))
   .filter(Boolean);
 
+const defaultAllowedOrigins = [
+  "https://app.januarius.ph",
+  "https://januarius.ph"
+];
+
+const configuredPortalOrigin = normalizeOrigin(process.env.REQUEST_PORTAL_URL);
+if (configuredPortalOrigin) {
+  defaultAllowedOrigins.push(configuredPortalOrigin);
+}
+
+defaultAllowedOrigins.forEach((origin) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (normalizedOrigin && !allowedOrigins.includes(normalizedOrigin)) {
+    allowedOrigins.push(normalizedOrigin);
+  }
+});
+
 function matchesWildcardOrigin(origin, allowedPattern) {
   if (!allowedPattern.includes("*")) {
     return false;
