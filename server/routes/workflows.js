@@ -987,10 +987,6 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
       return res.status(400).json({ message: "Invalid document type." });
     }
 
-    if (!isImageMimeType(req.file.mimetype)) {
-      return res.status(400).json({ message: "Only image uploads are allowed. Please upload JPG, PNG, or WEBP files." });
-    }
-
     if (!isCloudinaryConfigured()) {
       return res.status(500).json({
         message:

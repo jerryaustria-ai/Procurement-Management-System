@@ -100,7 +100,7 @@ export default function DocumentPanel({
 
       <label>
         Attachment file
-        <input type="file" accept=".png,.jpg,.jpeg,.webp" onChange={onFileChange} />
+        <input type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" onChange={onFileChange} />
       </label>
 
       <button disabled={!canManage || isSubmitting || !uploadForm.file} type="button" onClick={onUpload}>

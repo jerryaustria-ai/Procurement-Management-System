@@ -139,7 +139,7 @@ export default function CreateRequestForm({
             key={quotationFileName || 'empty-request-quotation'}
             id="request-quotation-upload"
             type="file"
-            accept=".png,.jpg,.jpeg,.webp"
+            accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
             onChange={onQuotationFileChange}
           />
           {quotationFileName ? (
@@ -154,7 +154,7 @@ export default function CreateRequestForm({
               </button>
             </div>
           ) : null}
-          <small>PDF, JPG, PNG, or WEBP only.</small>
+          <small>Images, PDF, Word, Excel, CSV, or text files only.</small>
         </label>
       </div>
 

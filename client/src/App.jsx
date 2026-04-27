@@ -35,11 +35,20 @@ const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
-const ALLOWED_UPLOAD_IMAGE_TYPES = new Set([
+const ALLOWED_UPLOAD_FILE_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+  'text/plain',
 ])
+const ATTACHMENT_ACCEPT_TYPES =
+  '.jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt'
 const DEFAULT_WORKFLOW_STAGES = [
   'Purchase Request',
   'Review',
@@ -1126,12 +1135,12 @@ function getUploadFileLimitMessage(file) {
 }
 
 function isUploadFileUnsupported(file) {
-  return Boolean(file && !ALLOWED_UPLOAD_IMAGE_TYPES.has(file.type))
+  return Boolean(file && !ALLOWED_UPLOAD_FILE_TYPES.has(file.type))
 }
 
 function getUploadFileTypeMessage(file) {
   const fileName = file?.name ? `${file.name} ` : 'Selected file '
-  return `${fileName}is not allowed. Please upload JPG, PNG, or WEBP images only.`
+  return `${fileName}is not allowed. Please upload an image, PDF, Word, Excel, CSV, or text file.`
 }
 
 function getAttachmentViewerUrl(document) {
@@ -8109,7 +8118,7 @@ export default function App() {
                 : 'Invoice file'}
               <input
                 type='file'
-                accept='.jpg,.jpeg,.png,.webp'
+                accept={ATTACHMENT_ACCEPT_TYPES}
                 onChange={handleRfpPreviewFileChange}
               />
             </label>
@@ -8198,7 +8207,7 @@ export default function App() {
                 : 'Invoice file'}
               <input
                 type='file'
-                accept='.jpg,.jpeg,.png,.webp'
+                accept={ATTACHMENT_ACCEPT_TYPES}
                 onChange={handleInvoiceUploadFileChange}
               />
             </label>

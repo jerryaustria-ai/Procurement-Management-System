@@ -585,7 +585,7 @@ export default function ActionPanel({
                 id={approvalAttachmentInputId}
                 className='approval-upload-input'
                 type='file'
-                accept='.png,.jpg,.jpeg,.webp'
+                accept='.png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt'
                 onChange={onReviewAttachmentFileChange}
                 disabled={isRejectedWorkflow}
               />
