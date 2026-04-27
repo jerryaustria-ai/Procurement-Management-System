@@ -19,6 +19,7 @@ import {
   uploadDocumentToCloudinary
 } from "../utils/cloudinary.js";
 import {
+  sendAccountantRfpApprovedEmail,
   getEmailConfigurationStatus,
   sendApproverApprovalRequiredEmail,
   sendNewRequestCreatedEmail,
@@ -419,7 +420,38 @@ router.patch("/purchase-requests/:id", async (req, res) => {
   }
 
   await request.save();
-  return res.json(serializePurchaseRequest(request));
+
+  let accountantNotification = {
+    requested: false,
+    skipped: false
+  };
+
+  try {
+    const accountantRecipients = await User.find({ role: "accountant" }).select("email");
+    accountantNotification.requested = true;
+    const notificationResult = await sendAccountantRfpApprovedEmail({
+      request,
+      approverName: req.user.name,
+      recipients: accountantRecipients.map((user) => user.email)
+    });
+
+    accountantNotification = {
+      ...accountantNotification,
+      ...notificationResult
+    };
+  } catch (error) {
+    console.error("Failed to send accountant RFP approval notification.", error);
+    accountantNotification = {
+      ...accountantNotification,
+      skipped: true,
+      reason: error.message || "Failed to send accountant RFP approval notification."
+    };
+  }
+
+  return res.json({
+    ...serializePurchaseRequest(request),
+    accountantNotification
+  });
 });
 
 router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
@@ -655,6 +687,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
   }
 
   const shouldNotifyApprover = nextStage === "Approval" && Boolean(req.body.notifyApprover);
+  let approvalCompletedByAdvance = false;
 
   if (nextStage !== request.currentStage) {
     const previousStage = request.currentStage;
@@ -665,6 +698,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     if (previousStage === "Approval") {
       request.approvalCompleted = true;
       request.requestForPaymentEnabled = true;
+      approvalCompletedByAdvance = true;
     }
     if (previousStage === "Approve PO") {
       request.requestForPaymentEnabled = true;
@@ -685,6 +719,9 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
 
   await request.save();
   let approverNotification = {
+    requested: false
+  };
+  let accountantNotification = {
     requested: false
   };
 
@@ -721,9 +758,42 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     }
   }
 
+  if (approvalCompletedByAdvance) {
+    accountantNotification.requested = true;
+
+    try {
+      const accountantRecipients = await User.find({ role: "accountant" }).select("email");
+      const notificationResult = await sendAccountantRfpApprovedEmail({
+        request,
+        approverName: req.user.name,
+        recipients: accountantRecipients.map((user) => user.email)
+      });
+
+      accountantNotification = {
+        ...accountantNotification,
+        ...notificationResult
+      };
+
+      if (notificationResult?.skipped) {
+        console.warn(
+          "Skipped accountant RFP approval notification.",
+          notificationResult.reason || "Unknown reason."
+        );
+      }
+    } catch (error) {
+      console.error("Failed to send accountant RFP approval notification.", error);
+      accountantNotification = {
+        ...accountantNotification,
+        skipped: true,
+        reason: error.message || "Failed to send accountant RFP approval notification."
+      };
+    }
+  }
+
   return res.json({
     ...serializePurchaseRequest(request),
-    approverNotification
+    approverNotification,
+    accountantNotification
   });
 });
 

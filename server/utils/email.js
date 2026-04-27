@@ -310,6 +310,96 @@ export async function sendApproverApprovalRequiredEmail({
       };
 }
 
+export async function sendAccountantRfpApprovedEmail({
+  request,
+  approverName,
+  recipients = []
+}) {
+  if (recipients.length === 0) {
+    return { skipped: true, reason: "No accountant recipients were provided." };
+  }
+
+  const uniqueRecipients = Array.from(
+    new Set(
+      recipients
+        .map((recipient) => String(recipient || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+
+  if (uniqueRecipients.length === 0) {
+    return { skipped: true, reason: "Accountant recipient list is empty after normalization." };
+  }
+
+  const companyName = await getCompanyName();
+  const requestUrl = buildPortalLink(
+    process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "",
+    {
+      requestId: request?._id?.toString?.() || request?.id || "",
+      requestNumber: request?.requestNumber || "",
+      open: "rfp"
+    }
+  );
+  const title = request.title || "Untitled request";
+  const branch = request.branch || "Not set";
+  const department = request.department || "Not set";
+  const amount = new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: request.currency || "PHP"
+  }).format(Number(request.amount || 0));
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+      <h2 style="margin-bottom: 8px;">Purchase Request Approved</h2>
+      <p style="margin-top: 0;">A purchase request has been approved and is ready for accountant RFP/payment review in ${companyName}.</p>
+      <table style="border-collapse: collapse; width: 100%; max-width: 640px;">
+        <tr><td style="padding: 6px 0; font-weight: 700;">Request Number</td><td style="padding: 6px 0;">${request.requestNumber}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Title</td><td style="padding: 6px 0;">${title}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Requester</td><td style="padding: 6px 0;">${request.requesterName || "Not set"}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Approved By</td><td style="padding: 6px 0;">${approverName || "Approver"}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Branch</td><td style="padding: 6px 0;">${branch}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Department</td><td style="padding: 6px 0;">${department}</td></tr>
+        <tr><td style="padding: 6px 0; font-weight: 700;">Amount</td><td style="padding: 6px 0;">${amount}</td></tr>
+      </table>
+      ${
+        requestUrl
+          ? `<p style="margin-top: 20px;"><a href="${requestUrl}" style="color: #1d4ed8;">Open RFP Record</a></p>`
+          : ""
+      }
+    </div>
+  `;
+
+  const text = [
+    "Purchase Request Approved",
+    "",
+    `Request Number: ${request.requestNumber}`,
+    `Title: ${title}`,
+    `Requester: ${request.requesterName || "Not set"}`,
+    `Approved By: ${approverName || "Approver"}`,
+    `Branch: ${branch}`,
+    `Department: ${department}`,
+    `Amount: ${amount}`,
+    requestUrl ? `Open RFP Record: ${requestUrl}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const result = await sendMail({
+    to: uniqueRecipients,
+    subject: `[${companyName}] Approved Request Ready for RFP ${request.requestNumber}`,
+    text,
+    html
+  });
+
+  return result.skipped
+    ? result
+    : {
+        skipped: false,
+        provider: "brevo-api",
+        recipients: uniqueRecipients
+      };
+}
+
 export async function sendTestEmail({ recipientEmail, requestedByName = "System Admin" }) {
   const companyName = await getCompanyName();
   const requestUrl = process.env.REQUEST_PORTAL_URL || process.env.CLIENT_ORIGIN || "";

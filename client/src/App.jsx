@@ -3942,6 +3942,20 @@ export default function App() {
           duration: 4800,
         })
       }
+
+      if (data.accountantNotification?.requested) {
+        pushToast({
+          title: data.accountantNotification.skipped
+            ? 'Accountant email skipped'
+            : 'Accountant notified',
+          message: data.accountantNotification.skipped
+            ? data.accountantNotification.reason ||
+              'The request was approved, but the accountant email was not sent.'
+            : 'An approval notification email has been sent to the accountant.',
+          variant: data.accountantNotification.skipped ? 'error' : 'success',
+          duration: 4800,
+        })
+      }
     } catch (error) {
       pushToast({
         title: 'Submit failed',
