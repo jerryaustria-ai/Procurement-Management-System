@@ -3148,6 +3148,57 @@ label,
   border: 1px solid var(--card-border);
 }
 
+button.inline-link {
+  cursor: pointer;
+  font: inherit;
+}
+
+.attachment-viewer {
+  display: grid;
+  gap: 14px;
+}
+
+.attachment-viewer-surface {
+  min-height: min(70vh, 720px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  background: var(--soft-surface);
+}
+
+.attachment-viewer-image {
+  display: block;
+  max-width: 100%;
+  max-height: min(70vh, 720px);
+  object-fit: contain;
+}
+
+.attachment-viewer-frame {
+  width: 100%;
+  height: min(70vh, 720px);
+  border: 0;
+  background: #fff;
+}
+
+.attachment-viewer-fallback {
+  max-width: 520px;
+  padding: 28px;
+  text-align: center;
+  color: var(--text-soft);
+}
+
+.attachment-viewer-fallback strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--heading-color);
+}
+
+.attachment-viewer-fallback p {
+  margin: 0;
+}
+
 .po-page {
   display: grid;
   gap: 22px;

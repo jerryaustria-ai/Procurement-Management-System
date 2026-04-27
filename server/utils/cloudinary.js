@@ -19,6 +19,16 @@ export function isCloudinaryConfigured() {
   return Boolean(config.cloudName && config.apiKey && config.apiSecret);
 }
 
+export function getCloudinaryRawDocumentUrl(publicId) {
+  const config = getCloudinaryConfig();
+
+  if (!publicId || !config.cloudName) {
+    return "";
+  }
+
+  return `https://res.cloudinary.com/${config.cloudName}/raw/upload/${publicId}`;
+}
+
 function sanitizePublicIdSegment(value) {
   return String(value || "")
     .toLowerCase()
@@ -79,6 +89,7 @@ export async function uploadDocumentToCloudinary({
     timestamp
   };
   const signature = createSignature(paramsToSign, config.apiSecret);
+  const resourceType = String(mimeType || "").startsWith("image/") ? "image" : "raw";
   const formData = new FormData();
 
   formData.append("file", new Blob([buffer], { type: mimeType }), originalName);
@@ -88,7 +99,7 @@ export async function uploadDocumentToCloudinary({
   formData.append("public_id", publicId);
   formData.append("signature", signature);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${config.cloudName}/auto/upload`, {
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${config.cloudName}/${resourceType}/upload`, {
     method: "POST",
     body: formData
   });

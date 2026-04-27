@@ -74,12 +74,29 @@ export default function RequestSummary({
   showHeader = true,
   isCollapsed = false,
   onToggleVisibility,
-  showStagePill = true
+  showStagePill = true,
+  onViewDocument
 }) {
   const attachments = item.documents ?? [];
 
   function getDocumentHref(filePath) {
     return /^https?:\/\//i.test(filePath || "") ? filePath : `${apiOrigin}${filePath}`;
+  }
+
+  function handleViewDocument(document) {
+    const viewerUrl = `${apiOrigin}/api/workflows/purchase-requests/${item.id}/documents/${document.id}/view`;
+    const viewerDocument = {
+      ...document,
+      viewerUrl,
+      directUrl: getDocumentHref(document.filePath)
+    };
+
+    if (onViewDocument) {
+      onViewDocument(viewerDocument);
+      return;
+    }
+
+    window.open(viewerDocument.viewerUrl, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -217,15 +234,14 @@ export default function RequestSummary({
           <span>Attachments</span>
           <div className="summary-attachment-links">
             {attachments.map((document) => (
-              <a
+              <button
                 key={document.id}
                 className="inline-link"
-                href={getDocumentHref(document.filePath)}
-                target="_blank"
-                rel="noreferrer"
+                type="button"
+                onClick={() => handleViewDocument(document)}
               >
                 {document.label || document.originalName}
-              </a>
+              </button>
             ))}
           </div>
         </div>

@@ -34,6 +34,7 @@ const ART_GALLERY_URL =
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
+const MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
 const DEFAULT_WORKFLOW_STAGES = [
   'Purchase Request',
   'Review',
@@ -702,7 +703,7 @@ function canSeeRequestInRegistry(user, item) {
     return false
   }
 
-  if (user.role === 'admin') {
+  if (user.role === 'admin' || user.role === 'approver') {
     return true
   }
 
@@ -1110,6 +1111,50 @@ function formatCurrencyValue(value, currency = 'PHP') {
   }).format(value || 0)
 }
 
+function isUploadFileTooLarge(file) {
+  return Boolean(file && file.size >= MAX_UPLOAD_FILE_BYTES)
+}
+
+function getUploadFileLimitMessage(file) {
+  const fileName = file?.name ? `${file.name} ` : 'Selected file '
+  return `${fileName}must be less than 10 MB.`
+}
+
+function getAttachmentViewerUrl(document) {
+  return document?.viewerUrl || ''
+}
+
+function getAttachmentViewerLabel(document) {
+  return (
+    document?.label ||
+    document?.originalName ||
+    document?.filename ||
+    'Attachment preview'
+  )
+}
+
+function getAttachmentViewerType(document) {
+  const mimeType = String(document?.mimeType || '').toLowerCase()
+  const viewerUrl = getAttachmentViewerUrl(document).toLowerCase()
+  const filename = String(
+    document?.originalName || document?.filename || document?.filePath || '',
+  ).toLowerCase()
+  const source = `${viewerUrl} ${filename}`
+
+  if (
+    mimeType.startsWith('image/') ||
+    /\.(png|jpe?g|webp|gif|bmp|svg)(\?|#|$)/.test(source)
+  ) {
+    return 'image'
+  }
+
+  if (mimeType === 'application/pdf' || /\.pdf(\?|#|$)/.test(source)) {
+    return 'pdf'
+  }
+
+  return 'file'
+}
+
 function CompanyHeader({
   isAuthenticated,
   user,
@@ -1500,6 +1545,13 @@ export default function App() {
     paymentStatus: '',
   })
   const [rfpPreviewError, setRfpPreviewError] = useState('')
+  const [attachmentViewerDocument, setAttachmentViewerDocument] =
+    useState(null)
+  const [attachmentViewerObjectUrl, setAttachmentViewerObjectUrl] =
+    useState('')
+  const [attachmentViewerError, setAttachmentViewerError] = useState('')
+  const [isAttachmentViewerLoading, setIsAttachmentViewerLoading] =
+    useState(false)
   const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] =
     useState(false)
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(
@@ -2212,6 +2264,68 @@ export default function App() {
     }
   }, [session, shouldPauseDashboardRefresh])
 
+  useEffect(() => {
+    if (!attachmentViewerDocument) {
+      setAttachmentViewerObjectUrl('')
+      setAttachmentViewerError('')
+      setIsAttachmentViewerLoading(false)
+      return undefined
+    }
+
+    const viewerUrl = getAttachmentViewerUrl(attachmentViewerDocument)
+
+    if (!viewerUrl) {
+      setAttachmentViewerError('Unable to load this attachment.')
+      setAttachmentViewerObjectUrl('')
+      setIsAttachmentViewerLoading(false)
+      return undefined
+    }
+
+    const abortController = new AbortController()
+    let nextObjectUrl = ''
+
+    async function loadAttachmentPreview() {
+      setIsAttachmentViewerLoading(true)
+      setAttachmentViewerError('')
+      setAttachmentViewerObjectUrl('')
+
+      try {
+        const headers = session?.token
+          ? { Authorization: `Bearer ${session.token}` }
+          : {}
+        const response = await fetch(viewerUrl, {
+          headers,
+          signal: abortController.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error('Unable to load this attachment preview.')
+        }
+
+        const blob = await response.blob()
+        nextObjectUrl = URL.createObjectURL(blob)
+        setAttachmentViewerObjectUrl(nextObjectUrl)
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setAttachmentViewerError(
+            error.message || 'Unable to load this attachment preview.',
+          )
+        }
+      } finally {
+        setIsAttachmentViewerLoading(false)
+      }
+    }
+
+    void loadAttachmentPreview()
+
+    return () => {
+      abortController.abort()
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl)
+      }
+    }
+  }, [attachmentViewerDocument, session?.token])
+
   function handleCredentialChange(event) {
     const nextValue =
       event.target.type === 'checkbox'
@@ -2476,7 +2590,17 @@ export default function App() {
   }
 
   function handleRequestQuotationFileChange(event) {
-    setRequestQuotationFile(event.target.files?.[0] ?? null)
+    const file = event.target.files?.[0] ?? null
+
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setRequestQuotationFile(null)
+      setActionError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    setActionError('')
+    setRequestQuotationFile(file)
   }
 
   function handleClearRequestQuotationFile() {
@@ -2591,6 +2715,18 @@ export default function App() {
 
   function handleUploadFileChange(event) {
     const file = event.target.files?.[0] ?? null
+
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setUploadForm((current) => ({
+        ...current,
+        file: null,
+      }))
+      setUploadError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    setUploadError('')
     setUploadForm((current) => ({
       ...current,
       file,
@@ -2599,6 +2735,19 @@ export default function App() {
 
   function handleReviewApprovalFileChange(event) {
     const file = event.target.files?.[0] ?? null
+
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setUploadForm({
+        type: 'other',
+        label: 'Boss approval attachment',
+        file: null,
+      })
+      setActionError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    setActionError('')
     setUploadForm({
       type: 'other',
       label: 'Boss approval attachment',
@@ -6252,6 +6401,17 @@ export default function App() {
   function handleInvoiceUploadFileChange(event) {
     const [file] = Array.from(event.target.files || [])
 
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setInvoiceUploadForm((current) => ({
+        ...current,
+        file: null,
+      }))
+      setInvoiceUploadError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    setInvoiceUploadError('')
     setInvoiceUploadForm((current) => ({
       ...current,
       file: file || null,
@@ -6279,6 +6439,17 @@ export default function App() {
   function handleRfpPreviewFileChange(event) {
     const [file] = Array.from(event.target.files || [])
 
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setRfpPreviewForm((current) => ({
+        ...current,
+        file: null,
+      }))
+      setRfpPreviewError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    setRfpPreviewError('')
     setRfpPreviewForm((current) => ({
       ...current,
       file: file || null,
@@ -8069,6 +8240,7 @@ export default function App() {
               showExpand={false}
               showHeader={false}
               showStagePill={false}
+              onViewDocument={setAttachmentViewerDocument}
             />
           ) : null}
           {expandedPanel === 'workflow' && selectedItem ? (
@@ -8094,6 +8266,7 @@ export default function App() {
               error={uploadError}
               apiOrigin={API_ORIGIN}
               showExpand={false}
+              onViewDocument={setAttachmentViewerDocument}
             />
           ) : null}
           {expandedPanel === 'admin-request'
@@ -8110,6 +8283,82 @@ export default function App() {
               showExpand={false}
             />
           ) : null}
+        </Modal>
+      ) : null}
+
+      {attachmentViewerDocument ? (
+        <Modal
+          eyebrow='Attachment'
+          title={getAttachmentViewerLabel(attachmentViewerDocument)}
+          actions={
+            attachmentViewerObjectUrl ||
+            attachmentViewerDocument.directUrl ||
+            getAttachmentViewerUrl(attachmentViewerDocument) ? (
+              <a
+                className='inline-link'
+                href={
+                  attachmentViewerObjectUrl ||
+                  attachmentViewerDocument.directUrl ||
+                  getAttachmentViewerUrl(attachmentViewerDocument)
+                }
+                target='_blank'
+                rel='noreferrer'
+              >
+                Open in new tab
+              </a>
+            ) : undefined
+          }
+          onClose={() => setAttachmentViewerDocument(null)}
+        >
+          <div className='attachment-viewer'>
+            <div className='attachment-viewer-surface'>
+              {isAttachmentViewerLoading ? (
+                <div className='attachment-viewer-fallback'>
+                  <strong>Loading attachment...</strong>
+                </div>
+              ) : null}
+              {!isAttachmentViewerLoading && attachmentViewerError ? (
+                <div className='attachment-viewer-fallback'>
+                  <strong>Unable to preview this attachment.</strong>
+                  <p>{attachmentViewerError}</p>
+                </div>
+              ) : null}
+              {!isAttachmentViewerLoading &&
+              !attachmentViewerError &&
+              getAttachmentViewerType(attachmentViewerDocument) === 'image' ? (
+                <img
+                  className='attachment-viewer-image'
+                  src={
+                    attachmentViewerObjectUrl ||
+                    getAttachmentViewerUrl(attachmentViewerDocument)
+                  }
+                  alt={getAttachmentViewerLabel(attachmentViewerDocument)}
+                />
+              ) : null}
+              {!isAttachmentViewerLoading &&
+              !attachmentViewerError &&
+              getAttachmentViewerType(attachmentViewerDocument) === 'pdf' ? (
+                <iframe
+                  className='attachment-viewer-frame'
+                  src={
+                    attachmentViewerObjectUrl ||
+                    getAttachmentViewerUrl(attachmentViewerDocument)
+                  }
+                  title={getAttachmentViewerLabel(attachmentViewerDocument)}
+                />
+              ) : null}
+              {!isAttachmentViewerLoading &&
+              !attachmentViewerError &&
+              getAttachmentViewerType(attachmentViewerDocument) === 'file' ? (
+                <div className='attachment-viewer-fallback'>
+                  <strong>Preview unavailable for this file type.</strong>
+                  <p>
+                    Use Open in new tab to view or download this attachment.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </Modal>
       ) : null}
 

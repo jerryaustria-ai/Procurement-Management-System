@@ -1,5 +1,7 @@
 import multer from "multer";
 
+const MAX_DOCUMENT_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 function fileFilter(_req, file, callback) {
   const allowedMimeTypes = [
     "application/pdf",
@@ -22,6 +24,6 @@ export const uploadSingleDocument = multer({
   storage: multer.memoryStorage(),
   fileFilter,
   limits: {
-    fileSize: 12 * 1024 * 1024
+    fileSize: MAX_DOCUMENT_UPLOAD_BYTES - 1
   }
 }).single("document");

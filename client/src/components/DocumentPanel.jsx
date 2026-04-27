@@ -32,10 +32,27 @@ export default function DocumentPanel({
   error,
   apiOrigin,
   onExpand,
-  showExpand = true
+  showExpand = true,
+  onViewDocument
 }) {
   function getDocumentHref(filePath) {
     return /^https?:\/\//i.test(filePath || "") ? filePath : `${apiOrigin}${filePath}`;
+  }
+
+  function handleViewDocument(document) {
+    const viewerUrl = `${apiOrigin}/api/workflows/purchase-requests/${item.id}/documents/${document.id}/view`;
+    const viewerDocument = {
+      ...document,
+      viewerUrl,
+      directUrl: getDocumentHref(document.filePath)
+    };
+
+    if (onViewDocument) {
+      onViewDocument(viewerDocument);
+      return;
+    }
+
+    window.open(viewerDocument.viewerUrl, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -101,14 +118,13 @@ export default function DocumentPanel({
               </small>
             </div>
             <div className="button-row">
-              <a
+              <button
                 className="inline-link"
-                href={getDocumentHref(document.filePath)}
-                target="_blank"
-                rel="noreferrer"
+                type="button"
+                onClick={() => handleViewDocument(document)}
               >
-                Open
-              </a>
+                View
+              </button>
               {canManage ? (
                 <button
                   className="danger-button"

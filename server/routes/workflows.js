@@ -15,6 +15,7 @@ import { Setting } from "../models/Setting.js";
 import { User } from "../models/User.js";
 import {
   deleteDocumentFromCloudinary,
+  getCloudinaryRawDocumentUrl,
   isCloudinaryConfigured,
   uploadDocumentToCloudinary
 } from "../utils/cloudinary.js";
@@ -80,6 +81,10 @@ function parseAmountValue(value) {
 }
 
 function isRequesterAccessingOwnRequest(req, request) {
+  return req.user.role !== "requester" || request.requesterEmail === req.user.email;
+}
+
+function canViewRequest(req, request) {
   return req.user.role !== "requester" || request.requesterEmail === req.user.email;
 }
 
@@ -957,6 +962,10 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
 
   uploadSingleDocument(req, res, async (error) => {
     if (error) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "Document file must be less than 10 MB." });
+      }
+
       return res.status(400).json({ message: error.message });
     }
 
@@ -1019,6 +1028,60 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     await request.save();
     return res.status(201).json(serializePurchaseRequest(request));
   });
+});
+
+router.get("/purchase-requests/:id/documents/:documentId/view", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!canViewRequest(req, request)) {
+    return res.status(403).json({ message: "You cannot view documents for this request." });
+  }
+
+  const document = request.documents.id(req.params.documentId);
+
+  if (!document) {
+    return res.status(404).json({ message: "Document not found." });
+  }
+
+  const mimeType = document.mimeType || "application/octet-stream";
+  const fileName = document.originalName || document.label || "attachment";
+  const candidateUrls = [
+    document.filePath,
+    document.cloudinaryPublicId ? getCloudinaryRawDocumentUrl(document.cloudinaryPublicId) : ""
+  ].filter(Boolean);
+
+  if (!/^https?:\/\//i.test(document.filePath || "")) {
+    const localFilePath = document.filePath?.replace("/uploads/", "");
+
+    if (!localFilePath) {
+      return res.status(404).json({ message: "Document file not found." });
+    }
+
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Disposition", `inline; filename="${fileName.replaceAll('"', "")}"`);
+    return fs.createReadStream(`uploads/${localFilePath}`).pipe(res);
+  }
+
+  for (const fileUrl of candidateUrls) {
+    const response = await fetch(fileUrl).catch(() => null);
+
+    if (!response?.ok || !response.body) {
+      continue;
+    }
+
+    res.setHeader("Content-Type", response.headers.get("content-type") || mimeType);
+    res.setHeader("Content-Disposition", `inline; filename="${fileName.replaceAll('"', "")}"`);
+    for await (const chunk of response.body) {
+      res.write(chunk);
+    }
+    return res.end();
+  }
+
+  return res.status(502).json({ message: "Unable to load this document preview." });
 });
 
 router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) => {
