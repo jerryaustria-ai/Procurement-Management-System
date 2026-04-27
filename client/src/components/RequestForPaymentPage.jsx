@@ -261,6 +261,22 @@ export default function RequestForPaymentPage({
             </label>
 
             <label className="full-width-field">
+              Payment status
+              <select
+                name="paymentStatus"
+                value={form.paymentStatus || ""}
+                onChange={onChange}
+                disabled={!isEditing}
+              >
+                <option value="">Select status</option>
+                <option value="Processing">Processing</option>
+                <option value="Paid">Paid</option>
+                <option value="Hold">Hold</option>
+                <option value="Decline">Decline</option>
+              </select>
+            </label>
+
+            <label className="full-width-field">
               Description
               <textarea
                 name="notes"
