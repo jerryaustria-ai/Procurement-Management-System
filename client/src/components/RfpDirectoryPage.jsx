@@ -327,7 +327,7 @@ export default function RfpDirectoryPage({
   const [filterValue, setFilterValue] = useState('all')
   const [paidMonth, setPaidMonth] = useState(currentDate.getMonth())
   const [paidYear, setPaidYear] = useState(currentDate.getFullYear())
-  const [sortValue, setSortValue] = useState('due-date-asc')
+  const [sortValue, setSortValue] = useState('due-date-desc')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const availablePaidYears = useMemo(

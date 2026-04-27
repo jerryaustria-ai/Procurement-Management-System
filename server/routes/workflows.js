@@ -367,6 +367,10 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     req.user.role === "admin" && req.body.currentStage === "Completed";
   const isRejectedStageSelection =
     req.user.role === "admin" && req.body.currentStage === "Rejected";
+  const shouldResetRfpStatusForApproval =
+    req.user.role === "admin" &&
+    typeof req.body.currentStage === "string" &&
+    req.body.currentStage === "Approval";
 
   for (const field of editableFields) {
     if (typeof req.body[field] === "string") {
@@ -417,41 +421,23 @@ router.patch("/purchase-requests/:id", async (req, res) => {
       request.filingCompleted = false;
       request.approvalCompleted = false;
     }
+
+    if (shouldResetRfpStatusForApproval) {
+      request.status = "open";
+      request.filingCompleted = false;
+      request.approvalCompleted = false;
+      request.requestForPaymentEnabled = true;
+      request.rfpDraft = {
+        ...(request.rfpDraft?.toObject?.() || request.rfpDraft || {}),
+        paymentStatus: "Processing",
+        paymentStatusUpdatedAt: new Date()
+      };
+    }
   }
 
   await request.save();
 
-  let accountantNotification = {
-    requested: false,
-    skipped: false
-  };
-
-  try {
-    const accountantRecipients = await User.find({ role: "accountant" }).select("email");
-    accountantNotification.requested = true;
-    const notificationResult = await sendAccountantRfpApprovedEmail({
-      request,
-      approverName: req.user.name,
-      recipients: accountantRecipients.map((user) => user.email)
-    });
-
-    accountantNotification = {
-      ...accountantNotification,
-      ...notificationResult
-    };
-  } catch (error) {
-    console.error("Failed to send accountant RFP approval notification.", error);
-    accountantNotification = {
-      ...accountantNotification,
-      skipped: true,
-      reason: error.message || "Failed to send accountant RFP approval notification."
-    };
-  }
-
-  return res.json({
-    ...serializePurchaseRequest(request),
-    accountantNotification
-  });
+  return res.json(serializePurchaseRequest(request));
 });
 
 router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
