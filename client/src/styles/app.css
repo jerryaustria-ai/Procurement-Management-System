@@ -935,6 +935,34 @@ label,
   background: var(--card-border);
 }
 
+.rfp-directory-actions {
+  position: static;
+  inset: auto;
+  justify-content: flex-end;
+}
+
+.rfp-record-list {
+  margin-top: 18px;
+}
+
+.rfp-record-card-title {
+  margin-top: 12px;
+}
+
+.rfp-paid-total-card {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.rfp-paid-total-card strong {
+  color: var(--heading-color);
+}
+
 .launch-card {
   display: flex;
   flex-direction: column;

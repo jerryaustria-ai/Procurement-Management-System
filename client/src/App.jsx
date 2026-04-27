@@ -622,6 +622,25 @@ function canAccessRequestForPayment(item) {
   )
 }
 
+function isRequestApprovedForRfpRecord(item) {
+  if (!item) {
+    return false
+  }
+
+  if (item.approvalCompleted || item.status === 'completed') {
+    return true
+  }
+
+  const stages =
+    Array.isArray(item.workflowStages) && item.workflowStages.length
+      ? item.workflowStages
+      : DEFAULT_WORKFLOW_STAGES
+  const approvalIndex = stages.indexOf('Approval')
+  const currentStageIndex = stages.indexOf(item.currentStage)
+
+  return approvalIndex !== -1 && currentStageIndex > approvalIndex
+}
+
 function canEditRequestForPayment(user, item) {
   if (!user || !item) {
     return false
@@ -858,13 +877,15 @@ function getNormalizedPaymentStatus(item) {
     .toLowerCase()
 }
 
+function isAccountantForApprovalItem(item) {
+  return !isTerminalRequest(item) && !isRequestApprovedForRfpRecord(item)
+}
+
 function getAccountantDashboardStats(items, referenceDate = new Date()) {
   const currentMonth = referenceDate.getMonth()
   const currentYear = referenceDate.getFullYear()
 
-  const forApprovalCount = items.filter(
-    (item) => !isTerminalRequest(item) && item.currentStage === 'Approval',
-  ).length
+  const forApprovalCount = items.filter(isAccountantForApprovalItem).length
 
   const forPaymentItems = getAccountantForPaymentItems(items)
   const paidThisMonthItems = getAccountantPaidThisMonthItems(
@@ -1494,6 +1515,7 @@ export default function App() {
   const [expandedPanel, setExpandedPanel] = useState('')
   const [requestRegistryFilter, setRequestRegistryFilter] = useState('all')
   const [requestRegistryView, setRequestRegistryView] = useState('list')
+  const [rfpRegistryView, setRfpRegistryView] = useState('list')
   const [requestSearchQuery, setRequestSearchQuery] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [toasts, setToasts] = useState([])
@@ -1567,9 +1589,7 @@ export default function App() {
     canAccessRequestForPayment(item),
   )
   const accountantForApprovalRecords = isAccountant
-    ? requestForPaymentRecords.filter(
-        (item) => !isTerminalRequest(item) && item.currentStage === 'Approval',
-      )
+    ? requestForPaymentRecords.filter(isAccountantForApprovalItem)
     : []
   const accountantForPaymentRecords = isAccountant
     ? getAccountantForPaymentItems(requestForPaymentRecords)
@@ -2895,6 +2915,51 @@ export default function App() {
     pushToast({
       title: 'CSV exported',
       message: `${filteredItems.length} request${filteredItems.length === 1 ? '' : 's'} downloaded.`,
+      variant: 'success',
+    })
+  }
+
+  function handleExportRfpCsv(records = accountantDashboardRecords) {
+    const exportRecords = Array.isArray(records) ? records : accountantDashboardRecords
+    const headers = [
+      'Request Number',
+      'Title',
+      'Payee / Supplier',
+      'Amount Requested',
+      'Due Date',
+      'Invoice Number',
+      'Payment Status',
+      'Current Stage',
+      'Requester',
+    ]
+
+    const rows = exportRecords.map((record) => [
+      record.requestNumber,
+      record.title,
+      getEffectiveRequestForPaymentPayee(record),
+      getRecordAmount(record),
+      formatExportDate(record.rfpDraft?.dueDate || record.dateNeeded),
+      record.rfpDraft?.invoiceNumber || '',
+      record.rfpDraft?.paymentStatus || '',
+      record.currentStage,
+      record.requester || record.requesterName || '',
+    ])
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
+      .join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'rfp-records.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+
+    pushToast({
+      title: 'CSV exported',
+      message: `${exportRecords.length} RFP record${exportRecords.length === 1 ? '' : 's'} downloaded.`,
       variant: 'success',
     })
   }
@@ -5488,6 +5553,20 @@ export default function App() {
     setIsRfpDirectoryOpen(true)
   }
 
+  function shouldBlockAccountantRfpRecord(record) {
+    if (!record || !isAccountant || isRequestApprovedForRfpRecord(record)) {
+      return false
+    }
+
+    pushToast({
+      title: 'Purchase request not approved',
+      message: `${record.requestNumber} must be approved by the approver or admin before opening the RFP record.`,
+      variant: 'error',
+      duration: 4200,
+    })
+    return true
+  }
+
   function handleOpenAuditTrailPage() {
     if (session?.user?.role === 'requester') {
       return
@@ -5512,6 +5591,10 @@ export default function App() {
 
   function handleOpenSavedRfpRecord(record) {
     if (!record) {
+      return
+    }
+
+    if (shouldBlockAccountantRfpRecord(record)) {
       return
     }
 
@@ -6053,6 +6136,10 @@ export default function App() {
       return
     }
 
+    if (shouldBlockAccountantRfpRecord(record)) {
+      return
+    }
+
     setRfpPreviewRecord(record)
     setRfpPreviewForm({
       invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
@@ -6063,6 +6150,10 @@ export default function App() {
   }
 
   function handlePrintRequestForPaymentRecord(record) {
+    if (shouldBlockAccountantRfpRecord(record)) {
+      return
+    }
+
     openRequestForPaymentPreviewWindow(record, { autoPrint: true })
   }
 
@@ -6077,6 +6168,10 @@ export default function App() {
   }
 
   function openInvoiceUploadModal(record) {
+    if (shouldBlockAccountantRfpRecord(record)) {
+      return
+    }
+
     setInvoiceUploadRecord(record)
     setInvoiceUploadForm({
       invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
@@ -7425,6 +7520,9 @@ export default function App() {
           onPreview={handlePreviewRequestForPaymentRecord}
           onPrint={handlePrintRequestForPaymentRecord}
           onUploadInvoice={openInvoiceUploadModal}
+          viewMode={rfpRegistryView}
+          onViewModeChange={setRfpRegistryView}
+          onExportCsv={handleExportRfpCsv}
           activeScope=''
           onSavePaymentStatus={handleSaveRfpPaymentStatus}
         />

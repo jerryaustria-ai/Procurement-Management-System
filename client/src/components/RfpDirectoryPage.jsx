@@ -47,8 +47,23 @@ function getNormalizedPaymentStatus(record) {
     .toLowerCase()
 }
 
+function isApprovedForRfpRecord(record) {
+  if (!record) {
+    return false
+  }
+
+  if (record.approvalCompleted || record.status === 'completed') {
+    return true
+  }
+
+  const approvalIndex = getWorkflowStageIndex(record, 'Approval')
+  const currentStageIndex = getWorkflowStageIndex(record, record.currentStage)
+
+  return approvalIndex !== -1 && currentStageIndex > approvalIndex
+}
+
 function isForApprovalRecord(record) {
-  return !isTerminalRequest(record) && record?.currentStage === 'Approval'
+  return !isTerminalRequest(record) && !isApprovedForRfpRecord(record)
 }
 
 function isForPaymentRecord(record) {
@@ -284,6 +299,9 @@ export default function RfpDirectoryPage({
   onPreview,
   onPrint,
   onUploadInvoice,
+  viewMode = 'list',
+  onViewModeChange,
+  onExportCsv,
   embedded = false,
 }) {
   const currentDate = new Date()
@@ -292,6 +310,7 @@ export default function RfpDirectoryPage({
   const [paidMonth, setPaidMonth] = useState(currentDate.getMonth())
   const [paidYear, setPaidYear] = useState(currentDate.getFullYear())
   const [sortValue, setSortValue] = useState('due-date-asc')
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const availablePaidYears = useMemo(
     () => getAvailablePaidYears(items),
@@ -394,6 +413,17 @@ export default function RfpDirectoryPage({
     return sortedItems
   }, [filterValue, items, paidMonth, paidYear, searchQuery, sortValue])
 
+  const paidTotal = useMemo(() => {
+    if (filterValue !== 'paid') {
+      return 0
+    }
+
+    return visibleItems.reduce(
+      (sum, record) => sum + getRecordAmount(record),
+      0,
+    )
+  }, [filterValue, visibleItems])
+
   const content = (
     <section className="panel">
       <div className="panel-heading">
@@ -401,9 +431,97 @@ export default function RfpDirectoryPage({
           <p className="eyebrow">Request for Payment</p>
           <h2>RFP records</h2>
         </div>
-        <span className="panel-counter">
-          {visibleItems.length} {visibleItems.length === 1 ? "record" : "records"}
-        </span>
+        <div className="panel-top-actions rfp-directory-actions">
+          <span className="panel-counter">
+            {visibleItems.length} {visibleItems.length === 1 ? "record" : "records"}
+          </span>
+          {canCreateNew ? (
+            <button
+              className="request-list-create-button"
+              type="button"
+              onClick={onCreateNew}
+            >
+              New purchase request
+            </button>
+          ) : null}
+          {onViewModeChange || onExportCsv ? (
+            <div className="panel-kebab-wrap">
+              <button
+                className="panel-kebab-button"
+                type="button"
+                onClick={() => setIsMenuOpen((current) => !current)}
+                aria-haspopup="menu"
+                aria-expanded={isMenuOpen}
+                aria-label="More RFP record actions"
+                title="More actions"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+                  <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                  <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+                </svg>
+              </button>
+              {isMenuOpen ? (
+                <div className="panel-kebab-menu" role="menu" aria-label="RFP record actions">
+                  <div className="panel-kebab-menu-group">
+                    <span className="panel-kebab-menu-label">Layout view</span>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={viewMode === "list"}
+                      className={viewMode === "list" ? "is-active" : ""}
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        onViewModeChange?.("list")
+                      }}
+                    >
+                      List View
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={viewMode === "grid"}
+                      className={viewMode === "grid" ? "is-active" : ""}
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        onViewModeChange?.("grid")
+                      }}
+                    >
+                      Grid View
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={viewMode === "card"}
+                      className={viewMode === "card" ? "is-active" : ""}
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        onViewModeChange?.("card")
+                      }}
+                    >
+                      Card View
+                    </button>
+                  </div>
+                  {onExportCsv ? (
+                    <>
+                      <div className="panel-kebab-menu-separator" aria-hidden="true" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsMenuOpen(false)
+                          onExportCsv(visibleItems)
+                        }}
+                      >
+                        Download CSV
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="request-list-toolbar rfp-directory-toolbar">
@@ -476,22 +594,11 @@ export default function RfpDirectoryPage({
             </>
           ) : null}
         </div>
-        {canCreateNew ? (
-          <div className="request-list-tools-top">
-            <button
-              className="request-list-create-button"
-              type="button"
-              onClick={onCreateNew}
-            >
-              New purchase request
-            </button>
-          </div>
-        ) : null}
       </div>
 
       {visibleItems.length === 0 ? (
         <p className="empty-state">No RFP-enabled requests available.</p>
-      ) : (
+      ) : viewMode === 'list' ? (
         <div className="supplier-table audit-trail-table-wrap">
           <table className="supplier-table-grid audit-trail-table">
             <thead className="supplier-table-header">
@@ -592,8 +699,81 @@ export default function RfpDirectoryPage({
                 );
               })}
             </tbody>
+            {filterValue === 'paid' ? (
+              <tfoot>
+                <tr className="supplier-table-footer">
+                  <td colSpan={2}></td>
+                  <td>Total Paid</td>
+                  <td>{formatCurrencyValue(paidTotal)}</td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
+      ) : (
+        <>
+          <div className={`request-list request-list--${viewMode} rfp-record-list`}>
+            {visibleItems.map((record) => {
+              const handlePreview = () => {
+                if (typeof onPreview === "function") {
+                  onPreview(record);
+                }
+              };
+
+              return (
+                <article
+                  key={record.id}
+                  className={`request-list-item rfp-record-card ${
+                    record.status === "completed" || record.filingCompleted ? "completed" : ""
+                  } ${record.status === "rejected" ? "rejected" : ""}`}
+                >
+                  <button
+                    className="request-card-select"
+                    type="button"
+                    onClick={handlePreview}
+                  >
+                    <div className="request-list-topline">
+                      <div>
+                        <span>Request</span>
+                        <strong className="request-list-title">{record.requestNumber}</strong>
+                      </div>
+                      <span className="rfp-status-text">
+                        {getDisplayRfpStatus(record)}
+                      </span>
+                    </div>
+                    <div className="request-status-group">
+                      <span>Payee / Supplier</span>
+                      <strong className="request-list-requester-name">
+                        {getDisplayPayee(record)}
+                      </strong>
+                    </div>
+                    <div className="request-list-footer">
+                      <div>
+                        <span>Due date</span>
+                        <strong className="request-list-stage-value">
+                          {record?.rfpDraft?.dueDate || 'Not set'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Amount</span>
+                        <strong className="request-list-stage-value">
+                          {formatCurrencyValue(getRecordAmount(record))}
+                        </strong>
+                      </div>
+                    </div>
+                    <small className="rfp-record-card-title">{record.title}</small>
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+          {filterValue === 'paid' ? (
+            <div className="rfp-paid-total-card">
+              <span>Total Paid</span>
+              <strong>{formatCurrencyValue(paidTotal)}</strong>
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );
