@@ -1035,6 +1035,21 @@ label,
   margin-top: 12px;
 }
 
+.rfp-status-text.is-paid {
+  color: #15803d;
+  font-weight: 800;
+}
+
+.rfp-status-text.is-declined {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.rfp-status-text.is-for-payment {
+  color: #2563eb;
+  font-weight: 800;
+}
+
 .rfp-paid-total-card {
   display: flex;
   align-items: center;
@@ -2692,6 +2707,14 @@ label,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.field-help-text {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .create-request-divider {

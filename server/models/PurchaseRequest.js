@@ -70,6 +70,7 @@ const requestForPaymentDraftSchema = new mongoose.Schema(
     tinNumber: { type: String, default: "" },
     invoiceNumber: { type: String, default: "" },
     paymentStatus: { type: String, default: "" },
+    paymentStatusUpdatedAt: { type: Date, default: null },
     amountRequested: { type: String, default: "" },
     dueDate: { type: String, default: "" },
     notes: { type: String, default: "" }

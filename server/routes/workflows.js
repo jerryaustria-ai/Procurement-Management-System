@@ -27,11 +27,36 @@ import {
 import { serializePurchaseRequest } from "../utils/serializers.js";
 
 const router = Router();
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 router.use(requireAuth);
 
 function getRequestWorkflowStages(request) {
   return normalizeWorkflowStageOrder(request?.workflowStages, workflowStages);
+}
+
+function getPaidStatusReferenceDate(request) {
+  return request?.rfpDraft?.paymentStatusUpdatedAt || request?.updatedAt || null;
+}
+
+function isPaidPaymentStatusLockedForAccountant(req, request, nextPaymentStatus) {
+  if (req.user.role !== "accountant") {
+    return false;
+  }
+
+  const currentPaymentStatus = String(request?.rfpDraft?.paymentStatus || "").trim().toLowerCase();
+  const normalizedNextPaymentStatus = String(nextPaymentStatus || "").trim().toLowerCase();
+
+  if (currentPaymentStatus !== "paid" || normalizedNextPaymentStatus === currentPaymentStatus) {
+    return false;
+  }
+
+  const paidReferenceDate = getPaidStatusReferenceDate(request);
+  if (!paidReferenceDate) {
+    return false;
+  }
+
+  return Date.now() - new Date(paidReferenceDate).getTime() > ONE_DAY_MS;
 }
 
 async function getConfiguredWorkflowStages() {
@@ -462,11 +487,30 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
     return res.status(403).json({ message: "Your role cannot update the request for payment draft." });
   }
 
+  const previousPaymentStatus = String(request.rfpDraft?.paymentStatus || "").trim();
+  const nextPaymentStatus = String(req.body.paymentStatus ?? "").trim();
+
+  if (isPaidPaymentStatusLockedForAccountant(req, request, nextPaymentStatus)) {
+    return res.status(400).json({
+      message: "Paid payment status can no longer be changed after one day."
+    });
+  }
+
+  const paymentStatusChanged =
+    nextPaymentStatus &&
+    nextPaymentStatus.toLowerCase() !== previousPaymentStatus.toLowerCase();
+  const paymentStatusUpdatedAt =
+    paymentStatusChanged
+      ? new Date()
+      : request.rfpDraft?.paymentStatusUpdatedAt ||
+        (nextPaymentStatus.toLowerCase() === "paid" ? getPaidStatusReferenceDate(request) : null);
+
   request.rfpDraft = {
     payee: String(req.body.payee ?? ""),
     tinNumber: String(req.body.tinNumber ?? ""),
     invoiceNumber: String(req.body.invoiceNumber ?? ""),
-    paymentStatus: String(req.body.paymentStatus ?? ""),
+    paymentStatus: nextPaymentStatus,
+    paymentStatusUpdatedAt,
     amountRequested: String(req.body.amountRequested ?? ""),
     dueDate: String(req.body.dueDate ?? ""),
     notes: String(req.body.notes ?? "")

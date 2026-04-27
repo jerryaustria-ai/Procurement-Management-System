@@ -260,6 +260,24 @@ function getDisplayRfpStatus(record) {
   return 'Not set'
 }
 
+function getRfpStatusClassName(record) {
+  const normalizedStatus = getDisplayRfpStatus(record).toLowerCase()
+
+  if (normalizedStatus === 'paid') {
+    return 'rfp-status-text is-paid'
+  }
+
+  if (normalizedStatus === 'decline') {
+    return 'rfp-status-text is-declined'
+  }
+
+  if (normalizedStatus === 'for payment') {
+    return 'rfp-status-text is-for-payment'
+  }
+
+  return 'rfp-status-text'
+}
+
 function getSortState(sortValue, columnKey) {
   if (columnKey === 'request') {
     if (sortValue === 'request-number-asc') {
@@ -668,6 +686,11 @@ export default function RfpDirectoryPage({
                 const handlePreview = () => {
                   if (typeof onPreview === "function") {
                     onPreview(record);
+                    return;
+                  }
+
+                  if (typeof onOpen === "function") {
+                    onOpen(record);
                   }
                 };
 
@@ -691,7 +714,7 @@ export default function RfpDirectoryPage({
                     <td>{getDisplayPayee(record)}</td>
                     <td>{record?.rfpDraft?.dueDate || 'Not set'}</td>
                     <td>
-                      <span className="rfp-status-text">
+                      <span className={getRfpStatusClassName(record)}>
                         {getDisplayRfpStatus(record)}
                       </span>
                     </td>
@@ -717,6 +740,11 @@ export default function RfpDirectoryPage({
               const handlePreview = () => {
                 if (typeof onPreview === "function") {
                   onPreview(record);
+                  return;
+                }
+
+                if (typeof onOpen === "function") {
+                  onOpen(record);
                 }
               };
 
@@ -737,7 +765,7 @@ export default function RfpDirectoryPage({
                         <span>Request</span>
                         <strong className="request-list-title">{record.requestNumber}</strong>
                       </div>
-                      <span className="rfp-status-text">
+                      <span className={getRfpStatusClassName(record)}>
                         {getDisplayRfpStatus(record)}
                       </span>
                     </div>

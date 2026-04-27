@@ -33,6 +33,7 @@ const ART_GALLERY_URL =
   'https://art-inventory-self.vercel.app'
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_WORKFLOW_STAGES = [
   'Purchase Request',
   'Review',
@@ -875,6 +876,27 @@ function getNormalizedPaymentStatus(item) {
   return String(item?.rfpDraft?.paymentStatus || '')
     .trim()
     .toLowerCase()
+}
+
+function getPaymentStatusReferenceDate(item) {
+  const dateValue = item?.rfpDraft?.paymentStatusUpdatedAt || item?.updatedAt
+  const parsedDate = dateValue ? new Date(dateValue) : null
+
+  if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
+    return null
+  }
+
+  return parsedDate
+}
+
+function isPaidPaymentStatusOlderThanOneDay(item) {
+  if (getNormalizedPaymentStatus(item) !== 'paid') {
+    return false
+  }
+
+  const referenceDate = getPaymentStatusReferenceDate(item)
+
+  return Boolean(referenceDate && Date.now() - referenceDate.getTime() > ONE_DAY_MS)
 }
 
 function isAccountantForApprovalItem(item) {
@@ -3390,7 +3412,9 @@ export default function App() {
     )
 
     setRequestForPaymentForm(getRequestForPaymentFormFromItem(resolvedRequest))
-    setIsRequestForPaymentEditing(canEditRfpDraft && !hasSavedRfpDraft)
+    setIsRequestForPaymentEditing(
+      canEditRfpDraft && (!hasSavedRfpDraft || session?.user?.role === 'admin'),
+    )
     setIsRequestForPaymentPageOpen(true)
   }
 
@@ -3585,6 +3609,19 @@ export default function App() {
     }
 
     const normalizedPaymentStatus = String(paymentStatus || '').trim()
+    const currentPaymentStatus = String(record?.rfpDraft?.paymentStatus || '')
+      .trim()
+      .toLowerCase()
+
+    if (
+      session?.user?.role === 'accountant' &&
+      currentPaymentStatus === 'paid' &&
+      normalizedPaymentStatus.toLowerCase() !== currentPaymentStatus &&
+      isPaidPaymentStatusOlderThanOneDay(record)
+    ) {
+      throw new Error('Paid payment status can no longer be changed after one day.')
+    }
+
     const updated = await patchRequestForPaymentDraft(record, {
       ...getRequestForPaymentFormFromItem(record),
       paymentStatus: normalizedPaymentStatus,
@@ -6210,6 +6247,15 @@ export default function App() {
   function handleRfpPreviewFormChange(event) {
     const { name, value } = event.target
 
+    if (
+      name === 'paymentStatus' &&
+      session?.user?.role === 'accountant' &&
+      isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord)
+    ) {
+      setRfpPreviewError('Paid payment status can no longer be changed after one day.')
+      return
+    }
+
     setRfpPreviewForm((current) => ({
       ...current,
       [name]: value,
@@ -7694,6 +7740,10 @@ export default function App() {
                   name='paymentStatus'
                   value={rfpPreviewForm.paymentStatus}
                   onChange={handleRfpPreviewFormChange}
+                  disabled={
+                    session?.user?.role === 'accountant' &&
+                    isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord)
+                  }
                 >
                   <option value=''>Select status</option>
                   <option value='Processing'>Processing</option>
@@ -7701,6 +7751,12 @@ export default function App() {
                   <option value='Hold'>Hold</option>
                   <option value='Decline'>Decline</option>
                 </select>
+                {session?.user?.role === 'accountant' &&
+                isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord) ? (
+                  <span className='field-help-text'>
+                    Paid status is locked after one day.
+                  </span>
+                ) : null}
               </label>
             </div>
 
