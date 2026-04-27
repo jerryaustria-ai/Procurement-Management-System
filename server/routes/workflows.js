@@ -15,7 +15,6 @@ import { Setting } from "../models/Setting.js";
 import { User } from "../models/User.js";
 import {
   deleteDocumentFromCloudinary,
-  getCloudinaryRawDocumentUrl,
   isCloudinaryConfigured,
   uploadDocumentToCloudinary
 } from "../utils/cloudinary.js";
@@ -86,6 +85,14 @@ function isRequesterAccessingOwnRequest(req, request) {
 
 function canViewRequest(req, request) {
   return req.user.role !== "requester" || request.requesterEmail === req.user.email;
+}
+
+function isImageMimeType(mimeType) {
+  return String(mimeType || "").startsWith("image/");
+}
+
+function getSafeFileName(fileName) {
+  return String(fileName || "attachment").replaceAll('"', "");
 }
 
 function canEditRequest(req, request) {
@@ -980,11 +987,8 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
       return res.status(400).json({ message: "Invalid document type." });
     }
 
-    if (
-      documentType === "quotation" &&
-      !["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(req.file.mimetype)
-    ) {
-      return res.status(400).json({ message: "Quotation upload only accepts PDF or image files." });
+    if (!isImageMimeType(req.file.mimetype)) {
+      return res.status(400).json({ message: "Only image uploads are allowed. Please upload JPG, PNG, or WEBP files." });
     }
 
     if (!isCloudinaryConfigured()) {
@@ -1050,20 +1054,11 @@ router.get("/purchase-requests/:id/documents/:documentId/view", async (req, res)
   const mimeType = document.mimeType || "application/octet-stream";
   const fileName = document.originalName || document.label || "attachment";
 
-  if (
-    mimeType === "application/pdf" &&
-    String(document.cloudinaryResourceType || "").toLowerCase() === "image"
-  ) {
-    return res.status(409).json({
-      message:
-        "This older PDF was uploaded with a blocked Cloudinary delivery type. Please re-upload the file to enable preview."
-    });
+  if (!isImageMimeType(mimeType)) {
+    return res.status(415).json({ message: "Only image attachments can be previewed." });
   }
 
-  const candidateUrls = [
-    document.filePath,
-    document.cloudinaryPublicId ? getCloudinaryRawDocumentUrl(document.cloudinaryPublicId) : ""
-  ].filter(Boolean);
+  const candidateUrls = [document.filePath].filter(Boolean);
 
   if (!/^https?:\/\//i.test(document.filePath || "")) {
     const localFilePath = document.filePath?.replace("/uploads/", "");
@@ -1093,6 +1088,59 @@ router.get("/purchase-requests/:id/documents/:documentId/view", async (req, res)
   }
 
   return res.status(502).json({ message: "Unable to load this document preview." });
+});
+
+router.get("/purchase-requests/:id/documents/:documentId/download", async (req, res) => {
+  const request = await PurchaseRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({ message: "Purchase request not found." });
+  }
+
+  if (!canViewRequest(req, request)) {
+    return res.status(403).json({ message: "You cannot download documents for this request." });
+  }
+
+  const document = request.documents.id(req.params.documentId);
+
+  if (!document) {
+    return res.status(404).json({ message: "Document not found." });
+  }
+
+  const mimeType = document.mimeType || "application/octet-stream";
+  const fileName = document.originalName || document.label || "attachment";
+  const safeFileName = getSafeFileName(fileName);
+
+  const candidateUrls = [document.filePath].filter(Boolean);
+
+  if (!/^https?:\/\//i.test(document.filePath || "")) {
+    const localFilePath = document.filePath?.replace("/uploads/", "");
+
+    if (!localFilePath) {
+      return res.status(404).json({ message: "Document file not found." });
+    }
+
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFileName}"`);
+    return fs.createReadStream(`uploads/${localFilePath}`).pipe(res);
+  }
+
+  for (const fileUrl of candidateUrls) {
+    const response = await fetch(fileUrl).catch(() => null);
+
+    if (!response?.ok || !response.body) {
+      continue;
+    }
+
+    res.setHeader("Content-Type", response.headers.get("content-type") || mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFileName}"`);
+    for await (const chunk of response.body) {
+      res.write(chunk);
+    }
+    return res.end();
+  }
+
+  return res.status(502).json({ message: "Unable to download this document." });
 });
 
 router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) => {

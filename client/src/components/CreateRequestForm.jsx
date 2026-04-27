@@ -139,7 +139,7 @@ export default function CreateRequestForm({
             key={quotationFileName || 'empty-request-quotation'}
             id="request-quotation-upload"
             type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.webp"
+            accept=".png,.jpg,.jpeg,.webp"
             onChange={onQuotationFileChange}
           />
           {quotationFileName ? (

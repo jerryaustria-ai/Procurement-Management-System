@@ -85,9 +85,11 @@ export default function RequestSummary({
 
   function handleViewDocument(document) {
     const viewerUrl = `${apiOrigin}/api/workflows/purchase-requests/${item.id}/documents/${document.id}/view`;
+    const downloadUrl = `${apiOrigin}/api/workflows/purchase-requests/${item.id}/documents/${document.id}/download`;
     const viewerDocument = {
       ...document,
       viewerUrl,
+      downloadUrl,
       directUrl: getDocumentHref(document.filePath)
     };
 

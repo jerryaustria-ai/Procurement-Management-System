@@ -41,9 +41,11 @@ export default function DocumentPanel({
 
   function handleViewDocument(document) {
     const viewerUrl = `${apiOrigin}/api/workflows/purchase-requests/${item.id}/documents/${document.id}/view`;
+    const downloadUrl = `${apiOrigin}/api/workflows/purchase-requests/${item.id}/documents/${document.id}/download`;
     const viewerDocument = {
       ...document,
       viewerUrl,
+      downloadUrl,
       directUrl: getDocumentHref(document.filePath)
     };
 
@@ -98,7 +100,7 @@ export default function DocumentPanel({
 
       <label>
         Attachment file
-        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx" onChange={onFileChange} />
+        <input type="file" accept=".png,.jpg,.jpeg,.webp" onChange={onFileChange} />
       </label>
 
       <button disabled={!canManage || isSubmitting || !uploadForm.file} type="button" onClick={onUpload}>

@@ -35,6 +35,11 @@ const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
+const ALLOWED_UPLOAD_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+])
 const DEFAULT_WORKFLOW_STAGES = [
   'Purchase Request',
   'Review',
@@ -1120,8 +1125,25 @@ function getUploadFileLimitMessage(file) {
   return `${fileName}must be less than 10 MB.`
 }
 
+function isUploadFileUnsupported(file) {
+  return Boolean(file && !ALLOWED_UPLOAD_IMAGE_TYPES.has(file.type))
+}
+
+function getUploadFileTypeMessage(file) {
+  const fileName = file?.name ? `${file.name} ` : 'Selected file '
+  return `${fileName}is not allowed. Please upload JPG, PNG, or WEBP images only.`
+}
+
 function getAttachmentViewerUrl(document) {
   return document?.viewerUrl || ''
+}
+
+function getAttachmentDirectUrl(document) {
+  return document?.directUrl || document?.filePath || ''
+}
+
+function getAttachmentDownloadUrl(document) {
+  return document?.downloadUrl || ''
 }
 
 function getAttachmentViewerLabel(document) {
@@ -1153,13 +1175,6 @@ function getAttachmentViewerType(document) {
   }
 
   return 'file'
-}
-
-function isLegacyBlockedCloudinaryPdf(document) {
-  return (
-    getAttachmentViewerType(document) === 'pdf' &&
-    String(document?.cloudinaryResourceType || '').toLowerCase() === 'image'
-  )
 }
 
 function CompanyHeader({
@@ -2280,12 +2295,14 @@ export default function App() {
     }
 
     const viewerUrl = getAttachmentViewerUrl(attachmentViewerDocument)
+    const directUrl = getAttachmentDirectUrl(attachmentViewerDocument)
 
-    if (isLegacyBlockedCloudinaryPdf(attachmentViewerDocument)) {
-      setAttachmentViewerError(
-        'This older PDF was uploaded with a blocked Cloudinary delivery type. Please re-upload the file to enable in-app preview.',
-      )
-      setAttachmentViewerObjectUrl('')
+    if (
+      getAttachmentViewerType(attachmentViewerDocument) === 'image' &&
+      directUrl
+    ) {
+      setAttachmentViewerObjectUrl(directUrl)
+      setAttachmentViewerError('')
       setIsAttachmentViewerLoading(false)
       return undefined
     }
@@ -2315,7 +2332,10 @@ export default function App() {
         })
 
         if (!response.ok) {
-          throw new Error('Unable to load this attachment preview.')
+          const data = await response.json().catch(() => ({}))
+          throw new Error(
+            data.message || 'Unable to load this attachment preview.',
+          )
         }
 
         const blob = await response.blob()
@@ -2341,6 +2361,66 @@ export default function App() {
       }
     }
   }, [attachmentViewerDocument, session?.token])
+
+  async function downloadAttachmentDocument(attachmentDocument) {
+    const downloadUrl = getAttachmentDownloadUrl(attachmentDocument)
+    const directUrl = getAttachmentDirectUrl(attachmentDocument)
+    const fileName =
+      attachmentDocument?.originalName ||
+      attachmentDocument?.filename ||
+      attachmentDocument?.label ||
+      'attachment'
+
+    if (!downloadUrl) {
+      if (directUrl) {
+        window.open(directUrl, '_blank', 'noopener,noreferrer')
+      }
+      return
+    }
+
+    try {
+      const headers = session?.token
+        ? { Authorization: `Bearer ${session.token}` }
+        : {}
+      const response = await fetch(downloadUrl, { headers })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.message || 'Unable to download this attachment.')
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      if (directUrl) {
+        window.open(directUrl, '_blank', 'noopener,noreferrer')
+        return
+      }
+
+      pushToast({
+        title: 'Download failed',
+        message: error.message || 'Unable to download this attachment.',
+        variant: 'error',
+        duration: 4200,
+      })
+    }
+  }
+
+  function handleOpenAttachmentDocument(document) {
+    if (getAttachmentViewerType(document) === 'image') {
+      setAttachmentViewerDocument(document)
+      return
+    }
+
+    void downloadAttachmentDocument(document)
+  }
 
   function handleCredentialChange(event) {
     const nextValue =
@@ -2615,6 +2695,13 @@ export default function App() {
       return
     }
 
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setRequestQuotationFile(null)
+      setActionError(getUploadFileTypeMessage(file))
+      return
+    }
+
     setActionError('')
     setRequestQuotationFile(file)
   }
@@ -2742,6 +2829,16 @@ export default function App() {
       return
     }
 
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setUploadForm((current) => ({
+        ...current,
+        file: null,
+      }))
+      setUploadError(getUploadFileTypeMessage(file))
+      return
+    }
+
     setUploadError('')
     setUploadForm((current) => ({
       ...current,
@@ -2760,6 +2857,17 @@ export default function App() {
         file: null,
       })
       setActionError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setUploadForm({
+        type: 'other',
+        label: 'Boss approval attachment',
+        file: null,
+      })
+      setActionError(getUploadFileTypeMessage(file))
       return
     }
 
@@ -6427,6 +6535,16 @@ export default function App() {
       return
     }
 
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setInvoiceUploadForm((current) => ({
+        ...current,
+        file: null,
+      }))
+      setInvoiceUploadError(getUploadFileTypeMessage(file))
+      return
+    }
+
     setInvoiceUploadError('')
     setInvoiceUploadForm((current) => ({
       ...current,
@@ -6462,6 +6580,16 @@ export default function App() {
         file: null,
       }))
       setRfpPreviewError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setRfpPreviewForm((current) => ({
+        ...current,
+        file: null,
+      }))
+      setRfpPreviewError(getUploadFileTypeMessage(file))
       return
     }
 
@@ -7981,7 +8109,7 @@ export default function App() {
                 : 'Invoice file'}
               <input
                 type='file'
-                accept='.pdf,.jpg,.jpeg,.png,.webp'
+                accept='.jpg,.jpeg,.png,.webp'
                 onChange={handleRfpPreviewFileChange}
               />
             </label>
@@ -8070,7 +8198,7 @@ export default function App() {
                 : 'Invoice file'}
               <input
                 type='file'
-                accept='.pdf,.jpg,.jpeg,.png,.webp'
+                accept='.jpg,.jpeg,.png,.webp'
                 onChange={handleInvoiceUploadFileChange}
               />
             </label>
@@ -8256,7 +8384,7 @@ export default function App() {
               showExpand={false}
               showHeader={false}
               showStagePill={false}
-              onViewDocument={setAttachmentViewerDocument}
+              onViewDocument={handleOpenAttachmentDocument}
             />
           ) : null}
           {expandedPanel === 'workflow' && selectedItem ? (
@@ -8282,7 +8410,7 @@ export default function App() {
               error={uploadError}
               apiOrigin={API_ORIGIN}
               showExpand={false}
-              onViewDocument={setAttachmentViewerDocument}
+              onViewDocument={handleOpenAttachmentDocument}
             />
           ) : null}
           {expandedPanel === 'admin-request'
@@ -8308,13 +8436,13 @@ export default function App() {
           title={getAttachmentViewerLabel(attachmentViewerDocument)}
           actions={
             attachmentViewerObjectUrl ||
-            attachmentViewerDocument.directUrl ||
+            getAttachmentDirectUrl(attachmentViewerDocument) ||
             getAttachmentViewerUrl(attachmentViewerDocument) ? (
               <a
                 className='inline-link'
                 href={
                   attachmentViewerObjectUrl ||
-                  attachmentViewerDocument.directUrl ||
+                  getAttachmentDirectUrl(attachmentViewerDocument) ||
                   getAttachmentViewerUrl(attachmentViewerDocument)
                 }
                 target='_blank'
