@@ -67,7 +67,33 @@ function buildPortalLink(baseUrl, params = {}) {
 }
 
 function isValidEmailAddress(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+  const email = String(value || "").trim().toLowerCase();
+
+  if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(email)) {
+    return false;
+  }
+
+  const [localPart, domain] = email.split("@");
+  const domainParts = domain.split(".");
+
+  return (
+    Boolean(localPart) &&
+    !localPart.startsWith(".") &&
+    !localPart.endsWith(".") &&
+    !localPart.includes("..") &&
+    domainParts.every((part) => part && !part.startsWith("-") && !part.endsWith("-")) &&
+    /^[a-z]{2,}$/.test(domainParts[domainParts.length - 1])
+  );
+}
+
+function getUniqueValidEmails(recipients = []) {
+  return Array.from(
+    new Set(
+      (Array.isArray(recipients) ? recipients : [recipients])
+        .map((recipient) => String(recipient || "").trim().toLowerCase())
+        .filter(isValidEmailAddress)
+    )
+  );
 }
 
 async function sendMail({ to, subject, text, html }) {
@@ -88,11 +114,7 @@ async function sendMail({ to, subject, text, html }) {
     };
   }
 
-  const recipients = (Array.isArray(to) ? to : [to])
-    .map((recipient) => String(recipient || "").trim())
-    .filter(Boolean)
-    .filter(isValidEmailAddress)
-    .map((email) => ({ email }));
+  const recipients = getUniqueValidEmails(to).map((email) => ({ email }));
 
   if (recipients.length === 0) {
     return {
@@ -324,16 +346,10 @@ export async function sendAccountantRfpApprovedEmail({
     return { skipped: true, reason: "No accountant recipients were provided." };
   }
 
-  const uniqueRecipients = Array.from(
-    new Set(
-      recipients
-        .map((recipient) => String(recipient || "").trim().toLowerCase())
-        .filter(Boolean)
-    )
-  );
+  const uniqueRecipients = getUniqueValidEmails(recipients);
 
   if (uniqueRecipients.length === 0) {
-    return { skipped: true, reason: "Accountant recipient list is empty after normalization." };
+    return { skipped: true, reason: "No valid accountant recipient emails were found." };
   }
 
   const companyName = await getCompanyName();
