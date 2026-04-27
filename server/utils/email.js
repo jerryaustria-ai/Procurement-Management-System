@@ -66,6 +66,10 @@ function buildPortalLink(baseUrl, params = {}) {
   }
 }
 
+function isValidEmailAddress(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 async function sendMail({ to, subject, text, html }) {
   const configurationStatus = getEmailConfigurationStatus();
 
@@ -87,6 +91,7 @@ async function sendMail({ to, subject, text, html }) {
   const recipients = (Array.isArray(to) ? to : [to])
     .map((recipient) => String(recipient || "").trim())
     .filter(Boolean)
+    .filter(isValidEmailAddress)
     .map((email) => ({ email }));
 
   if (recipients.length === 0) {
