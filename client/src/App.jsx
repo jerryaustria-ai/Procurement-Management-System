@@ -72,6 +72,7 @@ const DEFAULT_COMPANY_SETTINGS = {
   generalAccountantName: '',
   chiefInvestmentOfficerName: '',
   workflowStages: DEFAULT_WORKFLOW_STAGES,
+  skippedWorkflowStages: [],
 }
 
 function getStoredTheme() {
@@ -1776,6 +1777,9 @@ export default function App() {
         Array.isArray(data.workflowStages) && data.workflowStages.length
           ? data.workflowStages
           : DEFAULT_COMPANY_SETTINGS.workflowStages,
+      skippedWorkflowStages: Array.isArray(data.skippedWorkflowStages)
+        ? data.skippedWorkflowStages
+        : DEFAULT_COMPANY_SETTINGS.skippedWorkflowStages,
     }
 
     setCompanySettings(nextSettings)
@@ -2986,6 +2990,22 @@ export default function App() {
       return {
         ...current,
         workflowStages: stages,
+      }
+    })
+  }
+
+  function handleWorkflowStageSkipChange(stage, isSkipped) {
+    setSettingsForm((current) => {
+      const currentSkippedStages = Array.isArray(current.skippedWorkflowStages)
+        ? current.skippedWorkflowStages
+        : []
+      const nextSkippedStages = isSkipped
+        ? Array.from(new Set([...currentSkippedStages, stage]))
+        : currentSkippedStages.filter((skippedStage) => skippedStage !== stage)
+
+      return {
+        ...current,
+        skippedWorkflowStages: nextSkippedStages,
       }
     })
   }
@@ -6850,6 +6870,11 @@ export default function App() {
               settingsForm.workflowStages.length
                 ? settingsForm.workflowStages
                 : DEFAULT_COMPANY_SETTINGS.workflowStages,
+            skippedWorkflowStages: Array.isArray(
+              settingsForm.skippedWorkflowStages,
+            )
+              ? settingsForm.skippedWorkflowStages
+              : DEFAULT_COMPANY_SETTINGS.skippedWorkflowStages,
           }),
         })
 
@@ -6872,6 +6897,9 @@ export default function App() {
             Array.isArray(data.workflowStages) && data.workflowStages.length
               ? data.workflowStages
               : DEFAULT_COMPANY_SETTINGS.workflowStages,
+          skippedWorkflowStages: Array.isArray(data.skippedWorkflowStages)
+            ? data.skippedWorkflowStages
+            : DEFAULT_COMPANY_SETTINGS.skippedWorkflowStages,
         }
 
         setCompanySettings(nextSettings)
@@ -7511,6 +7539,7 @@ export default function App() {
           onSaveRequesterSettings={handleSaveRequesterSettings}
           onLogoFileChange={handleSettingsLogoChange}
           onWorkflowStageMove={handleWorkflowStageMove}
+          onWorkflowStageSkipChange={handleWorkflowStageSkipChange}
           onStartMainSettingsEdit={handleStartMainSettingsEdit}
           onCancelMainSettingsEdit={handleCancelMainSettingsEdit}
           onSave={handleSaveSettings}

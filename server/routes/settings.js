@@ -18,7 +18,8 @@ const DEFAULT_SETTINGS = {
   logoUrl: "/JANUARIUS.ico",
   generalAccountantName: "",
   chiefInvestmentOfficerName: "",
-  workflowStages: [...defaultWorkflowStages]
+  workflowStages: [...defaultWorkflowStages],
+  skippedWorkflowStages: []
 };
 
 function normalizeWorkflowStages(input) {
@@ -42,8 +43,30 @@ function normalizeWorkflowStages(input) {
   return normalized;
 }
 
+function normalizeSkippedWorkflowStages(input, workflowStages) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const skipBlockedStages = new Set(["Purchase Request"]);
+  const allowedStages = new Set(workflowStages);
+
+  return input
+    .map((stage) => String(stage || "").trim())
+    .filter(
+      (stage, index, stages) =>
+        allowedStages.has(stage) &&
+        !skipBlockedStages.has(stage) &&
+        stages.indexOf(stage) === index
+    );
+}
+
 function serializeSetting(setting) {
   const normalizedWorkflowStages = normalizeWorkflowStageOrder(setting.workflowStages);
+  const skippedWorkflowStages = normalizeSkippedWorkflowStages(
+    setting.skippedWorkflowStages,
+    normalizedWorkflowStages
+  );
 
   return {
     id: setting.id,
@@ -54,7 +77,8 @@ function serializeSetting(setting) {
     logoUrl: setting.logoUrl,
     generalAccountantName: setting.generalAccountantName,
     chiefInvestmentOfficerName: setting.chiefInvestmentOfficerName,
-    workflowStages: normalizedWorkflowStages
+    workflowStages: normalizedWorkflowStages,
+    skippedWorkflowStages
   };
 }
 
@@ -93,6 +117,10 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
     typeof req.body.workflowStages === "undefined"
       ? serializeSetting(setting).workflowStages
       : normalizeWorkflowStages(req.body.workflowStages);
+  const skippedWorkflowStages =
+    typeof req.body.skippedWorkflowStages === "undefined"
+      ? serializeSetting(setting).skippedWorkflowStages
+      : normalizeSkippedWorkflowStages(req.body.skippedWorkflowStages, normalizedWorkflowStages || defaultWorkflowStages);
 
   if (!companyName) {
     return res.status(400).json({ message: "Company name is required." });
@@ -118,6 +146,7 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
   setting.generalAccountantName = generalAccountantName;
   setting.chiefInvestmentOfficerName = chiefInvestmentOfficerName;
   setting.workflowStages = normalizedWorkflowStages;
+  setting.skippedWorkflowStages = skippedWorkflowStages;
 
   await setting.save();
   const identities = await getEntitySettings();

@@ -83,6 +83,9 @@ export function serializePurchaseRequest(request) {
     currentStage: request.currentStage,
     currentStageDescription: stageDescriptions[request.currentStage],
     workflowStages: requestWorkflowStages,
+    skippedWorkflowStages: Array.isArray(request.skippedWorkflowStages)
+      ? request.skippedWorkflowStages
+      : [],
     approvalCompleted: Boolean(request.approvalCompleted),
     requestForPaymentEnabled: Boolean(request.requestForPaymentEnabled),
     filingCompleted: Boolean(request.filingCompleted),

@@ -66,6 +66,70 @@ async function getConfiguredWorkflowStages() {
   return normalizeWorkflowStageOrder(globalSetting?.workflowStages, workflowStages);
 }
 
+function normalizeSkippedWorkflowStages(input, stages) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const skipBlockedStages = new Set(["Purchase Request"]);
+  const allowedStages = new Set(stages);
+
+  return input
+    .map((stage) => String(stage || "").trim())
+    .filter(
+      (stage, index, source) =>
+        allowedStages.has(stage) &&
+        !skipBlockedStages.has(stage) &&
+        source.indexOf(stage) === index
+    );
+}
+
+async function getConfiguredSkippedWorkflowStages(stages) {
+  const globalSetting = await Setting.findOne({ key: "global" }).select("skippedWorkflowStages");
+
+  return normalizeSkippedWorkflowStages(globalSetting?.skippedWorkflowStages, stages);
+}
+
+function getRequestSkippedWorkflowStages(request, stages) {
+  return normalizeSkippedWorkflowStages(request?.skippedWorkflowStages, stages);
+}
+
+function resolveNextActiveStage(currentStage, stages, skippedStages) {
+  const currentIndex = stages.indexOf(currentStage);
+  const skippedStageSet = new Set(skippedStages);
+  const skippedStagesBetween = [];
+
+  if (currentIndex === -1) {
+    return {
+      nextStage: stages[0],
+      skippedStagesBetween,
+      completesWorkflow: false
+    };
+  }
+
+  for (let index = currentIndex + 1; index < stages.length; index += 1) {
+    const stage = stages[index];
+
+    if (!skippedStageSet.has(stage)) {
+      return {
+        nextStage: stage,
+        skippedStagesBetween,
+        completesWorkflow: false
+      };
+    }
+
+    skippedStagesBetween.push(stage);
+  }
+
+  return {
+    nextStage:
+      skippedStagesBetween[skippedStagesBetween.length - 1] ||
+      stages[Math.min(currentIndex + 1, stages.length - 1)],
+    skippedStagesBetween,
+    completesWorkflow: skippedStagesBetween.length > 0
+  };
+}
+
 function parseAmountValue(value) {
   if (value === null || typeof value === "undefined") {
     return 0;
@@ -225,6 +289,7 @@ router.post("/purchase-requests", async (req, res) => {
 
     const requestNumber = await getNextRequestNumber();
     const requestWorkflowStages = await getConfiguredWorkflowStages();
+    const skippedWorkflowStages = await getConfiguredSkippedWorkflowStages(requestWorkflowStages);
     const parsedAmount = parseAmountValue(amount);
 
     if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
@@ -250,6 +315,7 @@ router.post("/purchase-requests", async (req, res) => {
       supplier: supplier?.trim() || "Pending selection",
       notes: notes || "",
       workflowStages: requestWorkflowStages,
+      skippedWorkflowStages,
       currentStage: requestWorkflowStages[0],
       requestForPaymentEnabled: true,
       history: [
@@ -608,7 +674,12 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
   }
 
   const requestWorkflowStages = getRequestWorkflowStages(request);
-  const nextStage = getNextStage(request.currentStage, requestWorkflowStages);
+  const skippedWorkflowStages = getRequestSkippedWorkflowStages(request, requestWorkflowStages);
+  const {
+    nextStage,
+    skippedStagesBetween,
+    completesWorkflow
+  } = resolveNextActiveStage(request.currentStage, requestWorkflowStages, skippedWorkflowStages);
   request.history = request.history.map((entry) =>
     entry.stage === request.currentStage ? { ...entry.toObject(), status: "completed" } : entry
   );
@@ -689,30 +760,52 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
 
   if (nextStage !== request.currentStage) {
     const previousStage = request.currentStage;
+    const skippedStageSet = new Set(skippedStagesBetween);
+
     request.currentStage = nextStage;
     if (nextStage === "Approval") {
       request.approvalCompleted = false;
     }
-    if (previousStage === "Approval") {
+    if (previousStage === "Approval" || skippedStageSet.has("Approval")) {
       request.approvalCompleted = true;
       request.requestForPaymentEnabled = true;
       approvalCompletedByAdvance = true;
     }
-    if (previousStage === "Approve PO") {
+    if (previousStage === "Approve PO" || skippedStageSet.has("Approve PO")) {
       request.requestForPaymentEnabled = true;
     }
-    if (nextStage === "Filing") {
+
+    skippedStagesBetween.forEach((skippedStage) => {
+      request.history.push({
+        stage: skippedStage,
+        status: "completed",
+        updatedAt: new Date(),
+        actor: "System",
+        actorRole: "admin",
+        comment: `${skippedStage} was skipped by workflow settings.`
+      });
+    });
+
+    if (completesWorkflow) {
+      request.filingCompleted = true;
+      request.status = "completed";
+    } else if (nextStage === "Filing") {
       request.filingCompleted = false;
       request.status = "open";
     }
-    request.history.push({
-      stage: nextStage,
-      status: "current",
-      updatedAt: new Date(),
-      actor: req.user.name,
-      actorRole: req.user.role,
-      comment: req.body.comment || req.body.notes || `Moved to ${nextStage}`
-    });
+
+    if (!completesWorkflow) {
+      request.history.push({
+        stage: nextStage,
+        status: "current",
+        updatedAt: new Date(),
+        actor: req.user.name,
+        actorRole: req.user.role,
+        comment: skippedStagesBetween.length
+          ? `Moved to ${nextStage}; skipped ${skippedStagesBetween.join(", ")}.`
+          : req.body.comment || req.body.notes || `Moved to ${nextStage}`
+      });
+    }
   }
 
   await request.save();

@@ -11,7 +11,8 @@ const settingSchema = new mongoose.Schema(
     logoUrl: { type: String, required: true, trim: true },
     generalAccountantName: { type: String, default: "", trim: true },
     chiefInvestmentOfficerName: { type: String, default: "", trim: true },
-    workflowStages: { type: [String], default: () => [...workflowStages] }
+    workflowStages: { type: [String], default: () => [...workflowStages] },
+    skippedWorkflowStages: { type: [String], default: () => [] }
   },
   { timestamps: true }
 );

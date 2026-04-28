@@ -105,6 +105,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     paymentReference: { type: String, default: "" },
     deliveryDate: { type: Date, default: null },
     workflowStages: { type: [String], default: () => [...workflowStages] },
+    skippedWorkflowStages: { type: [String], default: () => [] },
     inspectionStatus: {
       type: String,
       enum: ["pending", "passed", "failed"],
