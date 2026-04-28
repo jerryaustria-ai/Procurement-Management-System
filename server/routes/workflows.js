@@ -755,7 +755,9 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     return res.json(serializePurchaseRequest(request));
   }
 
-  const shouldNotifyApprover = nextStage === "Approval" && Boolean(req.body.notifyApprover);
+  const shouldNotifyApprover =
+    nextStage === "Approval" &&
+    (Boolean(req.body.notifyApprover) || skippedStagesBetween.includes("Review"));
   let approvalCompletedByAdvance = false;
 
   if (nextStage !== request.currentStage) {

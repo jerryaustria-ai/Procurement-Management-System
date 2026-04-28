@@ -281,25 +281,6 @@ export default function SettingsPage({
                       </div>
                       <div className='settings-workflow-stage'>
                         <strong>{stage}</strong>
-                        <label className='settings-workflow-skip'>
-                          <input
-                            type='checkbox'
-                            checked={Boolean(
-                              form.skippedWorkflowStages?.includes(stage),
-                            )}
-                            disabled={
-                              !isMainSettingsEditing ||
-                              stage === 'Purchase Request'
-                            }
-                            onChange={(event) =>
-                              onWorkflowStageSkipChange?.(
-                                stage,
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <span>Skip</span>
-                        </label>
                       </div>
                       <div className='settings-workflow-actions'>
                         <button
@@ -320,6 +301,25 @@ export default function SettingsPage({
                         >
                           Move down
                         </button>
+                        <label className='settings-workflow-skip'>
+                          <input
+                            type='checkbox'
+                            checked={Boolean(
+                              form.skippedWorkflowStages?.includes(stage),
+                            )}
+                            disabled={
+                              !isMainSettingsEditing ||
+                              stage === 'Purchase Request'
+                            }
+                            onChange={(event) =>
+                              onWorkflowStageSkipChange?.(
+                                stage,
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <span>Skip</span>
+                        </label>
                       </div>
                     </article>
                   ))}
