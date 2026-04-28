@@ -143,9 +143,33 @@ function getRecordScope(record, selectedMonth, selectedYear) {
 }
 
 function getRfpDueDateSortValue(record) {
-  const timestamp = new Date(record?.rfpDraft?.dueDate || '').getTime()
+  const timestamp = new Date(
+    record?.rfpDraft?.dueDate || record?.dateNeeded || '',
+  ).getTime()
 
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
+function formatDisplayDate(value) {
+  if (!value) {
+    return 'Not set'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
+
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
+}
+
+function getDisplayDueDate(record) {
+  return formatDisplayDate(record?.rfpDraft?.dueDate || record?.dateNeeded)
 }
 
 function getAvailablePaidYears(items) {
@@ -378,7 +402,7 @@ export default function RfpDirectoryPage({
           record.title,
           getDisplayPayee(record),
           record.rfpDraft?.invoiceNumber,
-          record.rfpDraft?.dueDate,
+          getDisplayDueDate(record),
           record.currentStage,
           record.requester,
           record.requesterName,
@@ -745,7 +769,7 @@ export default function RfpDirectoryPage({
                       <div className="audit-trail-cell-subtext">{record.title}</div>
                     </td>
                     <td>{getDisplayPayee(record)}</td>
-                    <td>{record?.rfpDraft?.dueDate || 'Not set'}</td>
+                    <td>{getDisplayDueDate(record)}</td>
                     <td>
                       <span className={getRfpStatusClassName(record)}>
                         {getDisplayRfpStatus(record)}
@@ -812,7 +836,7 @@ export default function RfpDirectoryPage({
                       <div>
                         <span>Due date</span>
                         <strong className="request-list-stage-value">
-                          {record?.rfpDraft?.dueDate || 'Not set'}
+                          {getDisplayDueDate(record)}
                         </strong>
                       </div>
                       <div>

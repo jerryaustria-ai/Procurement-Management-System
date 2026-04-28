@@ -551,9 +551,31 @@ function getDefaultRequestForPaymentDueDate(item) {
 }
 
 function getRfpDueDateSortValue(record) {
-  const timestamp = new Date(record?.rfpDraft?.dueDate || '').getTime()
+  const timestamp = new Date(
+    record?.rfpDraft?.dueDate || record?.dateNeeded || '',
+  ).getTime()
 
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
+function getDisplayRfpDueDate(record) {
+  const value = record?.rfpDraft?.dueDate || record?.dateNeeded
+
+  if (!value) {
+    return 'Not set'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
+
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
 }
 
 function sortRfpRecordsByDueDateDescending(records) {
@@ -1450,7 +1472,7 @@ function CompanyHeader({
                               'Not set'}
                           </td>
                           <td>{record.rfpDraft?.invoiceNumber || 'Not set'}</td>
-                          <td>{record.rfpDraft?.dueDate || 'Not set'}</td>
+                          <td>{getDisplayRfpDueDate(record)}</td>
                           <td>
                             <div className='table-action-row'>
                               <button
@@ -1741,6 +1763,56 @@ export default function App() {
     isPurchaseOrderPageOpen ||
     isAuditTrailPageOpen ||
     isSettingsPageOpen
+
+  useEffect(() => {
+    if (!selectedItem) {
+      return
+    }
+
+    if (isRequestForPaymentEditing) {
+      return
+    }
+
+    if (!isRequestForPaymentPageOpen && !isRequestWorkspacePageOpen) {
+      return
+    }
+
+    setRequestForPaymentForm(getRequestForPaymentFormFromItem(selectedItem))
+  }, [
+    selectedItem,
+    isRequestForPaymentEditing,
+    isRequestForPaymentPageOpen,
+    isRequestWorkspacePageOpen,
+  ])
+
+  useEffect(() => {
+    if (!isRequestWorkspacePageOpen || !selectedItem) {
+      return
+    }
+
+    if (selectedItem.currentStage !== 'Request for Payment') {
+      return
+    }
+
+    setRequestForPaymentForm(getRequestForPaymentFormFromItem(selectedItem))
+
+    const savedRfpDraft = selectedItem.rfpDraft ?? {}
+    const hasSavedRfpDraft = Boolean(
+      savedRfpDraft.payee ||
+        savedRfpDraft.tinNumber ||
+        savedRfpDraft.invoiceNumber ||
+        savedRfpDraft.paymentReference ||
+        savedRfpDraft.amountRequested ||
+        savedRfpDraft.dueDate ||
+        savedRfpDraft.notes,
+    )
+
+    setIsRequestForPaymentEditing(
+      canEditRequestForPayment(session?.user, selectedItem) &&
+        (!hasSavedRfpDraft || session?.user?.role === 'admin'),
+    )
+    setRequestForPaymentErrors({})
+  }, [isRequestWorkspacePageOpen, selectedItem, session?.user])
   const canManageDocuments = Boolean(
     selectedItem &&
     session?.user &&
