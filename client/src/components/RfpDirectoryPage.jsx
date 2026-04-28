@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const DEFAULT_WORKFLOW_STAGES = [
   'Purchase Request',
@@ -13,6 +13,8 @@ const DEFAULT_WORKFLOW_STAGES = [
   'Payment',
   'Filing',
 ]
+
+const RFP_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
 function getWorkflowStages(record) {
   return Array.isArray(record?.workflowStages) && record.workflowStages.length
@@ -329,6 +331,8 @@ export default function RfpDirectoryPage({
   const [paidYear, setPaidYear] = useState(currentDate.getFullYear())
   const [sortValue, setSortValue] = useState('due-date-desc')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const availablePaidYears = useMemo(
     () => getAvailablePaidYears(items),
@@ -430,6 +434,29 @@ export default function RfpDirectoryPage({
 
     return sortedItems
   }, [filterValue, items, paidMonth, paidYear, searchQuery, sortValue])
+
+  const totalPages = Math.max(1, Math.ceil(visibleItems.length / pageSize))
+  const effectiveCurrentPage = Math.min(currentPage, totalPages)
+  const currentPageStart = visibleItems.length
+    ? (effectiveCurrentPage - 1) * pageSize + 1
+    : 0
+  const currentPageEnd = Math.min(
+    effectiveCurrentPage * pageSize,
+    visibleItems.length,
+  )
+  const paginatedItems = useMemo(() => {
+    const startIndex = (effectiveCurrentPage - 1) * pageSize
+
+    return visibleItems.slice(startIndex, startIndex + pageSize)
+  }, [effectiveCurrentPage, pageSize, visibleItems])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterValue, pageSize, paidMonth, paidYear, searchQuery, sortValue])
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
 
   const paidTotal = useMemo(() => {
     if (filterValue !== 'paid') {
@@ -682,7 +709,7 @@ export default function RfpDirectoryPage({
               </tr>
             </thead>
             <tbody>
-              {visibleItems.map((record) => {
+              {paginatedItems.map((record) => {
                 const handlePreview = () => {
                   if (typeof onPreview === "function") {
                     onPreview(record);
@@ -736,7 +763,7 @@ export default function RfpDirectoryPage({
       ) : (
         <>
           <div className={`request-list request-list--${viewMode} rfp-record-list`}>
-            {visibleItems.map((record) => {
+            {paginatedItems.map((record) => {
               const handlePreview = () => {
                 if (typeof onPreview === "function") {
                   onPreview(record);
@@ -803,6 +830,55 @@ export default function RfpDirectoryPage({
           ) : null}
         </>
       )}
+      {visibleItems.length > 0 ? (
+        <div className="request-list-pagination">
+          <div className="request-list-pagination-meta">
+            <label className="request-list-limit">
+              <span>Rows per page</span>
+              <select
+                value={String(pageSize)}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value))
+                }}
+              >
+                {RFP_PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="request-list-pagination-count">
+              {currentPageStart}-{currentPageEnd} of {visibleItems.length}
+            </span>
+          </div>
+          <div className="request-list-pagination-actions">
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => {
+                setCurrentPage((page) => Math.max(1, page - 1))
+              }}
+              disabled={effectiveCurrentPage <= 1}
+            >
+              Previous
+            </button>
+            <span className="request-list-pagination-count">
+              Page {effectiveCurrentPage} of {totalPages}
+            </span>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => {
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }}
+              disabled={effectiveCurrentPage >= totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 

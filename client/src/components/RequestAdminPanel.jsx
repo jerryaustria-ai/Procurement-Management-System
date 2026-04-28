@@ -22,14 +22,14 @@ export default function RequestAdminPanel({
       <div className="form-grid two-column">
         <label>
           Title
-          <input name="title" value={form.title} onChange={onChange} />
+          <input name="title" value={form.title} onChange={onChange} required />
         </label>
         <label>
           Department
           <input name="department" value={form.department} onChange={onChange} />
         </label>
         <label>
-          Branch
+          Company
           <select name="branch" value={form.branch} onChange={onChange}>
             {branchOptions.map((branch) => (
               <option key={branch} value={branch}>
@@ -40,7 +40,7 @@ export default function RequestAdminPanel({
         </label>
         <label>
           Amount
-          <input name="amount" value={form.amount} onChange={onChange} />
+          <input name="amount" value={form.amount} onChange={onChange} required />
         </label>
         <label>
           Date needed
@@ -50,6 +50,7 @@ export default function RequestAdminPanel({
             value={form.dateNeeded}
             onChange={onChange}
             onClick={(event) => event.target.showPicker?.()}
+            required
           />
         </label>
         {isAdmin ? (
@@ -102,7 +103,7 @@ export default function RequestAdminPanel({
 
       <label>
         Description
-        <textarea name="description" value={form.description} onChange={onChange} rows="3" />
+        <textarea name="description" value={form.description} onChange={onChange} rows="3" required />
       </label>
 
       <label>

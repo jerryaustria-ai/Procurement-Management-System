@@ -82,14 +82,16 @@ export default function CreateRequestForm({
           />
         </label>
 
-        <label>
+        <label className={errors.dateNeeded ? 'field-invalid' : ''}>
           Date needed
           <input
+            className={errors.dateNeeded ? 'field-input-invalid' : ''}
             name="dateNeeded"
             type="date"
             value={form.dateNeeded}
             onChange={onChange}
             onClick={(event) => event.target.showPicker?.()}
+            required
           />
         </label>
 

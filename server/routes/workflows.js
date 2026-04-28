@@ -274,6 +274,10 @@ router.post("/purchase-requests", async (req, res) => {
       return res.status(400).json({ message: "Title is required." });
     }
 
+    if (!dateNeeded) {
+      return res.status(400).json({ message: "Date needed is required." });
+    }
+
     let requester = req.user;
 
     if (req.user.role === "admin") {
@@ -290,6 +294,47 @@ router.post("/purchase-requests", async (req, res) => {
     const requestNumber = await getNextRequestNumber();
     const requestWorkflowStages = await getConfiguredWorkflowStages();
     const skippedWorkflowStages = await getConfiguredSkippedWorkflowStages(requestWorkflowStages);
+    const initialStage = requestWorkflowStages[0];
+    const {
+      nextStage: initialNextStage,
+      skippedStagesBetween: initialSkippedStagesBetween,
+      completesWorkflow: initialCompletesWorkflow
+    } = resolveNextActiveStage(initialStage, requestWorkflowStages, skippedWorkflowStages);
+    const shouldAutoAdvanceFromInitialStage =
+      initialNextStage !== initialStage && initialSkippedStagesBetween.length > 0;
+    const initialCurrentStage = shouldAutoAdvanceFromInitialStage
+      ? initialNextStage
+      : initialStage;
+    const initialHistory = [
+      {
+        stage: initialStage,
+        status: shouldAutoAdvanceFromInitialStage ? "completed" : "current",
+        updatedAt: new Date(),
+        actor: req.user.name,
+        actorRole: req.user.role,
+        comment: notes || "Purchase request created."
+      },
+      ...initialSkippedStagesBetween.map((skippedStage) => ({
+        stage: skippedStage,
+        status: "completed",
+        updatedAt: new Date(),
+        actor: "System",
+        actorRole: "admin",
+        comment: `${skippedStage} was skipped by workflow settings.`
+      }))
+    ];
+
+    if (shouldAutoAdvanceFromInitialStage && !initialCompletesWorkflow) {
+      initialHistory.push({
+        stage: initialCurrentStage,
+        status: "current",
+        updatedAt: new Date(),
+        actor: "System",
+        actorRole: "admin",
+        comment: `Moved to ${initialCurrentStage}; skipped ${initialSkippedStagesBetween.join(", ")}.`
+      });
+    }
+
     const parsedAmount = parseAmountValue(amount);
 
     if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
@@ -316,18 +361,11 @@ router.post("/purchase-requests", async (req, res) => {
       notes: notes || "",
       workflowStages: requestWorkflowStages,
       skippedWorkflowStages,
-      currentStage: requestWorkflowStages[0],
+      currentStage: initialCurrentStage,
       requestForPaymentEnabled: true,
-      history: [
-        {
-          stage: requestWorkflowStages[0],
-          status: "current",
-          updatedAt: new Date(),
-          actor: req.user.name,
-          actorRole: req.user.role,
-          comment: notes || "Purchase request created."
-        }
-      ]
+      filingCompleted: initialCompletesWorkflow,
+      status: initialCompletesWorkflow ? "completed" : "open",
+      history: initialHistory
     });
 
     const notificationRecipients = await User.find({
@@ -353,6 +391,28 @@ router.post("/purchase-requests", async (req, res) => {
       .catch((error) => {
         console.error("Failed to send new request email notification.", error);
     });
+
+    if (initialCurrentStage === "Approval" && initialSkippedStagesBetween.includes("Review")) {
+      const approverRecipients = await User.find({ role: "approver" }).select("email");
+
+      sendApproverApprovalRequiredEmail({
+        request: created,
+        actorName: req.user.name,
+        requesterName: requester.name,
+        recipients: approverRecipients.map((user) => user.email)
+      })
+        .then((result) => {
+          if (result?.skipped) {
+            console.warn(
+              "Skipped approver approval notification.",
+              result.reason || "Unknown reason."
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to send approver approval notification.", error);
+        });
+    }
 
     return res.status(201).json(serializePurchaseRequest(created));
   } catch (error) {
@@ -418,6 +478,31 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     return res.status(403).json({ message: "Only the requester or an admin can edit this request." });
   }
 
+  const nextTitle =
+    typeof req.body.title === "string" ? req.body.title.trim() : request.title;
+  const nextDescription =
+    typeof req.body.description === "string" ? req.body.description.trim() : request.description;
+  const nextDateNeeded =
+    typeof req.body.dateNeeded !== "undefined" ? req.body.dateNeeded : request.dateNeeded;
+  const nextAmount =
+    typeof req.body.amount !== "undefined" ? req.body.amount : request.amount;
+
+  if (!nextTitle) {
+    return res.status(400).json({ message: "Title is required." });
+  }
+
+  if (typeof nextAmount === "undefined" || nextAmount === "" || nextAmount === null) {
+    return res.status(400).json({ message: "Amount is required." });
+  }
+
+  if (!nextDateNeeded) {
+    return res.status(400).json({ message: "Date needed is required." });
+  }
+
+  if (!nextDescription) {
+    return res.status(400).json({ message: "Description is required." });
+  }
+
   const editableFields =
     req.user.role === "admin"
       ? [
@@ -469,8 +554,8 @@ router.patch("/purchase-requests/:id", async (req, res) => {
 
   if (typeof req.body.amount !== "undefined") {
     const parsedAmount = parseAmountValue(req.body.amount);
-    if (req.body.amount !== "" && Number.isNaN(parsedAmount)) {
-      return res.status(400).json({ message: "Amount must be a valid number." });
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ message: "Amount must be a valid number greater than zero." });
     }
     request.amount = parsedAmount;
   }

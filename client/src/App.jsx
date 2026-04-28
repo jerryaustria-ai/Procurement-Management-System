@@ -1543,6 +1543,7 @@ export default function App() {
   const [requestFormErrors, setRequestFormErrors] = useState({
     title: false,
     description: false,
+    dateNeeded: false,
     amount: false,
   })
   const [uploadForm, setUploadForm] = useState({
@@ -4747,6 +4748,22 @@ export default function App() {
       return
     }
 
+    if (!requestForm.dateNeeded) {
+      const message = 'Date needed is required.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        dateNeeded: true,
+      }))
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
     if (isAdmin && !requestForm.requesterEmail) {
       const message = 'Requester must be selected from system users.'
       setActionError(message)
@@ -5261,13 +5278,61 @@ export default function App() {
       return
     }
 
+    if (!requestAdminForm.title.trim()) {
+      const message = 'Title is required.'
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (!requestAdminForm.amount.trim()) {
+      const message = 'Amount is required.'
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (!requestAdminForm.dateNeeded) {
+      const message = 'Date needed is required.'
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (!requestAdminForm.description.trim()) {
+      const message = 'Description is required.'
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
     const parsedRequestAmount = parseAmountValue(requestAdminForm.amount)
 
     if (
-      requestAdminForm.amount &&
-      (Number.isNaN(parsedRequestAmount) || parsedRequestAmount < 0)
+      Number.isNaN(parsedRequestAmount) ||
+      parsedRequestAmount <= 0
     ) {
-      const message = 'Amount must be a valid number if provided.'
+      const message = 'Amount must be a valid number greater than zero.'
       setActionError(message)
       pushToast({
         title: 'Invalid amount',
