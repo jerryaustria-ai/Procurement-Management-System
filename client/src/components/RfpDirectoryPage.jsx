@@ -142,6 +142,12 @@ function getRecordScope(record, selectedMonth, selectedYear) {
   return 'all'
 }
 
+function getRfpDueDateSortValue(record) {
+  const timestamp = new Date(record?.rfpDraft?.dueDate || '').getTime()
+
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
 function getAvailablePaidYears(items) {
   const currentYear = new Date().getFullYear()
   const years = new Set([currentYear])
@@ -422,8 +428,8 @@ export default function RfpDirectoryPage({
         return getDisplayPayee(right).localeCompare(getDisplayPayee(left))
       }
 
-      const leftDate = new Date(left?.rfpDraft?.dueDate || 0).getTime()
-      const rightDate = new Date(right?.rfpDraft?.dueDate || 0).getTime()
+      const leftDate = getRfpDueDateSortValue(left)
+      const rightDate = getRfpDueDateSortValue(right)
 
       if (sortValue === 'due-date-desc') {
         return rightDate - leftDate

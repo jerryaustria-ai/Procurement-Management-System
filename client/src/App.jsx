@@ -550,6 +550,27 @@ function getDefaultRequestForPaymentDueDate(item) {
   return item?.dateNeeded ? String(item.dateNeeded).slice(0, 10) : ''
 }
 
+function getRfpDueDateSortValue(record) {
+  const timestamp = new Date(record?.rfpDraft?.dueDate || '').getTime()
+
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
+function sortRfpRecordsByDueDateDescending(records) {
+  return [...records].sort((left, right) => {
+    const dateDifference =
+      getRfpDueDateSortValue(right) - getRfpDueDateSortValue(left)
+
+    if (dateDifference !== 0) {
+      return dateDifference
+    }
+
+    return String(right?.requestNumber || '').localeCompare(
+      String(left?.requestNumber || ''),
+    )
+  })
+}
+
 function getRecordAmount(record) {
   return parseAmountValue(record?.rfpDraft?.amountRequested || record?.amount)
 }
@@ -1692,8 +1713,8 @@ export default function App() {
   const purchaseOrderRecords = items.filter((item) =>
     String(item.poNumber || item.poDraft?.poNumber || '').trim(),
   )
-  const requestForPaymentRecords = items.filter((item) =>
-    canAccessRequestForPayment(item),
+  const requestForPaymentRecords = sortRfpRecordsByDueDateDescending(
+    items.filter((item) => canAccessRequestForPayment(item)),
   )
   const accountantForApprovalRecords = isAccountant
     ? requestForPaymentRecords.filter(isAccountantForApprovalItem)
