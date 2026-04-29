@@ -34,6 +34,20 @@ const ART_GALLERY_URL =
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
+const RFP_PAYMENT_STATUS_OPTIONS = [
+  'Processing',
+  'For Liquidation',
+  'Liquidation Submitted',
+  'Liquidation Reviewed',
+  'Liquidated / Closed',
+]
+const RFP_PAID_EQUIVALENT_STATUSES = new Set([
+  'paid',
+  'for liquidation',
+  'liquidation submitted',
+  'liquidation reviewed',
+  'liquidated / closed',
+])
 const MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024
 const ALLOWED_UPLOAD_FILE_TYPES = new Set([
   'image/jpeg',
@@ -107,6 +121,40 @@ function getEffectiveWorkflowStages(item, fallbackStages = DEFAULT_WORKFLOW_STAG
   return Array.isArray(fallbackStages) && fallbackStages.length
     ? fallbackStages
     : DEFAULT_WORKFLOW_STAGES
+}
+
+function getNormalizedRfpPaymentStatusValue(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+}
+
+function isPaidEquivalentRfpPaymentStatus(value) {
+  return RFP_PAID_EQUIVALENT_STATUSES.has(
+    getNormalizedRfpPaymentStatusValue(value),
+  )
+}
+
+function getDisplayRfpPaymentStatus(value, fallback = 'Not set') {
+  const normalizedValue = getNormalizedRfpPaymentStatusValue(value)
+
+  if (!normalizedValue) {
+    return fallback
+  }
+
+  if (normalizedValue === 'paid') {
+    return 'For Liquidation'
+  }
+
+  const matchedStatus = RFP_PAYMENT_STATUS_OPTIONS.find(
+    (status) => status.toLowerCase() === normalizedValue,
+  )
+
+  if (matchedStatus) {
+    return matchedStatus
+  }
+
+  return String(value || '').trim() || fallback
 }
 
 function getCompanyIdentityForBranch(branch, companySettings, identities = []) {
@@ -604,7 +652,7 @@ function getRequestForPaymentFormFromItem(item) {
     payee: getEffectiveRequestForPaymentPayee(item),
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
-    paymentStatus: savedRfpDraft.paymentStatus || '',
+    paymentStatus: getDisplayRfpPaymentStatus(savedRfpDraft.paymentStatus, ''),
     paymentReference: savedRfpDraft.paymentReference || '',
     amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
     dueDate: savedRfpDraft.dueDate || getDefaultRequestForPaymentDueDate(item),
@@ -932,9 +980,7 @@ function getStageCompletionDate(item, stageNames) {
 }
 
 function getNormalizedPaymentStatus(item) {
-  return String(item?.rfpDraft?.paymentStatus || '')
-    .trim()
-    .toLowerCase()
+  return getNormalizedRfpPaymentStatusValue(item?.rfpDraft?.paymentStatus)
 }
 
 function getPaymentStatusReferenceDate(item) {
@@ -949,7 +995,7 @@ function getPaymentStatusReferenceDate(item) {
 }
 
 function isPaidPaymentStatusOlderThanOneDay(item) {
-  if (getNormalizedPaymentStatus(item) !== 'paid') {
+  if (!isPaidEquivalentRfpPaymentStatus(item?.rfpDraft?.paymentStatus)) {
     return false
   }
 
@@ -989,7 +1035,7 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
       actionKey: 'for-payment',
     },
     {
-      label: 'Paid (This Month)',
+      label: 'For Liquidation (This Month)',
       value: String(paidThisMonthItems.length).padStart(2, '0'),
       actionKey: 'paid-this-month',
     },
@@ -1006,7 +1052,7 @@ function getAccountantForPaymentItems(items) {
       return false
     }
 
-    if (getNormalizedPaymentStatus(item) === 'paid') {
+    if (isPaidEquivalentRfpPaymentStatus(item?.rfpDraft?.paymentStatus)) {
       return false
     }
 
@@ -1035,11 +1081,12 @@ function getAccountantPaidThisMonthItems(items, referenceDate = new Date()) {
   const currentYear = referenceDate.getFullYear()
 
   return items.filter((item) => {
-    const normalizedPaymentStatus = getNormalizedPaymentStatus(item)
-    const hasExplicitPaidStatus = normalizedPaymentStatus === 'paid'
+    const hasExplicitPaidStatus = isPaidEquivalentRfpPaymentStatus(
+      item?.rfpDraft?.paymentStatus,
+    )
     const paidDate = hasExplicitPaidStatus
-      ? item.updatedAt
-        ? new Date(item.updatedAt)
+      ? item?.rfpDraft?.paymentStatusUpdatedAt || item.updatedAt
+        ? new Date(item?.rfpDraft?.paymentStatusUpdatedAt || item.updatedAt)
         : null
       : getStageCompletionDate(item, ['Payment', 'Filing']) ||
         ((item.status === 'completed' || item.filingCompleted) && item.updatedAt
@@ -3358,7 +3405,7 @@ export default function App() {
       getRecordAmount(record),
       formatExportDate(record.rfpDraft?.dueDate || record.dateNeeded),
       record.rfpDraft?.invoiceNumber || '',
-      record.rfpDraft?.paymentStatus || '',
+      getDisplayRfpPaymentStatus(record.rfpDraft?.paymentStatus, ''),
       record.currentStage,
       record.requester || record.requesterName || '',
     ])
@@ -4005,17 +4052,17 @@ export default function App() {
     }
 
     const normalizedPaymentStatus = String(paymentStatus || '').trim()
-    const currentPaymentStatus = String(record?.rfpDraft?.paymentStatus || '')
-      .trim()
-      .toLowerCase()
+    const currentPaymentStatus = getNormalizedPaymentStatus(record)
 
     if (
       session?.user?.role === 'accountant' &&
-      currentPaymentStatus === 'paid' &&
+      isPaidEquivalentRfpPaymentStatus(record?.rfpDraft?.paymentStatus) &&
       normalizedPaymentStatus.toLowerCase() !== currentPaymentStatus &&
       isPaidPaymentStatusOlderThanOneDay(record)
     ) {
-      throw new Error('Paid payment status can no longer be changed after one day.')
+      throw new Error(
+        'For Liquidation status can no longer be changed after one day.',
+      )
     }
 
     const updated = await patchRequestForPaymentDraft(record, {
@@ -4034,7 +4081,7 @@ export default function App() {
     if (!silent) {
       pushToast({
         title: 'Payment status saved',
-        message: `${updated.requestNumber} was marked as ${normalizedPaymentStatus || 'updated'}.`,
+        message: `${updated.requestNumber} was marked as ${getDisplayRfpPaymentStatus(normalizedPaymentStatus, 'updated')}.`,
         variant: 'success',
       })
     }
@@ -6661,7 +6708,10 @@ export default function App() {
     setRfpPreviewForm({
       invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
       file: null,
-      paymentStatus: String(record?.rfpDraft?.paymentStatus || '').trim(),
+      paymentStatus: getDisplayRfpPaymentStatus(
+        record?.rfpDraft?.paymentStatus,
+        '',
+      ),
     })
     setRfpPreviewError('')
   }
@@ -6753,7 +6803,9 @@ export default function App() {
       session?.user?.role === 'accountant' &&
       isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord)
     ) {
-      setRfpPreviewError('Paid payment status can no longer be changed after one day.')
+      setRfpPreviewError(
+        'For Liquidation status can no longer be changed after one day.',
+      )
       return
     }
 
@@ -6827,9 +6879,10 @@ export default function App() {
         setRfpPreviewForm({
           invoiceNumber: updatedRecord?.rfpDraft?.invoiceNumber || '',
           file: null,
-          paymentStatus: String(
-            updatedRecord?.rfpDraft?.paymentStatus || '',
-          ).trim(),
+          paymentStatus: getDisplayRfpPaymentStatus(
+            updatedRecord?.rfpDraft?.paymentStatus,
+            '',
+          ),
         })
       }
 
@@ -8245,7 +8298,11 @@ export default function App() {
                 </div>
                 <div>
                   <span>Status</span>
-                  <strong>{rfpPreviewRecord.rfpDraft?.paymentStatus || 'Not set'}</strong>
+                  <strong>
+                    {getDisplayRfpPaymentStatus(
+                      rfpPreviewRecord.rfpDraft?.paymentStatus,
+                    )}
+                  </strong>
                 </div>
               </div>
               <div className='rfp-preview-notes'>
@@ -8277,15 +8334,16 @@ export default function App() {
                   }
                 >
                   <option value=''>Select status</option>
-                  <option value='Processing'>Processing</option>
-                  <option value='Paid'>Paid</option>
-                  <option value='Hold'>Hold</option>
-                  <option value='Decline'>Decline</option>
+                  {RFP_PAYMENT_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
                 </select>
                 {session?.user?.role === 'accountant' &&
                 isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord) ? (
                   <span className='field-help-text'>
-                    Paid status is locked after one day.
+                    For Liquidation status is locked after one day.
                   </span>
                 ) : null}
               </label>

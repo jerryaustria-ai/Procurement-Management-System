@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
+const RFP_PAYMENT_STATUS_OPTIONS = [
+  "Processing",
+  "For Liquidation",
+  "Liquidation Submitted",
+  "Liquidation Reviewed",
+  "Liquidated / Closed"
+];
+
 function getNormalizedRfpStatus(item) {
   const rawStatus = item?.rfpDraft?.paymentStatus;
 
@@ -8,6 +16,24 @@ function getNormalizedRfpStatus(item) {
   }
 
   return rawStatus.trim();
+}
+
+function getDisplayRfpStatus(item, fallback = "") {
+  const normalizedValue = getNormalizedRfpStatus(item).toLowerCase();
+
+  if (!normalizedValue) {
+    return fallback;
+  }
+
+  if (normalizedValue === "paid") {
+    return "For Liquidation";
+  }
+
+  return (
+    RFP_PAYMENT_STATUS_OPTIONS.find(
+      (status) => status.toLowerCase() === normalizedValue
+    ) || getNormalizedRfpStatus(item)
+  );
 }
 
 function getProcurementStatus(item) {
@@ -38,7 +64,7 @@ function getProcurementStageValue(item) {
   const currentStage = item.currentStage || "Not set";
 
   if (currentStage === "Request for Payment") {
-    const rfpStatus = getNormalizedRfpStatus(item) || "Processing";
+    const rfpStatus = getDisplayRfpStatus(item, "Processing");
     return `${currentStage} - ${rfpStatus}`;
   }
 

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "./Modal.jsx";
 
+const RFP_PAYMENT_STATUS_OPTIONS = [
+  "Processing",
+  "For Liquidation",
+  "Liquidation Submitted",
+  "Liquidation Reviewed",
+  "Liquidated / Closed"
+];
+
 function formatDate(value) {
   if (!value) {
     return "Not set";
@@ -269,10 +277,11 @@ export default function RequestForPaymentPage({
                 disabled={!isEditing}
               >
                 <option value="">Select status</option>
-                <option value="Processing">Processing</option>
-                <option value="Paid">Paid</option>
-                <option value="Hold">Hold</option>
-                <option value="Decline">Decline</option>
+                {RFP_PAYMENT_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
               </select>
             </label>
 

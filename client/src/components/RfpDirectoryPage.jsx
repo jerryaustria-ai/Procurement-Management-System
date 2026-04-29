@@ -15,6 +15,20 @@ const DEFAULT_WORKFLOW_STAGES = [
 ]
 
 const RFP_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+const RFP_PAYMENT_STATUS_OPTIONS = [
+  'Processing',
+  'For Liquidation',
+  'Liquidation Submitted',
+  'Liquidation Reviewed',
+  'Liquidated / Closed',
+]
+const RFP_PAID_EQUIVALENT_STATUSES = new Set([
+  'paid',
+  'for liquidation',
+  'liquidation submitted',
+  'liquidation reviewed',
+  'liquidated / closed',
+])
 
 function getWorkflowStages(record) {
   return Array.isArray(record?.workflowStages) && record.workflowStages.length
@@ -49,6 +63,28 @@ function getNormalizedPaymentStatus(record) {
     .toLowerCase()
 }
 
+function isPaidEquivalentPaymentStatus(record) {
+  return RFP_PAID_EQUIVALENT_STATUSES.has(getNormalizedPaymentStatus(record))
+}
+
+function getDisplayPaymentStatus(record, fallback = 'Not set') {
+  const normalizedStatus = getNormalizedPaymentStatus(record)
+
+  if (!normalizedStatus) {
+    return fallback
+  }
+
+  if (normalizedStatus === 'paid') {
+    return 'For Liquidation'
+  }
+
+  return (
+    RFP_PAYMENT_STATUS_OPTIONS.find(
+      (status) => status.toLowerCase() === normalizedStatus,
+    ) || String(record?.rfpDraft?.paymentStatus || '').trim() || fallback
+  )
+}
+
 function isApprovedForRfpRecord(record) {
   if (!record) {
     return false
@@ -73,7 +109,7 @@ function isForPaymentRecord(record) {
     return false
   }
 
-  if (getNormalizedPaymentStatus(record) === 'paid') {
+  if (isPaidEquivalentPaymentStatus(record)) {
     return false
   }
 
@@ -99,8 +135,9 @@ function isForPaymentRecord(record) {
 function getPaidRecordDate(record) {
   const normalizedPaymentStatus = getNormalizedPaymentStatus(record)
   const paidDate =
-    normalizedPaymentStatus === 'paid' && record?.updatedAt
-      ? new Date(record.updatedAt)
+    isPaidEquivalentPaymentStatus(record) &&
+    (record?.rfpDraft?.paymentStatusUpdatedAt || record?.updatedAt)
+      ? new Date(record?.rfpDraft?.paymentStatusUpdatedAt || record?.updatedAt)
       : (record?.status === 'completed' || record?.filingCompleted) &&
           record?.updatedAt
         ? new Date(record.updatedAt)
@@ -271,14 +308,11 @@ function getDisplayRfpStatus(record) {
   const normalizedPaymentStatus = getNormalizedPaymentStatus(record)
 
   if (normalizedPaymentStatus) {
-    return (
-      normalizedPaymentStatus.charAt(0).toUpperCase() +
-      normalizedPaymentStatus.slice(1)
-    )
+    return getDisplayPaymentStatus(record)
   }
 
   if (getPaidRecordDate(record)) {
-    return 'Paid'
+    return 'For Liquidation'
   }
 
   if (isForApprovalRecord(record)) {
@@ -295,12 +329,15 @@ function getDisplayRfpStatus(record) {
 function getRfpStatusClassName(record) {
   const normalizedStatus = getDisplayRfpStatus(record).toLowerCase()
 
-  if (normalizedStatus === 'paid') {
+  if (
+    [
+      'for liquidation',
+      'liquidation submitted',
+      'liquidation reviewed',
+      'liquidated / closed',
+    ].includes(normalizedStatus)
+  ) {
     return 'rfp-status-text is-paid'
-  }
-
-  if (normalizedStatus === 'decline') {
-    return 'rfp-status-text is-declined'
   }
 
   if (normalizedStatus === 'for payment') {
@@ -627,14 +664,14 @@ export default function RfpDirectoryPage({
               <option value="all">All records</option>
               <option value="for-approval">For Approval</option>
               <option value="for-payment">For Payment</option>
-              <option value="paid">Paid</option>
+              <option value="paid">For Liquidation</option>
             </select>
           </label>
           {filterValue === 'paid' ? (
             <>
               <label
                 className="request-list-filter-select request-list-filter-select-inline"
-                aria-label="Paid month"
+                aria-label="For liquidation month"
               >
                 <select
                   value={String(paidMonth)}
@@ -651,7 +688,7 @@ export default function RfpDirectoryPage({
               </label>
               <label
                 className="request-list-filter-select request-list-filter-select-inline"
-                aria-label="Paid year"
+                aria-label="For liquidation year"
               >
                 <select
                   value={String(paidYear)}
@@ -783,7 +820,7 @@ export default function RfpDirectoryPage({
               <tfoot>
                 <tr className="supplier-table-footer">
                   <td colSpan={2}></td>
-                  <td>Total Paid</td>
+                  <td>Total For Liquidation</td>
                   <td>{formatCurrencyValue(paidTotal)}</td>
                 </tr>
               </tfoot>
@@ -854,7 +891,7 @@ export default function RfpDirectoryPage({
           </div>
           {filterValue === 'paid' ? (
             <div className="rfp-paid-total-card">
-              <span>Total Paid</span>
+              <span>Total For Liquidation</span>
               <strong>{formatCurrencyValue(paidTotal)}</strong>
             </div>
           ) : null}
