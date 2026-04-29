@@ -157,19 +157,221 @@ function UploadedFileCard({ document, onOpen, onDelete, canDelete }) {
   );
 }
 
+function PendingFileCard({ file, onRemove }) {
+  const sizeLabel = formatFileSize(file?.size);
+  const metaParts = [getDocumentKindLabel(file), sizeLabel].filter(Boolean);
+
+  return (
+    <article className="rfp-uploaded-file-card rfp-uploaded-file-card-pending">
+      <div className="rfp-uploaded-file-meta">
+        <DocumentTypeIcon document={file} />
+        <div className="rfp-uploaded-file-copy">
+          <strong>{file?.name || "Pending upload"}</strong>
+          <span>{metaParts.join(" • ")}</span>
+          <small>Pending upload</small>
+        </div>
+      </div>
+      <div className="rfp-uploaded-file-actions">
+        <button className="danger-secondary-button" type="button" onClick={onRemove}>
+          Remove
+        </button>
+      </div>
+    </article>
+  );
+}
+
+export function AttachmentManagerSection({
+  title = "Attachments / Uploaded Files",
+  helperText = "Upload files to add attachments. You can view and delete files anytime.",
+  inputId,
+  promptLabel,
+  promptSubtext = "Drag and drop files here or click to choose files",
+  promptAllowedText = "Allowed: Image, PDF, Word, Excel, TXT",
+  promptLimitText = "Max size: 10MB per file",
+  selectedFiles = [],
+  pendingGroups = [],
+  groupedDocuments = [],
+  onFilesSelected,
+  onRemovePendingFile,
+  onOpenDocument,
+  onDeleteDocument,
+  canDelete,
+  disabled,
+  error
+}) {
+  const [isDragActive, setIsDragActive] = useState(false);
+  const uploadedCount = groupedDocuments.reduce(
+    (total, group) => total + group.documents.length,
+    0
+  );
+  const normalizedPendingGroups = pendingGroups.length
+    ? pendingGroups
+    : selectedFiles.length
+      ? [
+          {
+            key: "pending",
+            heading: `Pending Uploads (${selectedFiles.length})`,
+            files: selectedFiles,
+            onRemove: onRemovePendingFile
+          }
+        ]
+      : [];
+  const pendingCount = normalizedPendingGroups.reduce(
+    (total, group) => total + group.files.length,
+    0
+  );
+  const visibleFileCount = uploadedCount + pendingCount;
+
+  function handleDragOver(event) {
+    if (disabled) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsDragActive(true);
+  }
+
+  function handleDragLeave(event) {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+
+    setIsDragActive(false);
+  }
+
+  function handleDrop(event) {
+    if (disabled) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsDragActive(false);
+    onFilesSelected?.(Array.from(event.dataTransfer?.files || []));
+  }
+
+  return (
+    <section className="full-width-field rfp-file-manager-section">
+      <div className="rfp-file-manager-card">
+        <div className="rfp-file-manager-heading">
+          <h3>{title}</h3>
+          <p>{helperText}</p>
+        </div>
+        <label
+          className={`rfp-upload-dropzone${isDragActive ? " is-drag-active" : ""}${disabled ? " is-disabled" : ""}`}
+          htmlFor={inputId}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            id={inputId}
+            className="rfp-upload-input"
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+            multiple
+            onChange={(event) => {
+              onFilesSelected?.(Array.from(event.target.files || []));
+              event.target.value = "";
+            }}
+            disabled={disabled}
+          />
+          <div className="rfp-upload-dropzone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M7 18a4 4 0 1 1 .8-7.92A5.5 5.5 0 0 1 18.5 12H19a3 3 0 0 1 0 6H7Z"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M12 8v8M8.75 11.25 12 8l3.25 3.25"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+            </svg>
+          </div>
+          <strong>{promptLabel}</strong>
+          <span>{promptSubtext}</span>
+          <p>{promptAllowedText}</p>
+          <small>{promptLimitText}</small>
+        </label>
+        {error ? <span className="error-text">{error}</span> : null}
+
+        <div className="rfp-uploaded-files-panel rfp-uploaded-files-panel-inline">
+          <div className="rfp-uploaded-files-header">
+            <div>
+              <h3>Uploaded Files ({visibleFileCount})</h3>
+            </div>
+          </div>
+          {visibleFileCount ? (
+            <div className="rfp-uploaded-files-list">
+              {groupedDocuments.map((group) =>
+                group.documents.length ? (
+                  <div key={group.key} className="rfp-uploaded-file-group">
+                    <p className="rfp-uploaded-file-group-title">{group.heading}</p>
+                    <div className="rfp-uploaded-files-group-list">
+                      {group.documents.map((document) => (
+                        <UploadedFileCard
+                          key={document.id || `${group.key}-${getDocumentName(document)}`}
+                          document={document}
+                          onOpen={() => onOpenDocument?.(document)}
+                          onDelete={() => onDeleteDocument?.(document)}
+                          canDelete={canDelete}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              )}
+              {normalizedPendingGroups.map((group) =>
+                group.files.length ? (
+                  <div key={group.key} className="rfp-uploaded-file-group">
+                    <p className="rfp-uploaded-file-group-title">{group.heading}</p>
+                    <div className="rfp-uploaded-files-group-list">
+                      {group.files.map((file, index) => (
+                        <PendingFileCard
+                          key={`${group.key}-${file.name}-${file.size}-${index}`}
+                          file={file}
+                          onRemove={() => group.onRemove?.(index)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : (
+            <p className="empty-state">No uploaded files yet.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function RequestForPaymentPage({
   item,
   form,
   errors = {},
   suppliers = [],
+  invoiceDocuments = [],
+  liquidationDocuments = [],
   currentInvoiceDocument = null,
   currentLiquidationDocument = null,
   embeddedInWorkspace = false,
   isEditing = true,
   canEdit = true,
   onChange,
-  onInvoiceFileChange,
-  onLiquidationFileChange,
+  onInvoiceFilesSelected,
+  onLiquidationFilesSelected,
+  onRemovePendingInvoiceFile,
+  onRemovePendingLiquidationFile,
   onOpenDocument,
   onDeleteInvoiceDocument,
   onDeleteLiquidationDocument,
@@ -205,6 +407,47 @@ export default function RequestForPaymentPage({
   const normalizedPaymentStatus = String(form.paymentStatus || "").trim().toLowerCase();
   const showInvoiceFields = normalizedPaymentStatus === "processing";
   const showLiquidationFields = normalizedPaymentStatus === "for liquidation";
+  const groupedDocuments = [
+    {
+      key: "invoice",
+      heading: "Invoice Files",
+      documents: invoiceDocuments
+    },
+    {
+      key: "liquidation",
+      heading: "Liquidation Files",
+      documents: liquidationDocuments
+    }
+  ].filter((group) => group.documents.length);
+  const pendingGroups = [
+    {
+      key: "invoice-pending",
+      heading: `Pending Invoice Uploads (${(form.invoiceFiles || []).length})`,
+      files: form.invoiceFiles || [],
+      onRemove: onRemovePendingInvoiceFile
+    },
+    {
+      key: "liquidation-pending",
+      heading: `Pending Liquidation Uploads (${(form.liquidationFiles || []).length})`,
+      files: form.liquidationFiles || [],
+      onRemove: onRemovePendingLiquidationFile
+    }
+  ].filter((group) => group.files.length);
+  const activeUploadTarget = showLiquidationFields ? "liquidation" : "invoice";
+  const activeSelectedFiles =
+    activeUploadTarget === "liquidation" ? form.liquidationFiles || [] : form.invoiceFiles || [];
+  const activeUploadError =
+    activeUploadTarget === "liquidation" ? errors.liquidationFiles : errors.invoiceFiles;
+  const activeUploadPromptLabel = showLiquidationFields
+    ? liquidationDocuments.length
+      ? "Upload more liquidation files"
+      : "Upload liquidation files"
+    : invoiceDocuments.length
+      ? "Upload more invoice files"
+      : "Upload invoice files";
+  const activeUploadSubtext = showLiquidationFields
+    ? "Drag and drop liquidation files here or click to choose files"
+    : "Drag and drop invoice files here or click to choose files";
 
   useEffect(() => {
     const normalizedPayee = String(form.payee || "").trim().toLowerCase();
@@ -251,25 +494,6 @@ export default function RequestForPaymentPage({
     setIsSupplierModalOpen(false);
     setSupplierSearch("");
   }
-
-  const visibleDocuments = [
-    showInvoiceFields && currentInvoiceDocument
-      ? {
-          key: "invoice",
-          heading: "Invoice file",
-          document: currentInvoiceDocument,
-          onDelete: () => onDeleteInvoiceDocument?.(currentInvoiceDocument)
-        }
-      : null,
-    showLiquidationFields && currentLiquidationDocument
-      ? {
-          key: "liquidation",
-          heading: "Liquidation file",
-          document: currentLiquidationDocument,
-          onDelete: () => onDeleteLiquidationDocument?.(currentLiquidationDocument)
-        }
-      : null
-  ].filter(Boolean);
 
   return (
     <section className={`po-page${embeddedInWorkspace ? " po-page-embedded" : ""}`}>
@@ -417,7 +641,7 @@ export default function RequestForPaymentPage({
               />
             </label>
 
-            <label className="full-width-field">
+            <label className={showInvoiceFields ? "" : "full-width-field"}>
               Status
               <select
                 name="paymentStatus"
@@ -435,119 +659,16 @@ export default function RequestForPaymentPage({
             </label>
 
             {showInvoiceFields ? (
-              <>
-                <label>
-                  Invoice number
-                  <input
-                    name="invoiceNumber"
-                    value={form.invoiceNumber}
-                    onChange={onChange}
-                    placeholder="INV-2026-014"
-                    disabled={!isEditing}
-                  />
-                </label>
-
-                <section className="full-width-field rfp-file-manager-section">
-                  <div className="rfp-file-manager-card">
-                    <div className="rfp-file-manager-heading">
-                      <h3>Attachments / Uploaded Files</h3>
-                      <p>
-                        Upload files to add attachments. You can view and delete files anytime.
-                      </p>
-                    </div>
-                    <label className="rfp-upload-dropzone" htmlFor={invoiceInputId}>
-                      <input
-                        id={invoiceInputId}
-                        className="rfp-upload-input"
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-                        onChange={onInvoiceFileChange}
-                        disabled={!isEditing}
-                      />
-                      <div className="rfp-upload-dropzone-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                          <path
-                            d="M7 18a4 4 0 1 1 .8-7.92A5.5 5.5 0 0 1 18.5 12H19a3 3 0 0 1 0 6H7Z"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.8"
-                          />
-                          <path
-                            d="M12 8v8M8.75 11.25 12 8l3.25 3.25"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.8"
-                          />
-                        </svg>
-                      </div>
-                      <strong>{currentInvoiceDocument ? "Replace invoice file" : "Upload invoice file"}</strong>
-                      <span>Click to choose a file</span>
-                      <p>Allowed: Image, PDF, Word, Excel, TXT</p>
-                      <small>Max size: 10MB per file</small>
-                    </label>
-                    {form.invoiceFile ? (
-                      <span className="field-help-text">Selected: {form.invoiceFile.name}</span>
-                    ) : null}
-                    {errors.invoiceFile ? <span className="error-text">{errors.invoiceFile}</span> : null}
-                  </div>
-                </section>
-              </>
-            ) : null}
-
-            {showLiquidationFields ? (
-              <section className="full-width-field rfp-file-manager-section">
-                <div className="rfp-file-manager-card">
-                  <div className="rfp-file-manager-heading">
-                    <h3>Attachments / Uploaded Files</h3>
-                    <p>Upload files to add attachments. You can view and delete files anytime.</p>
-                  </div>
-                  <label className="rfp-upload-dropzone" htmlFor={liquidationInputId}>
-                    <input
-                      id={liquidationInputId}
-                      className="rfp-upload-input"
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-                      onChange={onLiquidationFileChange}
-                      disabled={!isEditing}
-                    />
-                    <div className="rfp-upload-dropzone-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path
-                          d="M7 18a4 4 0 1 1 .8-7.92A5.5 5.5 0 0 1 18.5 12H19a3 3 0 0 1 0 6H7Z"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="1.8"
-                        />
-                        <path
-                          d="M12 8v8M8.75 11.25 12 8l3.25 3.25"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="1.8"
-                        />
-                      </svg>
-                    </div>
-                    <strong>
-                      {currentLiquidationDocument
-                        ? "Replace liquidation file"
-                        : "Upload liquidation file"}
-                    </strong>
-                    <span>Click to choose a file</span>
-                    <p>Allowed: Image, PDF, Word, Excel, TXT</p>
-                    <small>Max size: 10MB per file</small>
-                  </label>
-                  {form.liquidationFile ? (
-                    <span className="field-help-text">Selected: {form.liquidationFile.name}</span>
-                  ) : null}
-                </div>
-              </section>
+              <label>
+                Invoice number
+                <input
+                  name="invoiceNumber"
+                  value={form.invoiceNumber}
+                  onChange={onChange}
+                  placeholder="INV-2026-014"
+                  disabled={!isEditing}
+                />
+              </label>
             ) : null}
 
             <label className="full-width-field">
@@ -562,32 +683,31 @@ export default function RequestForPaymentPage({
               />
             </label>
           </div>
-          {showInvoiceFields || showLiquidationFields ? (
-            <section className="rfp-uploaded-files-panel">
-              <div className="rfp-uploaded-files-header">
-                <div>
-                  <h3>Uploaded Files ({visibleDocuments.length})</h3>
-                </div>
-              </div>
-              {visibleDocuments.length ? (
-                <div className="rfp-uploaded-files-list">
-                  {visibleDocuments.map(({ key, heading, document, onDelete }) => (
-                    <div key={key} className="rfp-uploaded-file-group">
-                      <p className="rfp-uploaded-file-group-title">{heading}</p>
-                      <UploadedFileCard
-                        document={document}
-                        onOpen={() => onOpenDocument?.(document)}
-                        onDelete={onDelete}
-                        canDelete={isEditing}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="empty-state">No uploaded files yet.</p>
-              )}
-            </section>
-          ) : null}
+          <AttachmentManagerSection
+            inputId={activeUploadTarget === "liquidation" ? liquidationInputId : invoiceInputId}
+            promptLabel={activeUploadPromptLabel}
+            promptSubtext={activeUploadSubtext}
+            selectedFiles={activeSelectedFiles}
+            pendingGroups={pendingGroups}
+            groupedDocuments={groupedDocuments}
+            onFilesSelected={
+              activeUploadTarget === "liquidation"
+                ? onLiquidationFilesSelected
+                : onInvoiceFilesSelected
+            }
+            onOpenDocument={onOpenDocument}
+            onDeleteDocument={(document) => {
+              const normalizedType = String(document?.documentType || "").trim().toLowerCase();
+              if (normalizedType === "liquidation") {
+                onDeleteLiquidationDocument?.(document);
+                return;
+              }
+              onDeleteInvoiceDocument?.(document);
+            }}
+            canDelete={isEditing}
+            disabled={!isEditing}
+            error={activeUploadError}
+          />
           <div className="panel-form-actions rfp-action-row">
             {isEditing ? (
               <>

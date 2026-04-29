@@ -3531,6 +3531,11 @@ button.inline-link {
   gap: 12px;
 }
 
+.rfp-uploaded-files-group-list {
+  display: grid;
+  gap: 12px;
+}
+
 .rfp-uploaded-file-group-title {
   margin: 0;
   font-size: 0.88rem;

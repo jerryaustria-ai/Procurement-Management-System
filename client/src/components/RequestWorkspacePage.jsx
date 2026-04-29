@@ -33,8 +33,12 @@ export default function RequestWorkspacePage({
   isRequestForPaymentEditing,
   canEditRequestForPayment,
   onRequestForPaymentChange,
-  onRequestForPaymentInvoiceFileChange,
-  onRequestForPaymentLiquidationFileChange,
+  onRequestForPaymentInvoiceFilesSelected,
+  onRequestForPaymentLiquidationFilesSelected,
+  onRequestForPaymentRemovePendingInvoiceFile,
+  onRequestForPaymentRemovePendingLiquidationFile,
+  invoiceDocuments,
+  liquidationDocuments,
   currentInvoiceDocument,
   currentLiquidationDocument,
   onRequestForPaymentOpenDocument,
@@ -139,14 +143,18 @@ export default function RequestWorkspacePage({
                 form={requestForPaymentForm}
                 errors={requestForPaymentErrors}
                 suppliers={suppliers}
+                invoiceDocuments={invoiceDocuments}
+                liquidationDocuments={liquidationDocuments}
                 currentInvoiceDocument={currentInvoiceDocument}
                 currentLiquidationDocument={currentLiquidationDocument}
                 embeddedInWorkspace
                 isEditing={isRequestForPaymentEditing}
                 canEdit={canEditRequestForPayment}
                 onChange={onRequestForPaymentChange}
-                onInvoiceFileChange={onRequestForPaymentInvoiceFileChange}
-                onLiquidationFileChange={onRequestForPaymentLiquidationFileChange}
+                onInvoiceFilesSelected={onRequestForPaymentInvoiceFilesSelected}
+                onLiquidationFilesSelected={onRequestForPaymentLiquidationFilesSelected}
+                onRemovePendingInvoiceFile={onRequestForPaymentRemovePendingInvoiceFile}
+                onRemovePendingLiquidationFile={onRequestForPaymentRemovePendingLiquidationFile}
                 onOpenDocument={onRequestForPaymentOpenDocument}
                 onDeleteInvoiceDocument={onRequestForPaymentDeleteInvoiceDocument}
                 onDeleteLiquidationDocument={onRequestForPaymentDeleteLiquidationDocument}
