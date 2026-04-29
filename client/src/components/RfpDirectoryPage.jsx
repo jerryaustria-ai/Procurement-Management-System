@@ -29,6 +29,12 @@ const RFP_PAID_EQUIVALENT_STATUSES = new Set([
   'liquidation reviewed',
   'liquidated / closed',
 ])
+const RFP_CLOSED_STATUSES = new Set(['paid', 'liquidated / closed'])
+const RFP_FOR_LIQUIDATION_STATUSES = new Set([
+  'for liquidation',
+  'liquidation submitted',
+  'liquidation reviewed',
+])
 
 function getWorkflowStages(record) {
   return Array.isArray(record?.workflowStages) && record.workflowStages.length
@@ -67,6 +73,14 @@ function isPaidEquivalentPaymentStatus(record) {
   return RFP_PAID_EQUIVALENT_STATUSES.has(getNormalizedPaymentStatus(record))
 }
 
+function isClosedPaymentStatus(record) {
+  return RFP_CLOSED_STATUSES.has(getNormalizedPaymentStatus(record))
+}
+
+function isForLiquidationPaymentStatus(record) {
+  return RFP_FOR_LIQUIDATION_STATUSES.has(getNormalizedPaymentStatus(record))
+}
+
 function getDisplayPaymentStatus(record, fallback = 'Not set') {
   const normalizedStatus = getNormalizedPaymentStatus(record)
 
@@ -75,7 +89,7 @@ function getDisplayPaymentStatus(record, fallback = 'Not set') {
   }
 
   if (normalizedStatus === 'paid') {
-    return 'For Liquidation'
+    return 'Liquidated / Closed'
   }
 
   return (
@@ -132,10 +146,17 @@ function isForPaymentRecord(record) {
   return true
 }
 
-function getPaidRecordDate(record) {
-  const normalizedPaymentStatus = getNormalizedPaymentStatus(record)
-  const paidDate =
-    isPaidEquivalentPaymentStatus(record) &&
+function isForLiquidationRecord(record) {
+  if (isTerminalRequest(record)) {
+    return false
+  }
+
+  return isForLiquidationPaymentStatus(record)
+}
+
+function getClosedRecordDate(record) {
+  const closedDate =
+    isClosedPaymentStatus(record) &&
     (record?.rfpDraft?.paymentStatusUpdatedAt || record?.updatedAt)
       ? new Date(record?.rfpDraft?.paymentStatusUpdatedAt || record?.updatedAt)
       : (record?.status === 'completed' || record?.filingCompleted) &&
@@ -143,37 +164,37 @@ function getPaidRecordDate(record) {
         ? new Date(record.updatedAt)
         : null
 
-  if (!paidDate || Number.isNaN(paidDate.getTime())) {
+  if (!closedDate || Number.isNaN(closedDate.getTime())) {
     return null
   }
 
-  return paidDate
+  return closedDate
 }
 
-function isPaidForPeriodRecord(record, selectedMonth, selectedYear) {
-  const paidDate = getPaidRecordDate(record)
+function isClosedForPeriodRecord(record, selectedMonth, selectedYear) {
+  const closedDate = getClosedRecordDate(record)
 
-  if (!paidDate) {
+  if (!closedDate) {
     return false
   }
 
   return (
-    paidDate.getMonth() === selectedMonth &&
-    paidDate.getFullYear() === selectedYear
+    closedDate.getMonth() === selectedMonth &&
+    closedDate.getFullYear() === selectedYear
   )
 }
 
 function getRecordScope(record, selectedMonth, selectedYear) {
-  if (isForApprovalRecord(record)) {
-    return 'for-approval'
-  }
-
   if (isForPaymentRecord(record)) {
     return 'for-payment'
   }
 
-  if (isPaidForPeriodRecord(record, selectedMonth, selectedYear)) {
-    return 'paid'
+  if (isForLiquidationRecord(record)) {
+    return 'for-liquidation'
+  }
+
+  if (isClosedForPeriodRecord(record, selectedMonth, selectedYear)) {
+    return 'closed'
   }
 
   return 'all'
@@ -209,14 +230,14 @@ function getDisplayDueDate(record) {
   return formatDisplayDate(record?.rfpDraft?.dueDate || record?.dateNeeded)
 }
 
-function getAvailablePaidYears(items) {
+function getAvailableClosedYears(items) {
   const currentYear = new Date().getFullYear()
   const years = new Set([currentYear])
 
   items.forEach((record) => {
-    const paidDate = getPaidRecordDate(record)
-    if (paidDate) {
-      years.add(paidDate.getFullYear())
+    const closedDate = getClosedRecordDate(record)
+    if (closedDate) {
+      years.add(closedDate.getFullYear())
     }
   })
 
@@ -238,7 +259,7 @@ const MONTH_OPTIONS = [
   { value: 11, label: 'December' },
 ]
 
-const VALID_RFP_FILTERS = ['all', 'for-approval', 'for-payment', 'paid']
+const VALID_RFP_FILTERS = ['all', 'for-payment', 'for-liquidation', 'closed']
 
 function getDisplayPayee(record) {
   const requestedPayeeSupplier = String(
@@ -311,8 +332,8 @@ function getDisplayRfpStatus(record) {
     return getDisplayPaymentStatus(record)
   }
 
-  if (getPaidRecordDate(record)) {
-    return 'For Liquidation'
+  if (getClosedRecordDate(record)) {
+    return 'Liquidated / Closed'
   }
 
   if (isForApprovalRecord(record)) {
@@ -334,9 +355,12 @@ function getRfpStatusClassName(record) {
       'for liquidation',
       'liquidation submitted',
       'liquidation reviewed',
-      'liquidated / closed',
     ].includes(normalizedStatus)
   ) {
+    return 'rfp-status-text is-paid'
+  }
+
+  if (normalizedStatus === 'liquidated / closed') {
     return 'rfp-status-text is-paid'
   }
 
@@ -394,15 +418,15 @@ export default function RfpDirectoryPage({
   const currentDate = new Date()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterValue, setFilterValue] = useState('all')
-  const [paidMonth, setPaidMonth] = useState(currentDate.getMonth())
-  const [paidYear, setPaidYear] = useState(currentDate.getFullYear())
+  const [closedMonth, setClosedMonth] = useState(currentDate.getMonth())
+  const [closedYear, setClosedYear] = useState(currentDate.getFullYear())
   const [sortValue, setSortValue] = useState('due-date-desc')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  const availablePaidYears = useMemo(
-    () => getAvailablePaidYears(items),
+  const availableClosedYears = useMemo(
+    () => getAvailableClosedYears(items),
     [items],
   )
 
@@ -453,16 +477,16 @@ export default function RfpDirectoryPage({
         return false
       }
 
-      if (filterValue === 'for-approval') {
-        return isForApprovalRecord(record)
-      }
-
       if (filterValue === 'for-payment') {
         return isForPaymentRecord(record)
       }
 
-      if (filterValue === 'paid') {
-        return isPaidForPeriodRecord(record, paidMonth, paidYear)
+      if (filterValue === 'for-liquidation') {
+        return isForLiquidationRecord(record)
+      }
+
+      if (filterValue === 'closed') {
+        return isClosedForPeriodRecord(record, closedMonth, closedYear)
       }
 
       return true
@@ -500,7 +524,7 @@ export default function RfpDirectoryPage({
     })
 
     return sortedItems
-  }, [filterValue, items, paidMonth, paidYear, searchQuery, sortValue])
+  }, [closedMonth, closedYear, filterValue, items, searchQuery, sortValue])
 
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / pageSize))
   const effectiveCurrentPage = Math.min(currentPage, totalPages)
@@ -519,14 +543,14 @@ export default function RfpDirectoryPage({
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [filterValue, pageSize, paidMonth, paidYear, searchQuery, sortValue])
+  }, [closedMonth, closedYear, filterValue, pageSize, searchQuery, sortValue])
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages))
   }, [totalPages])
 
-  const paidTotal = useMemo(() => {
-    if (filterValue !== 'paid') {
+  const closedTotal = useMemo(() => {
+    if (filterValue !== 'closed') {
       return 0
     }
 
@@ -662,21 +686,21 @@ export default function RfpDirectoryPage({
               }}
             >
               <option value="all">All records</option>
-              <option value="for-approval">For Approval</option>
               <option value="for-payment">For Payment</option>
-              <option value="paid">For Liquidation</option>
+              <option value="for-liquidation">For Liquidation</option>
+              <option value="closed">Closed</option>
             </select>
           </label>
-          {filterValue === 'paid' ? (
+          {filterValue === 'closed' ? (
             <>
               <label
                 className="request-list-filter-select request-list-filter-select-inline"
-                aria-label="For liquidation month"
+                aria-label="Closed month"
               >
                 <select
-                  value={String(paidMonth)}
+                  value={String(closedMonth)}
                   onChange={(event) => {
-                    setPaidMonth(Number(event.target.value))
+                    setClosedMonth(Number(event.target.value))
                   }}
                 >
                   {MONTH_OPTIONS.map((month) => (
@@ -688,15 +712,15 @@ export default function RfpDirectoryPage({
               </label>
               <label
                 className="request-list-filter-select request-list-filter-select-inline"
-                aria-label="For liquidation year"
+                aria-label="Closed year"
               >
                 <select
-                  value={String(paidYear)}
+                  value={String(closedYear)}
                   onChange={(event) => {
-                    setPaidYear(Number(event.target.value))
+                    setClosedYear(Number(event.target.value))
                   }}
                 >
-                  {availablePaidYears.map((year) => (
+                  {availableClosedYears.map((year) => (
                     <option key={year} value={year}>
                       {year}
                     </option>
@@ -816,12 +840,12 @@ export default function RfpDirectoryPage({
                 );
               })}
             </tbody>
-            {filterValue === 'paid' ? (
+            {filterValue === 'closed' ? (
               <tfoot>
                 <tr className="supplier-table-footer">
                   <td colSpan={2}></td>
-                  <td>Total For Liquidation</td>
-                  <td>{formatCurrencyValue(paidTotal)}</td>
+                  <td>Total Liquidated / Closed</td>
+                  <td>{formatCurrencyValue(closedTotal)}</td>
                 </tr>
               </tfoot>
             ) : null}
@@ -889,10 +913,10 @@ export default function RfpDirectoryPage({
               )
             })}
           </div>
-          {filterValue === 'paid' ? (
+          {filterValue === 'closed' ? (
             <div className="rfp-paid-total-card">
-              <span>Total For Liquidation</span>
-              <strong>{formatCurrencyValue(paidTotal)}</strong>
+              <span>Total Liquidated / Closed</span>
+              <strong>{formatCurrencyValue(closedTotal)}</strong>
             </div>
           ) : null}
         </>

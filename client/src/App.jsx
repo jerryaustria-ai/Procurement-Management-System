@@ -532,6 +532,8 @@ function getInitialRequestForPaymentForm() {
     payee: '',
     tinNumber: '',
     invoiceNumber: '',
+    invoiceFile: null,
+    liquidationFile: null,
     paymentStatus: '',
     paymentReference: '',
     amountRequested: '',
@@ -652,6 +654,8 @@ function getRequestForPaymentFormFromItem(item) {
     payee: getEffectiveRequestForPaymentPayee(item),
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
+    invoiceFile: null,
+    liquidationFile: null,
     paymentStatus: getDisplayRfpPaymentStatus(savedRfpDraft.paymentStatus, ''),
     paymentReference: savedRfpDraft.paymentReference || '',
     amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
@@ -995,7 +999,7 @@ function getPaymentStatusReferenceDate(item) {
 }
 
 function isPaidPaymentStatusOlderThanOneDay(item) {
-  if (!isPaidEquivalentRfpPaymentStatus(item?.rfpDraft?.paymentStatus)) {
+  if (getNormalizedPaymentStatus(item) !== 'liquidated / closed') {
     return false
   }
 
@@ -1009,13 +1013,9 @@ function isAccountantForApprovalItem(item) {
 }
 
 function getAccountantDashboardStats(items, referenceDate = new Date()) {
-  const currentMonth = referenceDate.getMonth()
-  const currentYear = referenceDate.getFullYear()
-
-  const forApprovalCount = items.filter(isAccountantForApprovalItem).length
-
   const forPaymentItems = getAccountantForPaymentItems(items)
-  const paidThisMonthItems = getAccountantPaidThisMonthItems(
+  const forLiquidationItems = getAccountantForLiquidationItems(items)
+  const liquidatedClosedItems = getAccountantLiquidatedClosedItems(
     items,
     referenceDate,
   )
@@ -1025,19 +1025,18 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
 
   return [
     {
-      label: 'For Approval',
-      value: String(forApprovalCount).padStart(2, '0'),
-      actionKey: 'for-approval',
-    },
-    {
       label: 'For Payment',
       value: String(forPaymentItems.length).padStart(2, '0'),
       actionKey: 'for-payment',
     },
     {
-      label: 'For Liquidation (This Month)',
-      value: String(paidThisMonthItems.length).padStart(2, '0'),
-      actionKey: 'paid-this-month',
+      label: 'For Liquidation',
+      value: String(forLiquidationItems.length).padStart(2, '0'),
+      actionKey: 'for-liquidation',
+    },
+    {
+      label: 'Liquidated / Closed (This Month)',
+      value: String(liquidatedClosedItems.length).padStart(2, '0'),
     },
     {
       label: 'Total Amount Pending',
@@ -1108,6 +1107,44 @@ function getAccountantPaidThisMonthItems(items, referenceDate = new Date()) {
     return (
       paidDate.getMonth() === currentMonth &&
       paidDate.getFullYear() === currentYear
+    )
+  })
+}
+
+function getAccountantForLiquidationItems(items) {
+  return items.filter((item) => {
+    if (isTerminalRequest(item)) {
+      return false
+    }
+
+    const normalizedPaymentStatus = getNormalizedPaymentStatus(item)
+
+    return (
+      normalizedPaymentStatus === 'for liquidation' ||
+      normalizedPaymentStatus === 'liquidation submitted' ||
+      normalizedPaymentStatus === 'liquidation reviewed'
+    )
+  })
+}
+
+function getAccountantLiquidatedClosedItems(items, referenceDate = new Date()) {
+  const currentMonth = referenceDate.getMonth()
+  const currentYear = referenceDate.getFullYear()
+
+  return items.filter((item) => {
+    if (getNormalizedPaymentStatus(item) !== 'liquidated / closed') {
+      return false
+    }
+
+    const closedDate = getPaymentStatusReferenceDate(item)
+
+    if (!closedDate) {
+      return false
+    }
+
+    return (
+      closedDate.getMonth() === currentMonth &&
+      closedDate.getFullYear() === currentYear
     )
   })
 }
@@ -1785,14 +1822,11 @@ export default function App() {
   const requestForPaymentRecords = sortRfpRecordsByDueDateDescending(
     items.filter((item) => canAccessRequestForPayment(item)),
   )
-  const accountantForApprovalRecords = isAccountant
-    ? requestForPaymentRecords.filter(isAccountantForApprovalItem)
-    : []
   const accountantForPaymentRecords = isAccountant
     ? getAccountantForPaymentItems(requestForPaymentRecords)
     : []
-  const accountantPaidThisMonthRecords = isAccountant
-    ? getAccountantPaidThisMonthItems(requestForPaymentRecords)
+  const accountantForLiquidationRecords = isAccountant
+    ? getAccountantForLiquidationItems(requestForPaymentRecords)
     : []
   const accountantDashboardRecords = isAccountant
     ? requestForPaymentRecords
@@ -3232,6 +3266,45 @@ export default function App() {
     }))
   }
 
+  function handleRequestForPaymentDocumentFileChange(name, event) {
+    const [file] = Array.from(event.target.files || [])
+
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setRequestForPaymentErrors((current) => ({
+        ...current,
+        [name]: getUploadFileLimitMessage(file),
+      }))
+      setRequestForPaymentForm((current) => ({
+        ...current,
+        [name]: null,
+      }))
+      return
+    }
+
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setRequestForPaymentErrors((current) => ({
+        ...current,
+        [name]: getUploadFileTypeMessage(file),
+      }))
+      setRequestForPaymentForm((current) => ({
+        ...current,
+        [name]: null,
+      }))
+      return
+    }
+
+    setRequestForPaymentErrors((current) => ({
+      ...current,
+      [name]: '',
+    }))
+    setRequestForPaymentForm((current) => ({
+      ...current,
+      [name]: file || null,
+    }))
+  }
+
   function handleRequestForPaymentSupplierSelect(supplier) {
     setRequestForPaymentErrors((current) => ({
       ...current,
@@ -3987,7 +4060,39 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
-      const data = await saveRequestForPaymentDraft(selectedItem)
+      const normalizedPaymentStatus = getNormalizedRfpPaymentStatusValue(
+        requestForPaymentForm.paymentStatus,
+      )
+      let workingRecord = selectedItem
+
+      if (
+        normalizedPaymentStatus === 'processing' &&
+        requestForPaymentForm.invoiceFile
+      ) {
+        workingRecord =
+          (await saveInvoiceDetailsForRecord(workingRecord, requestForPaymentForm, {
+            silent: true,
+          })) || workingRecord
+      }
+
+      let nextPaymentStatus = requestForPaymentForm.paymentStatus
+
+      if (normalizedPaymentStatus === 'for liquidation' && requestForPaymentForm.liquidationFile) {
+        workingRecord =
+          (await saveLiquidationDetailsForRecord(
+            workingRecord,
+            requestForPaymentForm,
+            { silent: true },
+          )) || workingRecord
+        nextPaymentStatus = 'Liquidation Submitted'
+      }
+
+      const data = await patchRequestForPaymentDraft(
+        workingRecord,
+        buildRequestForPaymentDraftPayload(requestForPaymentForm, {
+          paymentStatus: nextPaymentStatus,
+        }),
+      )
 
       setItems((current) =>
         current.map((item) => (item.id === data.id ? data : item)),
@@ -4018,7 +4123,10 @@ export default function App() {
   }
 
   async function saveRequestForPaymentDraft(targetItem = selectedItem) {
-    return patchRequestForPaymentDraft(targetItem, requestForPaymentForm)
+    return patchRequestForPaymentDraft(
+      targetItem,
+      buildRequestForPaymentDraftPayload(requestForPaymentForm),
+    )
   }
 
   async function patchRequestForPaymentDraft(targetItem, payload) {
@@ -4056,18 +4164,17 @@ export default function App() {
 
     if (
       session?.user?.role === 'accountant' &&
-      isPaidEquivalentRfpPaymentStatus(record?.rfpDraft?.paymentStatus) &&
+      currentPaymentStatus === 'liquidated / closed' &&
       normalizedPaymentStatus.toLowerCase() !== currentPaymentStatus &&
       isPaidPaymentStatusOlderThanOneDay(record)
     ) {
-      throw new Error(
-        'For Liquidation status can no longer be changed after one day.',
-      )
+      throw new Error('This payment status can no longer be changed after one day.')
     }
 
     const updated = await patchRequestForPaymentDraft(record, {
-      ...getRequestForPaymentFormFromItem(record),
-      paymentStatus: normalizedPaymentStatus,
+      ...buildRequestForPaymentDraftPayload(getRequestForPaymentFormFromItem(record), {
+        paymentStatus: normalizedPaymentStatus,
+      }),
     })
 
     setItems((current) =>
@@ -4104,10 +4211,23 @@ export default function App() {
     return invoiceDocuments[invoiceDocuments.length - 1] || null
   }
 
-  async function removeInvoiceDocuments(record) {
-    const invoiceDocuments = getInvoiceDocuments(record)
+  function getLiquidationDocuments(record) {
+    return (record?.documents || []).filter(
+      (document) => document.type === 'liquidation',
+    )
+  }
 
-    for (const document of invoiceDocuments) {
+  function getCurrentLiquidationDocument(record) {
+    const liquidationDocuments = getLiquidationDocuments(record)
+    return liquidationDocuments[liquidationDocuments.length - 1] || null
+  }
+
+  async function removeDocumentsByType(record, type, failureMessage) {
+    const documents = (record?.documents || []).filter(
+      (document) => document.type === type,
+    )
+
+    for (const document of documents) {
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${record.id}/documents/${document.id}`,
         {
@@ -4119,7 +4239,7 @@ export default function App() {
       )
 
       if (!response.ok) {
-        let message = 'Failed to delete invoice.'
+        let message = failureMessage
 
         try {
           const data = await response.json()
@@ -4130,6 +4250,39 @@ export default function App() {
 
         throw new Error(message)
       }
+    }
+  }
+
+  async function removeInvoiceDocuments(record) {
+    await removeDocumentsByType(record, 'invoice', 'Failed to delete invoice.')
+  }
+
+  async function removeLiquidationDocuments(record) {
+    await removeDocumentsByType(
+      record,
+      'liquidation',
+      'Failed to delete liquidation file.',
+    )
+  }
+
+  function buildRequestForPaymentDraftPayload(form, overrides = {}) {
+    return {
+      payee: String(overrides.payee ?? form?.payee ?? ''),
+      tinNumber: String(overrides.tinNumber ?? form?.tinNumber ?? ''),
+      invoiceNumber: String(
+        overrides.invoiceNumber ?? form?.invoiceNumber ?? '',
+      ),
+      paymentStatus: String(
+        overrides.paymentStatus ?? form?.paymentStatus ?? '',
+      ),
+      paymentReference: String(
+        overrides.paymentReference ?? form?.paymentReference ?? '',
+      ),
+      amountRequested: String(
+        overrides.amountRequested ?? form?.amountRequested ?? '',
+      ),
+      dueDate: String(overrides.dueDate ?? form?.dueDate ?? ''),
+      notes: String(overrides.notes ?? form?.notes ?? ''),
     }
   }
 
@@ -4178,10 +4331,12 @@ export default function App() {
       baseRecord = uploadData
     }
 
-    const updated = await patchRequestForPaymentDraft(baseRecord, {
-      ...getRequestForPaymentFormFromItem(baseRecord),
-      invoiceNumber,
-    })
+    const updated = await patchRequestForPaymentDraft(
+      baseRecord,
+      buildRequestForPaymentDraftPayload(getRequestForPaymentFormFromItem(baseRecord), {
+        invoiceNumber,
+      }),
+    )
 
     setItems((current) =>
       current.map((item) => (item.id === updated.id ? updated : item)),
@@ -4200,6 +4355,56 @@ export default function App() {
     }
 
     return updated
+  }
+
+  async function saveLiquidationDetailsForRecord(
+    record,
+    form,
+    { silent = false } = {},
+  ) {
+    if (!record || !session?.token) {
+      return null
+    }
+
+    const file = form?.liquidationFile || null
+
+    if (!file) {
+      throw new Error('Liquidation file is required.')
+    }
+
+    await removeLiquidationDocuments(record)
+
+    const optimizedLiquidationFile = await optimizeDocumentFile(file)
+    const formData = new FormData()
+    formData.append('type', 'liquidation')
+    formData.append('label', file?.name || 'Liquidation File')
+    formData.append('document', optimizedLiquidationFile)
+
+    const uploadResponse = await fetch(
+      `${API_BASE_URL}/workflows/purchase-requests/${record.id}/documents`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: formData,
+      },
+    )
+
+    const uploadData = await uploadResponse.json()
+    if (!uploadResponse.ok) {
+      throw new Error(uploadData.message || 'Failed to upload liquidation file.')
+    }
+
+    if (!silent) {
+      pushToast({
+        title: 'Liquidation file uploaded',
+        message: `${uploadData.requestNumber} liquidation file was updated.`,
+        variant: 'success',
+      })
+    }
+
+    return uploadData
   }
 
   async function deleteInvoiceForRecord(record, { silent = false } = {}) {
@@ -4237,6 +4442,103 @@ export default function App() {
     }
 
     return updated
+  }
+
+  async function deleteLiquidationForRecord(record, { silent = false } = {}) {
+    if (!record || !session?.token) {
+      return null
+    }
+
+    const currentLiquidationDocument = getCurrentLiquidationDocument(record)
+
+    if (!currentLiquidationDocument) {
+      throw new Error('No uploaded liquidation file was found.')
+    }
+
+    await removeLiquidationDocuments(record)
+
+    const updated = await patchRequestForPaymentDraft(
+      record,
+      buildRequestForPaymentDraftPayload(getRequestForPaymentFormFromItem(record)),
+    )
+
+    setItems((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    )
+
+    if (selectedId === updated.id) {
+      setRequestForPaymentForm(getRequestForPaymentFormFromItem(updated))
+    }
+
+    if (!silent) {
+      pushToast({
+        title: 'Liquidation file deleted',
+        message: `${updated.requestNumber} liquidation file was removed.`,
+        variant: 'success',
+      })
+    }
+
+    return updated
+  }
+
+  function handleOpenRfpDocument(document) {
+    if (!document) {
+      return
+    }
+
+    handleOpenAttachmentDocument(document)
+  }
+
+  function handleConfirmDeleteInvoiceDocument(record) {
+    if (!record) {
+      return
+    }
+
+    openConfirmDialog({
+      title: 'Delete invoice file?',
+      message:
+        'This will permanently remove the uploaded invoice file from this request.',
+      confirmLabel: 'Delete invoice',
+      onConfirm: async () => {
+        setConfirmDialog(null)
+        try {
+          await deleteInvoiceForRecord(record)
+        } catch (error) {
+          pushToast({
+            title: 'Delete failed',
+            message: error.message || 'Failed to delete invoice.',
+            variant: 'error',
+            duration: 4200,
+          })
+        }
+      },
+    })
+  }
+
+  function handleConfirmDeleteLiquidationDocument(record) {
+    if (!record) {
+      return
+    }
+
+    openConfirmDialog({
+      title: 'Delete liquidation file?',
+      message:
+        'This will permanently remove the uploaded liquidation file from this request.',
+      confirmLabel: 'Delete file',
+      onConfirm: async () => {
+        setConfirmDialog(null)
+        try {
+          await deleteLiquidationForRecord(record)
+        } catch (error) {
+          pushToast({
+            title: 'Delete failed',
+            message: error.message || 'Failed to delete liquidation file.',
+            variant: 'error',
+            duration: 4200,
+          })
+        }
+      },
+    })
   }
 
   async function handleSubmitInvoiceUpload() {
@@ -6172,9 +6474,9 @@ export default function App() {
     setAccountantDashboardPage('for-payment')
   }
 
-  function handleOpenAccountantPaidThisMonthPage() {
+  function handleOpenAccountantForLiquidationPage() {
     closeHeaderMenuPages()
-    setAccountantDashboardPage('paid-this-month')
+    setAccountantDashboardPage('for-liquidation')
   }
 
   function closeAccountantDashboardPage() {
@@ -6707,7 +7009,8 @@ export default function App() {
     setRfpPreviewRecord(record)
     setRfpPreviewForm({
       invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
-      file: null,
+      invoiceFile: null,
+      liquidationFile: null,
       paymentStatus: getDisplayRfpPaymentStatus(
         record?.rfpDraft?.paymentStatus,
         '',
@@ -6728,7 +7031,8 @@ export default function App() {
     setRfpPreviewRecord(null)
     setRfpPreviewForm({
       invoiceNumber: '',
-      file: null,
+      invoiceFile: null,
+      liquidationFile: null,
       paymentStatus: '',
     })
     setRfpPreviewError('')
@@ -6804,7 +7108,7 @@ export default function App() {
       isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord)
     ) {
       setRfpPreviewError(
-        'For Liquidation status can no longer be changed after one day.',
+        'This payment status can no longer be changed after one day.',
       )
       return
     }
@@ -6822,7 +7126,7 @@ export default function App() {
       event.target.value = ''
       setRfpPreviewForm((current) => ({
         ...current,
-        file: null,
+        invoiceFile: null,
       }))
       setRfpPreviewError(getUploadFileLimitMessage(file))
       return
@@ -6832,7 +7136,7 @@ export default function App() {
       event.target.value = ''
       setRfpPreviewForm((current) => ({
         ...current,
-        file: null,
+        invoiceFile: null,
       }))
       setRfpPreviewError(getUploadFileTypeMessage(file))
       return
@@ -6841,7 +7145,37 @@ export default function App() {
     setRfpPreviewError('')
     setRfpPreviewForm((current) => ({
       ...current,
-      file: file || null,
+      invoiceFile: file || null,
+    }))
+  }
+
+  function handleRfpPreviewLiquidationFileChange(event) {
+    const [file] = Array.from(event.target.files || [])
+
+    if (isUploadFileTooLarge(file)) {
+      event.target.value = ''
+      setRfpPreviewForm((current) => ({
+        ...current,
+        liquidationFile: null,
+      }))
+      setRfpPreviewError(getUploadFileLimitMessage(file))
+      return
+    }
+
+    if (isUploadFileUnsupported(file)) {
+      event.target.value = ''
+      setRfpPreviewForm((current) => ({
+        ...current,
+        liquidationFile: null,
+      }))
+      setRfpPreviewError(getUploadFileTypeMessage(file))
+      return
+    }
+
+    setRfpPreviewError('')
+    setRfpPreviewForm((current) => ({
+      ...current,
+      liquidationFile: file || null,
     }))
   }
 
@@ -6861,16 +7195,38 @@ export default function App() {
     setIsRfpPreviewSubmitting(true)
 
     try {
-      let updatedRecord = await saveInvoiceDetailsForRecord(
-        rfpPreviewRecord,
-        rfpPreviewForm,
-        { silent: true },
+      const normalizedPaymentStatus = getNormalizedRfpPaymentStatusValue(
+        rfpPreviewForm.paymentStatus,
       )
+      let updatedRecord = rfpPreviewRecord
+
+      if (
+        normalizedPaymentStatus === 'processing' &&
+        rfpPreviewForm.invoiceFile
+      ) {
+        updatedRecord =
+          (await saveInvoiceDetailsForRecord(updatedRecord, rfpPreviewForm, {
+            silent: true,
+          })) || updatedRecord
+      }
+
+      let nextPaymentStatus = rfpPreviewForm.paymentStatus
+
+      if (
+        normalizedPaymentStatus === 'for liquidation' &&
+        rfpPreviewForm.liquidationFile
+      ) {
+        updatedRecord =
+          (await saveLiquidationDetailsForRecord(updatedRecord, rfpPreviewForm, {
+            silent: true,
+          })) || updatedRecord
+        nextPaymentStatus = 'Liquidation Submitted'
+      }
 
       updatedRecord =
         (await saveRfpPaymentStatusForRecord(
           updatedRecord || rfpPreviewRecord,
-          rfpPreviewForm.paymentStatus,
+          nextPaymentStatus,
           { silent: true },
         )) || updatedRecord
 
@@ -6878,7 +7234,8 @@ export default function App() {
         setRfpPreviewRecord(updatedRecord)
         setRfpPreviewForm({
           invoiceNumber: updatedRecord?.rfpDraft?.invoiceNumber || '',
-          file: null,
+          invoiceFile: null,
+          liquidationFile: null,
           paymentStatus: getDisplayRfpPaymentStatus(
             updatedRecord?.rfpDraft?.paymentStatus,
             '',
@@ -6930,7 +7287,7 @@ export default function App() {
         setRfpPreviewForm((current) => ({
           ...current,
           invoiceNumber: '',
-          file: null,
+          invoiceFile: null,
         }))
       }
 
@@ -7445,9 +7802,24 @@ export default function App() {
           form={requestForPaymentForm}
           errors={requestForPaymentErrors}
           suppliers={suppliers}
+          currentInvoiceDocument={getCurrentInvoiceDocument(selectedItem)}
+          currentLiquidationDocument={getCurrentLiquidationDocument(selectedItem)}
           isEditing={isRequestForPaymentEditing}
           canEdit={canEditSelectedRequestForPayment}
           onChange={handleRequestForPaymentFormChange}
+          onInvoiceFileChange={(event) =>
+            handleRequestForPaymentDocumentFileChange('invoiceFile', event)
+          }
+          onLiquidationFileChange={(event) =>
+            handleRequestForPaymentDocumentFileChange('liquidationFile', event)
+          }
+          onOpenDocument={handleOpenRfpDocument}
+          onDeleteInvoiceDocument={() =>
+            handleConfirmDeleteInvoiceDocument(selectedItem)
+          }
+          onDeleteLiquidationDocument={() =>
+            handleConfirmDeleteLiquidationDocument(selectedItem)
+          }
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
           onCreateSupplier={openCreateSupplierModal}
           canCreateSupplier={session.user.role === 'admin'}
@@ -8011,6 +8383,21 @@ export default function App() {
           isRequestForPaymentEditing={isRequestForPaymentEditing}
           canEditRequestForPayment={canEditSelectedRequestForPayment}
           onRequestForPaymentChange={handleRequestForPaymentFormChange}
+          onRequestForPaymentInvoiceFileChange={(event) =>
+            handleRequestForPaymentDocumentFileChange('invoiceFile', event)
+          }
+          onRequestForPaymentLiquidationFileChange={(event) =>
+            handleRequestForPaymentDocumentFileChange('liquidationFile', event)
+          }
+          currentInvoiceDocument={getCurrentInvoiceDocument(selectedItem)}
+          currentLiquidationDocument={getCurrentLiquidationDocument(selectedItem)}
+          onRequestForPaymentOpenDocument={handleOpenRfpDocument}
+          onRequestForPaymentDeleteInvoiceDocument={() =>
+            handleConfirmDeleteInvoiceDocument(selectedItem)
+          }
+          onRequestForPaymentDeleteLiquidationDocument={() =>
+            handleConfirmDeleteLiquidationDocument(selectedItem)
+          }
           onRequestForPaymentSupplierSelect={handleRequestForPaymentSupplierSelect}
           onRequestForPaymentEdit={() => {
             if (!canEditRequestForPayment(session?.user, selectedItem)) {
@@ -8311,19 +8698,360 @@ export default function App() {
               </div>
             </div>
 
-            <div className='rfp-preview-form-grid'>
-              <label>
-                Invoice number
-                <input
-                  name='invoiceNumber'
-                  value={rfpPreviewForm.invoiceNumber}
-                  onChange={handleRfpPreviewFormChange}
-                  placeholder='Enter invoice number'
-                />
-              </label>
+            {getNormalizedRfpPaymentStatusValue(rfpPreviewForm.paymentStatus) ===
+              'processing' ? (
+              <>
+                <section className='rfp-file-manager-section'>
+                  <div className='rfp-file-manager-card'>
+                    <div className='rfp-file-manager-heading'>
+                      <h3>Attachments / Uploaded Files</h3>
+                      <p>
+                        Upload files to add attachments. You can view and
+                        delete files anytime.
+                      </p>
+                    </div>
+                    <label className='rfp-upload-dropzone' htmlFor='rfp-preview-invoice-file'>
+                      <input
+                        id='rfp-preview-invoice-file'
+                        className='rfp-upload-input'
+                        type='file'
+                        accept={ATTACHMENT_ACCEPT_TYPES}
+                        onChange={handleRfpPreviewFileChange}
+                      />
+                      <div className='rfp-upload-dropzone-icon' aria-hidden='true'>
+                        <svg viewBox='0 0 24 24'>
+                          <path
+                            d='M7 18a4 4 0 1 1 .8-7.92A5.5 5.5 0 0 1 18.5 12H19a3 3 0 0 1 0 6H7Z'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth='1.8'
+                          />
+                          <path
+                            d='M12 8v8M8.75 11.25 12 8l3.25 3.25'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth='1.8'
+                          />
+                        </svg>
+                      </div>
+                      <strong>
+                        {getCurrentInvoiceDocument(rfpPreviewRecord)
+                          ? 'Replace invoice file'
+                          : 'Upload invoice file'}
+                      </strong>
+                      <span>Click to choose a file</span>
+                      <p>Allowed: Image, PDF, Word, Excel, TXT</p>
+                      <small>Max size: 10MB per file</small>
+                    </label>
+                    {rfpPreviewForm.invoiceFile ? (
+                      <span className='field-help-text'>
+                        Selected: {rfpPreviewForm.invoiceFile.name}
+                      </span>
+                    ) : null}
+                  </div>
+                </section>
 
-              <label>
-                Payment status
+                <section className='rfp-uploaded-files-panel'>
+                  <div className='rfp-uploaded-files-header'>
+                    <div>
+                      <h3>
+                        Uploaded Files (
+                        {getCurrentInvoiceDocument(rfpPreviewRecord) ? 1 : 0})
+                      </h3>
+                    </div>
+                  </div>
+                  {getCurrentInvoiceDocument(rfpPreviewRecord) ? (
+                    <div className='rfp-uploaded-files-list'>
+                      <div className='rfp-uploaded-file-group'>
+                        <p className='rfp-uploaded-file-group-title'>
+                          Invoice file
+                        </p>
+                        <article className='rfp-uploaded-file-card'>
+                          <div className='rfp-uploaded-file-meta'>
+                            <div
+                              className={`rfp-file-type-icon rfp-file-type-icon-${
+                                getAttachmentViewerType(
+                                  getCurrentInvoiceDocument(rfpPreviewRecord),
+                                ) === 'image'
+                                  ? 'image'
+                                  : getAttachmentViewerType(
+                                        getCurrentInvoiceDocument(rfpPreviewRecord),
+                                      ) === 'pdf'
+                                    ? 'pdf'
+                                    : 'file'
+                              }`}
+                              aria-hidden='true'
+                            >
+                              <div className='rfp-file-type-icon-sheet'>
+                                <span>
+                                  {String(
+                                    getCurrentInvoiceDocument(rfpPreviewRecord)
+                                      ?.originalName ||
+                                      getCurrentInvoiceDocument(rfpPreviewRecord)
+                                        ?.filename ||
+                                      'FILE',
+                                  )
+                                    .split('.')
+                                    .pop()
+                                    ?.trim()
+                                    .toUpperCase() || 'FILE'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className='rfp-uploaded-file-copy'>
+                              <strong>
+                                {getCurrentInvoiceDocument(rfpPreviewRecord)
+                                  ?.label ||
+                                  getCurrentInvoiceDocument(rfpPreviewRecord)
+                                    ?.originalName ||
+                                  getCurrentInvoiceDocument(rfpPreviewRecord)
+                                    ?.filename ||
+                                  'Invoice file'}
+                              </strong>
+                              <span>
+                                {getAttachmentViewerType(
+                                  getCurrentInvoiceDocument(rfpPreviewRecord),
+                                ) === 'image'
+                                  ? 'Image'
+                                  : getAttachmentViewerType(
+                                        getCurrentInvoiceDocument(rfpPreviewRecord),
+                                      ) === 'pdf'
+                                    ? 'PDF Document'
+                                    : 'Document File'}
+                              </span>
+                              <small>
+                                Uploaded:{' '}
+                                {formatDate(
+                                  getCurrentInvoiceDocument(rfpPreviewRecord)
+                                    ?.uploadedAt,
+                                )}
+                              </small>
+                            </div>
+                          </div>
+                          <div className='rfp-uploaded-file-actions'>
+                            <button
+                              className='ghost-button rfp-file-open-button'
+                              type='button'
+                              onClick={() =>
+                                handleOpenRfpDocument(
+                                  getCurrentInvoiceDocument(rfpPreviewRecord),
+                                )
+                              }
+                            >
+                              {getAttachmentViewerType(
+                                getCurrentInvoiceDocument(rfpPreviewRecord),
+                              ) === 'image'
+                                ? 'View'
+                                : 'Open / Download'}
+                            </button>
+                            <button
+                              className='danger-secondary-button'
+                              type='button'
+                              onClick={() =>
+                                handleConfirmDeleteInvoiceDocument(
+                                  rfpPreviewRecord,
+                                )
+                              }
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className='empty-state'>No uploaded files yet.</p>
+                  )}
+                </section>
+              </>
+            ) : null}
+
+            {getNormalizedRfpPaymentStatusValue(rfpPreviewForm.paymentStatus) ===
+              'for liquidation' ? (
+              <>
+                <section className='rfp-file-manager-section'>
+                  <div className='rfp-file-manager-card'>
+                    <div className='rfp-file-manager-heading'>
+                      <h3>Attachments / Uploaded Files</h3>
+                      <p>
+                        Upload files to add attachments. You can view and
+                        delete files anytime.
+                      </p>
+                    </div>
+                    <label
+                      className='rfp-upload-dropzone'
+                      htmlFor='rfp-preview-liquidation-file'
+                    >
+                      <input
+                        id='rfp-preview-liquidation-file'
+                        className='rfp-upload-input'
+                        type='file'
+                        accept={ATTACHMENT_ACCEPT_TYPES}
+                        onChange={handleRfpPreviewLiquidationFileChange}
+                      />
+                      <div className='rfp-upload-dropzone-icon' aria-hidden='true'>
+                        <svg viewBox='0 0 24 24'>
+                          <path
+                            d='M7 18a4 4 0 1 1 .8-7.92A5.5 5.5 0 0 1 18.5 12H19a3 3 0 0 1 0 6H7Z'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth='1.8'
+                          />
+                          <path
+                            d='M12 8v8M8.75 11.25 12 8l3.25 3.25'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth='1.8'
+                          />
+                        </svg>
+                      </div>
+                      <strong>
+                        {getCurrentLiquidationDocument(rfpPreviewRecord)
+                          ? 'Replace liquidation file'
+                          : 'Upload liquidation file'}
+                      </strong>
+                      <span>Click to choose a file</span>
+                      <p>Allowed: Image, PDF, Word, Excel, TXT</p>
+                      <small>Max size: 10MB per file</small>
+                    </label>
+                    {rfpPreviewForm.liquidationFile ? (
+                      <span className='field-help-text'>
+                        Selected: {rfpPreviewForm.liquidationFile.name}
+                      </span>
+                    ) : null}
+                  </div>
+                </section>
+
+                <section className='rfp-uploaded-files-panel'>
+                  <div className='rfp-uploaded-files-header'>
+                    <div>
+                      <h3>
+                        Uploaded Files (
+                        {getCurrentLiquidationDocument(rfpPreviewRecord)
+                          ? 1
+                          : 0})
+                      </h3>
+                    </div>
+                  </div>
+                  {getCurrentLiquidationDocument(rfpPreviewRecord) ? (
+                    <div className='rfp-uploaded-files-list'>
+                      <div className='rfp-uploaded-file-group'>
+                        <p className='rfp-uploaded-file-group-title'>
+                          Liquidation file
+                        </p>
+                        <article className='rfp-uploaded-file-card'>
+                          <div className='rfp-uploaded-file-meta'>
+                            <div
+                              className={`rfp-file-type-icon rfp-file-type-icon-${
+                                getAttachmentViewerType(
+                                  getCurrentLiquidationDocument(rfpPreviewRecord),
+                                ) === 'image'
+                                  ? 'image'
+                                  : getAttachmentViewerType(
+                                        getCurrentLiquidationDocument(rfpPreviewRecord),
+                                      ) === 'pdf'
+                                    ? 'pdf'
+                                    : 'file'
+                              }`}
+                              aria-hidden='true'
+                            >
+                              <div className='rfp-file-type-icon-sheet'>
+                                <span>
+                                  {String(
+                                    getCurrentLiquidationDocument(rfpPreviewRecord)
+                                      ?.originalName ||
+                                      getCurrentLiquidationDocument(rfpPreviewRecord)
+                                        ?.filename ||
+                                      'FILE',
+                                  )
+                                    .split('.')
+                                    .pop()
+                                    ?.trim()
+                                    .toUpperCase() || 'FILE'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className='rfp-uploaded-file-copy'>
+                              <strong>
+                                {getCurrentLiquidationDocument(rfpPreviewRecord)
+                                  ?.label ||
+                                  getCurrentLiquidationDocument(rfpPreviewRecord)
+                                    ?.originalName ||
+                                  getCurrentLiquidationDocument(rfpPreviewRecord)
+                                    ?.filename ||
+                                  'Liquidation file'}
+                              </strong>
+                              <span>
+                                {getAttachmentViewerType(
+                                  getCurrentLiquidationDocument(rfpPreviewRecord),
+                                ) === 'image'
+                                  ? 'Image'
+                                  : getAttachmentViewerType(
+                                        getCurrentLiquidationDocument(rfpPreviewRecord),
+                                      ) === 'pdf'
+                                    ? 'PDF Document'
+                                    : 'Document File'}
+                              </span>
+                              <small>
+                                Uploaded:{' '}
+                                {formatDate(
+                                  getCurrentLiquidationDocument(rfpPreviewRecord)
+                                    ?.uploadedAt,
+                                )}
+                              </small>
+                            </div>
+                          </div>
+                          <div className='rfp-uploaded-file-actions'>
+                            <button
+                              className='ghost-button rfp-file-open-button'
+                              type='button'
+                              onClick={() =>
+                                handleOpenRfpDocument(
+                                  getCurrentLiquidationDocument(
+                                    rfpPreviewRecord,
+                                  ),
+                                )
+                              }
+                            >
+                              {getAttachmentViewerType(
+                                getCurrentLiquidationDocument(rfpPreviewRecord),
+                              ) === 'image'
+                                ? 'View'
+                                : 'Open / Download'}
+                            </button>
+                            <button
+                              className='danger-secondary-button'
+                              type='button'
+                              onClick={() =>
+                                handleConfirmDeleteLiquidationDocument(
+                                  rfpPreviewRecord,
+                                )
+                              }
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className='empty-state'>No uploaded files yet.</p>
+                  )}
+                </section>
+              </>
+            ) : null}
+
+            <div className='rfp-preview-form-grid'>
+              <label className='full-width-field'>
+                Status
                 <select
                   name='paymentStatus'
                   value={rfpPreviewForm.paymentStatus}
@@ -8343,56 +9071,33 @@ export default function App() {
                 {session?.user?.role === 'accountant' &&
                 isPaidPaymentStatusOlderThanOneDay(rfpPreviewRecord) ? (
                   <span className='field-help-text'>
-                    For Liquidation status is locked after one day.
+                    This payment status is locked after one day.
                   </span>
                 ) : null}
               </label>
+
+              {getNormalizedRfpPaymentStatusValue(rfpPreviewForm.paymentStatus) ===
+              'processing' ? (
+                <>
+                  <label>
+                    Invoice number
+                    <input
+                      name='invoiceNumber'
+                      value={rfpPreviewForm.invoiceNumber}
+                      onChange={handleRfpPreviewFormChange}
+                      placeholder='Enter invoice number'
+                    />
+                  </label>
+                </>
+              ) : null}
             </div>
-
-            {getCurrentInvoiceDocument(rfpPreviewRecord) ? (
-              <div className='invoice-upload-current'>
-                <p className='invoice-upload-caption'>Current invoice file</p>
-                <a
-                  className='audit-trail-link'
-                  href={getCurrentInvoiceDocument(rfpPreviewRecord).filePath}
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  Open current invoice
-                </a>
-              </div>
-            ) : null}
-
-            <label>
-              {getCurrentInvoiceDocument(rfpPreviewRecord)
-                ? 'Replace invoice file'
-                : 'Invoice file'}
-              <input
-                type='file'
-                accept={ATTACHMENT_ACCEPT_TYPES}
-                onChange={handleRfpPreviewFileChange}
-              />
-            </label>
 
             {rfpPreviewError ? (
               <p className='error-text'>{rfpPreviewError}</p>
             ) : null}
 
             <div className='modal-form-actions'>
-              {getCurrentInvoiceDocument(rfpPreviewRecord) ? (
-                <button
-                  className='danger-button'
-                  type='button'
-                  onClick={() => {
-                    void handleDeleteRfpPreviewInvoice()
-                  }}
-                  disabled={isRfpPreviewSubmitting}
-                >
-                  Delete invoice
-                </button>
-              ) : (
-                <span />
-              )}
+              <span />
               <div className='rfp-preview-action-buttons'>
                 <button
                   className='ghost-button'

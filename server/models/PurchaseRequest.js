@@ -21,7 +21,7 @@ const documentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["quotation", "po", "invoice", "delivery", "inspection", "other"],
+      enum: ["quotation", "po", "invoice", "liquidation", "delivery", "inspection", "other"],
       required: true
     },
     label: { type: String, required: true },

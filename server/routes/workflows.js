@@ -29,6 +29,13 @@ import { serializePurchaseRequest } from "../utils/serializers.js";
 
 const router = Router();
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const RFP_PAID_EQUIVALENT_STATUSES = new Set([
+  "paid",
+  "for liquidation",
+  "liquidation submitted",
+  "liquidation reviewed",
+  "liquidated / closed"
+]);
 
 router.use(requireAuth);
 
@@ -40,15 +47,23 @@ function getPaidStatusReferenceDate(request) {
   return request?.rfpDraft?.paymentStatusUpdatedAt || request?.updatedAt || null;
 }
 
+function getNormalizedRfpPaymentStatus(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isPaidEquivalentRfpPaymentStatus(value) {
+  return RFP_PAID_EQUIVALENT_STATUSES.has(getNormalizedRfpPaymentStatus(value));
+}
+
 function isPaidPaymentStatusLockedForAccountant(req, request, nextPaymentStatus) {
   if (req.user.role !== "accountant") {
     return false;
   }
 
-  const currentPaymentStatus = String(request?.rfpDraft?.paymentStatus || "").trim().toLowerCase();
-  const normalizedNextPaymentStatus = String(nextPaymentStatus || "").trim().toLowerCase();
+  const currentPaymentStatus = getNormalizedRfpPaymentStatus(request?.rfpDraft?.paymentStatus);
+  const normalizedNextPaymentStatus = getNormalizedRfpPaymentStatus(nextPaymentStatus);
 
-  if (currentPaymentStatus !== "paid" || normalizedNextPaymentStatus === currentPaymentStatus) {
+  if (currentPaymentStatus !== "liquidated / closed" || normalizedNextPaymentStatus === currentPaymentStatus) {
     return false;
   }
 
@@ -673,18 +688,24 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
 
   if (isPaidPaymentStatusLockedForAccountant(req, request, nextPaymentStatus)) {
     return res.status(400).json({
-      message: "Paid payment status can no longer be changed after one day."
+      message: "This payment status can no longer be changed after one day."
     });
   }
 
   const paymentStatusChanged =
     nextPaymentStatus &&
     nextPaymentStatus.toLowerCase() !== previousPaymentStatus.toLowerCase();
+  const hadPaidEquivalentStatus = isPaidEquivalentRfpPaymentStatus(previousPaymentStatus);
+  const hasPaidEquivalentStatus = isPaidEquivalentRfpPaymentStatus(nextPaymentStatus);
   const paymentStatusUpdatedAt =
     paymentStatusChanged
-      ? new Date()
+      ? hadPaidEquivalentStatus &&
+        hasPaidEquivalentStatus &&
+        request.rfpDraft?.paymentStatusUpdatedAt
+        ? request.rfpDraft.paymentStatusUpdatedAt
+        : new Date()
       : request.rfpDraft?.paymentStatusUpdatedAt ||
-        (nextPaymentStatus.toLowerCase() === "paid" ? getPaidStatusReferenceDate(request) : null);
+        (hasPaidEquivalentStatus ? getPaidStatusReferenceDate(request) : null);
 
   request.rfpDraft = {
     payee: String(req.body.payee ?? ""),
@@ -1161,7 +1182,7 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     }
 
     const documentType = req.body.type || "other";
-    const allowedTypes = ["quotation", "po", "invoice", "delivery", "inspection", "other"];
+    const allowedTypes = ["quotation", "po", "invoice", "liquidation", "delivery", "inspection", "other"];
 
     if (!allowedTypes.includes(documentType)) {
       return res.status(400).json({ message: "Invalid document type." });
@@ -1331,10 +1352,11 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
     return res.status(404).json({ message: "Document not found." });
   }
 
-  const canAccessInvoiceDocument =
-    document.type === "invoice" && canManageRequestForPaymentDraft(req, request);
+  const canAccessRequestForPaymentDocument =
+    ["invoice", "liquidation"].includes(document.type) &&
+    canManageRequestForPaymentDraft(req, request);
 
-  if (!isRequesterAccessingOwnRequest(req, request) && !canAccessInvoiceDocument && req.user.role !== "admin") {
+  if (!isRequesterAccessingOwnRequest(req, request) && !canAccessRequestForPaymentDocument && req.user.role !== "admin") {
     return res.status(403).json({ message: "You can only access your own purchase requests." });
   }
 
@@ -1342,7 +1364,7 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
     req.user.role === "admin" ||
     document.uploadedBy === req.user.name ||
     getAllowedRoles(request.currentStage).includes(req.user.role) ||
-    canAccessInvoiceDocument;
+    canAccessRequestForPaymentDocument;
 
   if (!canDelete) {
     return res.status(403).json({ message: "Your role cannot delete this document." });

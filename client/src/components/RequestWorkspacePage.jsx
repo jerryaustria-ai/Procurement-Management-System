@@ -33,6 +33,13 @@ export default function RequestWorkspacePage({
   isRequestForPaymentEditing,
   canEditRequestForPayment,
   onRequestForPaymentChange,
+  onRequestForPaymentInvoiceFileChange,
+  onRequestForPaymentLiquidationFileChange,
+  currentInvoiceDocument,
+  currentLiquidationDocument,
+  onRequestForPaymentOpenDocument,
+  onRequestForPaymentDeleteInvoiceDocument,
+  onRequestForPaymentDeleteLiquidationDocument,
   onRequestForPaymentSupplierSelect,
   onRequestForPaymentEdit,
   onRequestForPaymentCancel,
@@ -132,10 +139,17 @@ export default function RequestWorkspacePage({
                 form={requestForPaymentForm}
                 errors={requestForPaymentErrors}
                 suppliers={suppliers}
+                currentInvoiceDocument={currentInvoiceDocument}
+                currentLiquidationDocument={currentLiquidationDocument}
                 embeddedInWorkspace
                 isEditing={isRequestForPaymentEditing}
                 canEdit={canEditRequestForPayment}
                 onChange={onRequestForPaymentChange}
+                onInvoiceFileChange={onRequestForPaymentInvoiceFileChange}
+                onLiquidationFileChange={onRequestForPaymentLiquidationFileChange}
+                onOpenDocument={onRequestForPaymentOpenDocument}
+                onDeleteInvoiceDocument={onRequestForPaymentDeleteInvoiceDocument}
+                onDeleteLiquidationDocument={onRequestForPaymentDeleteLiquidationDocument}
                 onSelectSupplier={onRequestForPaymentSupplierSelect}
                 onCreateSupplier={onCreateSupplier}
                 canCreateSupplier={user.role === "admin"}
