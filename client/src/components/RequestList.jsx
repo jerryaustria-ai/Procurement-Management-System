@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
+function getNormalizedRfpStatus(item) {
+  const rawStatus = item?.rfpDraft?.paymentStatus;
+
+  if (typeof rawStatus !== "string") {
+    return "";
+  }
+
+  return rawStatus.trim();
+}
+
 function getProcurementStatus(item) {
   if (item.status === "completed" || item.filingCompleted) {
     return "Current stage: Completed";
@@ -25,7 +35,14 @@ function getProcurementStageValue(item) {
     return "Rejected";
   }
 
-  return item.currentStage || "Not set";
+  const currentStage = item.currentStage || "Not set";
+
+  if (currentStage === "Request for Payment") {
+    const rfpStatus = getNormalizedRfpStatus(item) || "Processing";
+    return `${currentStage} - ${rfpStatus}`;
+  }
+
+  return currentStage;
 }
 
 export default function RequestList({

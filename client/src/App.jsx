@@ -4470,6 +4470,10 @@ export default function App() {
     const logoMarkup = printableCompanyIdentity.logoUrl
       ? `<img src="${printableCompanyIdentity.logoUrl}" alt="${printableCompanyIdentity.companyName}" />`
       : ''
+    const approvalName =
+      session?.user?.role === 'admin' || session?.user?.role === 'procurement'
+        ? String(session?.user?.name || '').trim()
+        : ''
 
     const rowsHtml = purchaseOrderForm.lineItems
       .map(
@@ -4529,6 +4533,7 @@ export default function App() {
             .print-footer { margin-top: 18px; display: flex; justify-content: flex-start; }
             .approval-block { width: 260px; }
             .approval-label { display: block; margin-bottom: 28px; font-size: 10px; font-weight: 700; color: #20242a; }
+            .approval-name { display: block; margin-bottom: 8px; font-size: 11px; font-weight: 700; color: #20242a; }
             .signature-line { border-bottom: 1.5px solid #20242a; height: 24px; }
             @media print {
               body { padding: 0.5in; }
@@ -4624,6 +4629,7 @@ export default function App() {
             <div class="print-footer">
               <div class="approval-block">
                 <span class="approval-label">Approved By:</span>
+                <span class="approval-name">${approvalName || '&nbsp;'}</span>
                 <div class="signature-line"></div>
               </div>
             </div>
