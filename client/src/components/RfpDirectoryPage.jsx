@@ -269,27 +269,36 @@ function getDisplayPayee(record) {
   const currentSupplier = String(
     record?.supplier === "Pending selection" ? "" : record?.supplier || "",
   ).trim();
-  const hasOriginalPayeeSupplier = Boolean(requestedPayeeSupplier);
-  const shouldReplaceLegacySupplierPayee =
-    !hasOriginalPayeeSupplier &&
+  const requester = String(
+    record?.requester || record?.requesterName || "",
+  ).trim();
+  const normalizedRequestedPayeeSupplier =
+    requestedPayeeSupplier.toLowerCase();
+  const normalizedSavedPayee = savedPayee.toLowerCase();
+  const normalizedCurrentSupplier = currentSupplier.toLowerCase();
+  const normalizedRequester = requester.toLowerCase();
+
+  if (
     savedPayee &&
-    currentSupplier &&
-    currentSupplier !== "Pending selection" &&
-    savedPayee.toLowerCase() === currentSupplier.toLowerCase();
+    normalizedSavedPayee !== normalizedRequestedPayeeSupplier
+  ) {
+    return savedPayee;
+  }
 
   if (requestedPayeeSupplier) {
     return requestedPayeeSupplier;
   }
 
-  if (currentSupplier && (!savedPayee || shouldReplaceLegacySupplierPayee)) {
+  if (
+    currentSupplier &&
+    (!savedPayee ||
+      normalizedSavedPayee === normalizedCurrentSupplier ||
+      normalizedSavedPayee === normalizedRequester)
+  ) {
     return currentSupplier;
   }
 
-  if (!savedPayee || shouldReplaceLegacySupplierPayee) {
-    return String(record?.requester || record?.requesterName || "Not set").trim() || "Not set";
-  }
-
-  return savedPayee;
+  return savedPayee || requester || "Not set";
 }
 
 function getCurrentInvoiceDocument(record) {
