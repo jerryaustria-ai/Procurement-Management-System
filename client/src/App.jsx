@@ -37,6 +37,7 @@ const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const RFP_PAYMENT_STATUS_OPTIONS = [
+  'For Approval',
   'Approved',
   'Processing',
   'For Liquidation',
@@ -1760,6 +1761,7 @@ export default function App() {
     invoiceFiles: [],
     liquidationFiles: [],
     paymentStatus: '',
+    dueDate: '',
   })
   const [rfpPreviewError, setRfpPreviewError] = useState('')
   const [attachmentViewerDocument, setAttachmentViewerDocument] =
@@ -4268,7 +4270,7 @@ export default function App() {
   async function saveRfpPaymentStatusForRecord(
     record,
     paymentStatus,
-    { silent = false } = {},
+    { silent = false, overrides = {} } = {},
   ) {
     if (!record || !session?.token) {
       return null
@@ -4289,6 +4291,7 @@ export default function App() {
     const updated = await patchRequestForPaymentDraft(record, {
       ...buildRequestForPaymentDraftPayload(getRequestForPaymentFormFromItem(record), {
         paymentStatus: normalizedPaymentStatus,
+        ...overrides,
       }),
     })
 
@@ -7186,6 +7189,8 @@ export default function App() {
         record?.rfpDraft?.paymentStatus,
         '',
       ),
+      dueDate:
+        record?.rfpDraft?.dueDate || getDefaultRequestForPaymentDueDate(record),
     })
     setRfpPreviewError('')
   }
@@ -7205,6 +7210,7 @@ export default function App() {
       invoiceFiles: [],
       liquidationFiles: [],
       paymentStatus: '',
+      dueDate: '',
     })
     setRfpPreviewError('')
   }
@@ -7384,7 +7390,12 @@ export default function App() {
         (await saveRfpPaymentStatusForRecord(
           updatedRecord || rfpPreviewRecord,
           nextPaymentStatus,
-          { silent: true },
+          {
+            silent: true,
+            overrides: {
+              dueDate: rfpPreviewForm.dueDate,
+            },
+          },
         )) || updatedRecord
 
       if (updatedRecord) {
@@ -7397,6 +7408,9 @@ export default function App() {
             updatedRecord?.rfpDraft?.paymentStatus,
             '',
           ),
+          dueDate:
+            updatedRecord?.rfpDraft?.dueDate ||
+            getDefaultRequestForPaymentDueDate(updatedRecord),
         })
       }
 
@@ -7978,6 +7992,7 @@ export default function App() {
           currentLiquidationDocument={getCurrentLiquidationDocument(selectedItem)}
           isEditing={isRequestForPaymentEditing}
           canEdit={canEditSelectedRequestForPayment}
+          canEditDueDate={session?.user?.role === 'admin'}
           onChange={handleRequestForPaymentFormChange}
           onInvoiceFilesSelected={(files) =>
             handleRequestForPaymentDocumentFiles('invoiceFiles', files)
@@ -8944,6 +8959,22 @@ export default function App() {
                   </span>
                 ) : null}
               </label>
+
+              {session?.user?.role === 'admin' ? (
+                <label
+                  className={
+                    showPreviewInvoiceFields ? '' : 'full-width-field'
+                  }
+                >
+                  Due date
+                  <input
+                    name='dueDate'
+                    type='date'
+                    value={rfpPreviewForm.dueDate || ''}
+                    onChange={handleRfpPreviewFormChange}
+                  />
+                </label>
+              ) : null}
 
               {showPreviewInvoiceFields ? (
                 <>

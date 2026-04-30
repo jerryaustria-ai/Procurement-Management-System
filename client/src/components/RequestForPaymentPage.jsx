@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import Modal from "./Modal.jsx";
 
 const RFP_PAYMENT_STATUS_OPTIONS = [
+  "For Approval",
   "Approved",
   "Processing",
   "For Liquidation",
@@ -379,6 +380,7 @@ export default function RequestForPaymentPage({
   onSelectSupplier,
   onCreateSupplier,
   canCreateSupplier = false,
+  canEditDueDate = false,
   onEdit,
   onCancel,
   onPrint,
@@ -637,8 +639,9 @@ export default function RequestForPaymentPage({
                 name="dueDate"
                 type="date"
                 value={form.dueDate}
-                readOnly
-                disabled
+                onChange={onChange}
+                readOnly={!isEditing || !canEditDueDate}
+                disabled={!isEditing || !canEditDueDate}
               />
             </label>
 

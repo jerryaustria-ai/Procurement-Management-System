@@ -161,6 +161,7 @@ export default function RequestWorkspacePage({
                 onSelectSupplier={onRequestForPaymentSupplierSelect}
                 onCreateSupplier={onCreateSupplier}
                 canCreateSupplier={user.role === "admin"}
+                canEditDueDate={user.role === "admin"}
                 onEdit={onRequestForPaymentEdit}
                 onCancel={onRequestForPaymentCancel}
                 onPrint={onRequestForPaymentPrint}
