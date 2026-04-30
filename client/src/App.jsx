@@ -1740,9 +1740,11 @@ export default function App() {
   const [invoiceUploadRecord, setInvoiceUploadRecord] = useState(null)
   const [invoiceUploadForm, setInvoiceUploadForm] = useState({
     invoiceNumber: '',
-    file: null,
+    invoiceFiles: [],
   })
   const [invoiceUploadError, setInvoiceUploadError] = useState('')
+  const [isInvoiceUploadSubmitting, setIsInvoiceUploadSubmitting] =
+    useState(false)
   const [rfpPreviewRecord, setRfpPreviewRecord] = useState(null)
   const [rfpPreviewForm, setRfpPreviewForm] = useState({
     invoiceNumber: '',
@@ -4697,7 +4699,11 @@ export default function App() {
     }
 
     setInvoiceUploadError('')
-    setIsSubmitting(true)
+    setRfpActionOverlay({
+      title: 'Saving invoice',
+      message: 'Please wait while we save the invoice details.',
+    })
+    setIsInvoiceUploadSubmitting(true)
 
     try {
       await saveInvoiceDetailsForRecord(invoiceUploadRecord, invoiceUploadForm)
@@ -4712,7 +4718,8 @@ export default function App() {
         duration: 4200,
       })
     } finally {
-      setIsSubmitting(false)
+      setRfpActionOverlay(null)
+      setIsInvoiceUploadSubmitting(false)
     }
   }
 
@@ -4729,7 +4736,11 @@ export default function App() {
     }
 
     setInvoiceUploadError('')
-    setIsSubmitting(true)
+    setRfpActionOverlay({
+      title: 'Deleting invoice',
+      message: 'Please wait while we remove the invoice file.',
+    })
+    setIsInvoiceUploadSubmitting(true)
 
     try {
       await deleteInvoiceForRecord(invoiceUploadRecord)
@@ -4744,7 +4755,8 @@ export default function App() {
         duration: 4200,
       })
     } finally {
-      setIsSubmitting(false)
+      setRfpActionOverlay(null)
+      setIsInvoiceUploadSubmitting(false)
     }
   }
 
@@ -7196,7 +7208,7 @@ export default function App() {
     setInvoiceUploadRecord(record)
     setInvoiceUploadForm({
       invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
-      file: null,
+      invoiceFiles: [],
     })
     setInvoiceUploadError('')
   }
@@ -7205,7 +7217,7 @@ export default function App() {
     setInvoiceUploadRecord(null)
     setInvoiceUploadForm({
       invoiceNumber: '',
-      file: null,
+      invoiceFiles: [],
     })
     setInvoiceUploadError('')
   }
@@ -7226,7 +7238,7 @@ export default function App() {
       event.target.value = ''
       setInvoiceUploadForm((current) => ({
         ...current,
-        file: null,
+        invoiceFiles: [],
       }))
       setInvoiceUploadError(getUploadFileLimitMessage(file))
       return
@@ -7236,7 +7248,7 @@ export default function App() {
       event.target.value = ''
       setInvoiceUploadForm((current) => ({
         ...current,
-        file: null,
+        invoiceFiles: [],
       }))
       setInvoiceUploadError(getUploadFileTypeMessage(file))
       return
@@ -7245,7 +7257,7 @@ export default function App() {
     setInvoiceUploadError('')
     setInvoiceUploadForm((current) => ({
       ...current,
-      file: file || null,
+      invoiceFiles: file ? [file] : [],
     }))
   }
 
@@ -8520,6 +8532,14 @@ export default function App() {
     return (
       <main className='app-shell'>
         <LoadingOverlay visible={isSubmitting || isLoading} />
+        <LoadingOverlay
+          visible={showRfpActionOverlay}
+          title={rfpActionOverlay?.title || 'Working'}
+          message={
+            rfpActionOverlay?.message ||
+            'Please wait while we complete this action.'
+          }
+        />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <RequestWorkspacePage
           item={selectedItem}
