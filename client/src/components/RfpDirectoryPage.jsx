@@ -382,6 +382,7 @@ function getRfpStatusClassName(record) {
 
   if (
     [
+      'approved',
       'for liquidation',
       'liquidation submitted',
       'liquidation reviewed',
