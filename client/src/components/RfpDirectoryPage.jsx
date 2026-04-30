@@ -16,6 +16,7 @@ const DEFAULT_WORKFLOW_STAGES = [
 
 const RFP_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const RFP_PAYMENT_STATUS_OPTIONS = [
+  'Approved',
   'Processing',
   'For Liquidation',
   'Liquidation Submitted',
@@ -336,8 +337,24 @@ function formatCurrencyValue(value, currency = 'PHP') {
 
 function getDisplayRfpStatus(record) {
   const normalizedPaymentStatus = getNormalizedPaymentStatus(record)
+  const hasInvoiceDocument = (record?.documents || []).some(
+    (document) => document.type === 'invoice',
+  )
+  const hasLiquidationDocument = (record?.documents || []).some(
+    (document) => document.type === 'liquidation' || document.type === 'other',
+  )
+  const hasStartedRfpProcessing = Boolean(
+    String(record?.rfpDraft?.invoiceNumber || '').trim() ||
+      String(record?.rfpDraft?.paymentReference || '').trim() ||
+      hasInvoiceDocument ||
+      hasLiquidationDocument,
+  )
 
   if (normalizedPaymentStatus) {
+    if (normalizedPaymentStatus === 'processing' && isApprovedForRfpRecord(record) && !hasStartedRfpProcessing) {
+      return 'Approved'
+    }
+
     return getDisplayPaymentStatus(record)
   }
 
@@ -345,8 +362,8 @@ function getDisplayRfpStatus(record) {
     return 'Liquidated / Closed'
   }
 
-  if (isForApprovalRecord(record)) {
-    return 'For Approval'
+  if (isApprovedForRfpRecord(record)) {
+    return 'Approved'
   }
 
   if (isForPaymentRecord(record)) {

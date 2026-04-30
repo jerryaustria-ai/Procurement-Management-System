@@ -37,6 +37,16 @@ const RFP_PAID_EQUIVALENT_STATUSES = new Set([
   "liquidated / closed"
 ]);
 
+function markRfpStatusApproved(request) {
+  const currentRfpDraft = request.rfpDraft?.toObject?.() || request.rfpDraft || {};
+
+  request.rfpDraft = {
+    ...currentRfpDraft,
+    paymentStatus: "Approved",
+    paymentStatusUpdatedAt: new Date()
+  };
+}
+
 router.use(requireAuth);
 
 function getRequestWorkflowStages(request) {
@@ -894,6 +904,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     if (previousStage === "Approval" || skippedStageSet.has("Approval")) {
       request.approvalCompleted = true;
       request.requestForPaymentEnabled = true;
+      markRfpStatusApproved(request);
       approvalCompletedByAdvance = true;
     }
     if (previousStage === "Approve PO" || skippedStageSet.has("Approve PO")) {
@@ -1085,6 +1096,7 @@ router.patch("/purchase-requests/:id/approve", async (req, res) => {
 
   request.approvalCompleted = true;
   request.requestForPaymentEnabled = true;
+  markRfpStatusApproved(request);
   request.history = request.history.map((entry) =>
     entry.stage === "Approval" && entry.status === "current"
       ? {

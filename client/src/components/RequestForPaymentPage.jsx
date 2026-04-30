@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import Modal from "./Modal.jsx";
 
 const RFP_PAYMENT_STATUS_OPTIONS = [
+  "Approved",
   "Processing",
   "For Liquidation",
   "Liquidation Submitted",

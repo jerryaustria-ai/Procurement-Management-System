@@ -37,6 +37,7 @@ const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const RFP_PAYMENT_STATUS_OPTIONS = [
+  'Approved',
   'Processing',
   'For Liquidation',
   'Liquidation Submitted',
