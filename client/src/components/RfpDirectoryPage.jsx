@@ -362,6 +362,10 @@ function getDisplayRfpStatus(record) {
     return 'Liquidated / Closed'
   }
 
+  if (isForApprovalRecord(record)) {
+    return 'For Approval'
+  }
+
   if (isApprovedForRfpRecord(record)) {
     return 'Approved'
   }
