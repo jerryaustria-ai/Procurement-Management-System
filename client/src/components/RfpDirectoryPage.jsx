@@ -261,6 +261,17 @@ const MONTH_OPTIONS = [
 ]
 
 const VALID_RFP_FILTERS = ['all', 'for-payment', 'for-liquidation', 'closed']
+const RFP_STATUS_SORT_ORDER = new Map([
+  ['for approval', 0],
+  ['approved', 1],
+  ['processing', 2],
+  ['for payment', 3],
+  ['for liquidation', 4],
+  ['liquidation submitted', 5],
+  ['liquidation reviewed', 6],
+  ['liquidated / closed', 7],
+  ['not set', 8],
+])
 
 function getDisplayPayee(record) {
   const requestedPayeeSupplier = String(
@@ -379,11 +390,24 @@ function getRfpStatusClassName(record) {
     return 'rfp-status-text is-paid'
   }
 
-  if (normalizedStatus === 'for payment') {
+  if (
+    normalizedStatus === 'for payment' ||
+    normalizedStatus === 'for approval'
+  ) {
     return 'rfp-status-text is-for-payment'
   }
 
+  if (normalizedStatus === 'processing') {
+    return 'rfp-status-text is-processing'
+  }
+
   return 'rfp-status-text'
+}
+
+function getRfpStatusSortRank(record) {
+  const normalizedStatus = getDisplayRfpStatus(record).toLowerCase()
+
+  return RFP_STATUS_SORT_ORDER.get(normalizedStatus) ?? 999
 }
 
 function getSortState(sortValue, columnKey) {
@@ -410,6 +434,15 @@ function getSortState(sortValue, columnKey) {
       return 'asc'
     }
     if (sortValue === 'due-date-desc') {
+      return 'desc'
+    }
+  }
+
+  if (columnKey === 'status') {
+    if (sortValue === 'status-asc') {
+      return 'asc'
+    }
+    if (sortValue === 'status-desc') {
       return 'desc'
     }
   }
@@ -459,6 +492,10 @@ export default function RfpDirectoryPage({
 
       if (columnKey === 'due-date') {
         return current === 'due-date-asc' ? 'due-date-desc' : 'due-date-asc'
+      }
+
+      if (columnKey === 'status') {
+        return current === 'status-asc' ? 'status-desc' : 'status-asc'
       }
 
       return current
@@ -526,6 +563,23 @@ export default function RfpDirectoryPage({
 
       if (sortValue === 'payee-desc') {
         return getDisplayPayee(right).localeCompare(getDisplayPayee(left))
+      }
+
+      if (sortValue === 'status-asc' || sortValue === 'status-desc') {
+        const leftRank = getRfpStatusSortRank(left)
+        const rightRank = getRfpStatusSortRank(right)
+        const rankDifference =
+          sortValue === 'status-asc'
+            ? leftRank - rightRank
+            : rightRank - leftRank
+
+        if (rankDifference !== 0) {
+          return rankDifference
+        }
+
+        return String(left.requestNumber || '').localeCompare(
+          String(right.requestNumber || ''),
+        )
       }
 
       const leftDate = getRfpDueDateSortValue(left)
@@ -811,7 +865,25 @@ export default function RfpDirectoryPage({
                     </button>
                   </div>
                 </th>
-                <th>Status</th>
+                <th>
+                  <div className="sortable-table-header">
+                    <span>Status</span>
+                    <button
+                      className={`sortable-table-header-button sortable-table-header-button-${getSortState(sortValue, 'status')}`}
+                      type="button"
+                      aria-label="Sort by status"
+                      onClick={() => {
+                        handleHeaderSort('status')
+                      }}
+                    >
+                      {getSortState(sortValue, 'status') === 'asc'
+                        ? '↑'
+                        : getSortState(sortValue, 'status') === 'desc'
+                          ? '↓'
+                          : '↕'}
+                    </button>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>

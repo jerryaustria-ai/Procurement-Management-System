@@ -1050,6 +1050,11 @@ label,
   font-weight: 800;
 }
 
+.rfp-status-text.is-processing {
+  color: #ea580c;
+  font-weight: 800;
+}
+
 .rfp-paid-total-card {
   display: flex;
   align-items: center;
