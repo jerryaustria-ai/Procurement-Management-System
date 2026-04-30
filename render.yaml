@@ -13,3 +13,17 @@ services:
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_UPLOAD_FOLDER
+        sync: false
+      - key: GOOGLE_DRIVE_CLIENT_EMAIL
+        sync: false
+      - key: GOOGLE_DRIVE_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false
