@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Supplier } from "../models/Supplier.js";
+import { PurchaseRequest } from "../models/PurchaseRequest.js";
 
 const router = Router();
 
@@ -20,6 +21,70 @@ function serializeSupplier(supplier) {
     notes: supplier.notes,
     createdBy: supplier.createdBy
   };
+}
+
+async function syncSupplierNameAcrossRequests(previousName, nextName) {
+  const normalizedPreviousName = String(previousName || "").trim();
+  const normalizedNextName = String(nextName || "").trim();
+
+  if (
+    !normalizedPreviousName ||
+    !normalizedNextName ||
+    normalizedPreviousName === normalizedNextName
+  ) {
+    return;
+  }
+
+  const matchingRequests = await PurchaseRequest.find({
+    $or: [
+      { supplier: normalizedPreviousName },
+      { requestedPayeeSupplier: normalizedPreviousName },
+      { "poDraft.supplier": normalizedPreviousName },
+      { "rfpDraft.payee": normalizedPreviousName }
+    ]
+  });
+
+  if (!matchingRequests.length) {
+    return;
+  }
+
+  await Promise.all(
+    matchingRequests.map(async (request) => {
+      if (String(request.supplier || "").trim() === normalizedPreviousName) {
+        request.supplier = normalizedNextName;
+      }
+
+      if (
+        String(request.requestedPayeeSupplier || "").trim() ===
+        normalizedPreviousName
+      ) {
+        request.requestedPayeeSupplier = normalizedNextName;
+      }
+
+      const currentPoDraft = request.poDraft?.toObject?.() || request.poDraft || {};
+      if (
+        String(currentPoDraft.supplier || "").trim() === normalizedPreviousName
+      ) {
+        request.poDraft = {
+          ...currentPoDraft,
+          supplier: normalizedNextName
+        };
+      }
+
+      const currentRfpDraft =
+        request.rfpDraft?.toObject?.() || request.rfpDraft || {};
+      if (
+        String(currentRfpDraft.payee || "").trim() === normalizedPreviousName
+      ) {
+        request.rfpDraft = {
+          ...currentRfpDraft,
+          payee: normalizedNextName
+        };
+      }
+
+      await request.save();
+    })
+  );
 }
 
 router.get("/", async (_req, res) => {
@@ -70,6 +135,7 @@ router.patch("/:id", requireRole("admin"), async (req, res) => {
   }
 
   const normalizedName = req.body.name.trim();
+  const previousName = supplier.name;
   const existingSupplier = await Supplier.findOne({
     name: normalizedName,
     _id: { $ne: supplier._id }
@@ -90,6 +156,7 @@ router.patch("/:id", requireRole("admin"), async (req, res) => {
   supplier.notes = req.body.notes || "";
 
   await supplier.save();
+  await syncSupplierNameAcrossRequests(previousName, normalizedName);
   return res.json(serializeSupplier(supplier));
 });
 
