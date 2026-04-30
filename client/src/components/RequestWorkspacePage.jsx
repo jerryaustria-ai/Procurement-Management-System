@@ -56,6 +56,7 @@ export default function RequestWorkspacePage({
   canManageDocuments,
   uploadError,
   apiOrigin,
+  onOpenDocument,
   onClose,
   onEditRequest,
   canEditRequest
@@ -127,6 +128,7 @@ export default function RequestWorkspacePage({
           item={item}
           apiOrigin={apiOrigin}
           showExpand={false}
+          onViewDocument={onOpenDocument}
           isCollapsed={user.role === "requester" ? false : isSummaryHidden}
           onToggleVisibility={
             user.role === "requester"

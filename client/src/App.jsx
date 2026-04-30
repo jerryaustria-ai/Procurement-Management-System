@@ -8648,10 +8648,86 @@ export default function App() {
           canManageDocuments={canManageDocuments}
           uploadError={uploadError}
           apiOrigin={API_ORIGIN}
+          onOpenDocument={handleOpenAttachmentDocument}
           onClose={closeRequestWorkspacePage}
           onEditRequest={openEditRequestModal}
           canEditRequest={canEditSelectedRequest}
         />
+        {attachmentViewerDocument ? (
+          <Modal
+            eyebrow='Attachment'
+            title={getAttachmentViewerLabel(attachmentViewerDocument)}
+            actions={
+              attachmentViewerObjectUrl ||
+              getAttachmentDirectUrl(attachmentViewerDocument) ||
+              getAttachmentViewerUrl(attachmentViewerDocument) ? (
+                <a
+                  className='inline-link'
+                  href={
+                    attachmentViewerObjectUrl ||
+                    getAttachmentDirectUrl(attachmentViewerDocument) ||
+                    getAttachmentViewerUrl(attachmentViewerDocument)
+                  }
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  Open in new tab
+                </a>
+              ) : undefined
+            }
+            onClose={() => setAttachmentViewerDocument(null)}
+          >
+            <div className='attachment-viewer'>
+              <div className='attachment-viewer-surface'>
+                {isAttachmentViewerLoading ? (
+                  <div className='attachment-viewer-fallback'>
+                    <strong>Loading attachment...</strong>
+                  </div>
+                ) : null}
+                {!isAttachmentViewerLoading && attachmentViewerError ? (
+                  <div className='attachment-viewer-fallback'>
+                    <strong>Unable to preview this attachment.</strong>
+                    <p>{attachmentViewerError}</p>
+                  </div>
+                ) : null}
+                {!isAttachmentViewerLoading &&
+                !attachmentViewerError &&
+                getAttachmentViewerType(attachmentViewerDocument) === 'image' ? (
+                  <img
+                    className='attachment-viewer-image'
+                    src={
+                      attachmentViewerObjectUrl ||
+                      getAttachmentViewerUrl(attachmentViewerDocument)
+                    }
+                    alt={getAttachmentViewerLabel(attachmentViewerDocument)}
+                  />
+                ) : null}
+                {!isAttachmentViewerLoading &&
+                !attachmentViewerError &&
+                getAttachmentViewerType(attachmentViewerDocument) === 'pdf' ? (
+                  <iframe
+                    className='attachment-viewer-frame'
+                    src={
+                      attachmentViewerObjectUrl ||
+                      getAttachmentViewerUrl(attachmentViewerDocument)
+                    }
+                    title={getAttachmentViewerLabel(attachmentViewerDocument)}
+                  />
+                ) : null}
+                {!isAttachmentViewerLoading &&
+                !attachmentViewerError &&
+                getAttachmentViewerType(attachmentViewerDocument) === 'file' ? (
+                  <div className='attachment-viewer-fallback'>
+                    <strong>Preview unavailable for this file type.</strong>
+                    <p>
+                      Use Open in new tab to view or download this attachment.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </Modal>
+        ) : null}
         {isSupplierModalOpen ? (
           <Modal
             eyebrow='New Supplier'
