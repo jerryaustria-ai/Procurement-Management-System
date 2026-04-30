@@ -337,24 +337,8 @@ function formatCurrencyValue(value, currency = 'PHP') {
 
 function getDisplayRfpStatus(record) {
   const normalizedPaymentStatus = getNormalizedPaymentStatus(record)
-  const hasInvoiceDocument = (record?.documents || []).some(
-    (document) => document.type === 'invoice',
-  )
-  const hasLiquidationDocument = (record?.documents || []).some(
-    (document) => document.type === 'liquidation' || document.type === 'other',
-  )
-  const hasStartedRfpProcessing = Boolean(
-    String(record?.rfpDraft?.invoiceNumber || '').trim() ||
-      String(record?.rfpDraft?.paymentReference || '').trim() ||
-      hasInvoiceDocument ||
-      hasLiquidationDocument,
-  )
 
   if (normalizedPaymentStatus) {
-    if (normalizedPaymentStatus === 'processing' && isApprovedForRfpRecord(record) && !hasStartedRfpProcessing) {
-      return 'Approved'
-    }
-
     return getDisplayPaymentStatus(record)
   }
 
