@@ -590,16 +590,24 @@ function getEffectiveRequestForPaymentPayee(item) {
     item?.supplier === 'Pending selection' ? '' : item?.supplier || '',
   ).trim()
   const requester = String(item?.requester || item?.requesterName || '').trim()
+  const normalizedRequestedPayeeSupplier =
+    requestedPayeeSupplier.toLowerCase()
+  const normalizedSavedPayee = savedPayee.toLowerCase()
+  const normalizedSelectedSupplier = selectedSupplier.toLowerCase()
+  const normalizedRequester = requester.toLowerCase()
+
+  if (
+    savedPayee &&
+    normalizedSavedPayee !== normalizedRequestedPayeeSupplier
+  ) {
+    return savedPayee
+  }
 
   if (requestedPayeeSupplier) {
     return requestedPayeeSupplier
   }
 
   if (selectedSupplier) {
-    const normalizedSavedPayee = savedPayee.toLowerCase()
-    const normalizedSelectedSupplier = selectedSupplier.toLowerCase()
-    const normalizedRequester = requester.toLowerCase()
-
     if (
       !savedPayee ||
       normalizedSavedPayee === normalizedSelectedSupplier ||

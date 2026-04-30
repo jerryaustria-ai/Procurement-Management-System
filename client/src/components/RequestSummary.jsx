@@ -53,17 +53,33 @@ function getProcurementStatusLabel(item) {
 
 function getSummaryPayee(item) {
   const requestedPayeeSupplier = String(item?.requestedPayeeSupplier || "").trim();
+  const savedPayee = String(item?.rfpDraft?.payee || "").trim();
   const selectedSupplier = String(item?.supplier || "").trim();
+  const normalizedRequestedPayeeSupplier = requestedPayeeSupplier.toLowerCase();
+  const normalizedSavedPayee = savedPayee.toLowerCase();
+  const normalizedSelectedSupplier = selectedSupplier.toLowerCase();
+  const requester = String(item?.requester || item?.requesterName || "").trim();
+  const normalizedRequester = requester.toLowerCase();
+
+  if (savedPayee && normalizedSavedPayee !== normalizedRequestedPayeeSupplier) {
+    return savedPayee;
+  }
 
   if (requestedPayeeSupplier) {
     return requestedPayeeSupplier;
   }
 
-  if (selectedSupplier && selectedSupplier !== "Pending selection") {
+  if (
+    selectedSupplier &&
+    selectedSupplier !== "Pending selection" &&
+    (!savedPayee ||
+      normalizedSavedPayee === normalizedSelectedSupplier ||
+      normalizedSavedPayee === normalizedRequester)
+  ) {
     return selectedSupplier;
   }
 
-  return String(item?.requester || item?.requesterName || "Not set").trim() || "Not set";
+  return savedPayee || requester || "Not set";
 }
 
 export default function RequestSummary({

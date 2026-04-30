@@ -19,6 +19,12 @@ import {
   uploadDocumentToCloudinary
 } from "../utils/cloudinary.js";
 import {
+  deleteDocumentFromGoogleDrive,
+  downloadDocumentFromGoogleDrive,
+  isGoogleDriveConfigured,
+  uploadDocumentToGoogleDrive
+} from "../utils/googleDrive.js";
+import {
   sendAccountantRfpApprovedEmail,
   getEmailConfigurationStatus,
   sendApproverApprovalRequiredEmail,
@@ -168,6 +174,17 @@ function canViewRequest(req, request) {
 
 function isImageMimeType(mimeType) {
   return String(mimeType || "").startsWith("image/");
+}
+
+function isDocumentStoredInGoogleDrive(document) {
+  return document?.storageProvider === "google-drive" && document?.googleDriveFileId;
+}
+
+function isDocumentStoredInCloudinary(document) {
+  return (
+    document?.storageProvider === "cloudinary" ||
+    Boolean(document?.cloudinaryPublicId)
+  );
 }
 
 function getSafeFileName(fileName) {
@@ -1188,23 +1205,34 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
       return res.status(400).json({ message: "Invalid document type." });
     }
 
-    if (!isCloudinaryConfigured()) {
+    const uploadToGoogleDrive = !isImageMimeType(req.file.mimetype) && isGoogleDriveConfigured();
+
+    if (!uploadToGoogleDrive && !isCloudinaryConfigured()) {
       return res.status(500).json({
-        message:
-          "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."
+        message: isImageMimeType(req.file.mimetype)
+          ? "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."
+          : "Document storage is not configured. Set Google Drive credentials or Cloudinary credentials."
       });
     }
 
     let uploadedFile;
 
     try {
-      uploadedFile = await uploadDocumentToCloudinary({
-        buffer: req.file.buffer,
-        mimeType: req.file.mimetype,
-        originalName: req.file.originalname,
-        requestNumber: request.requestNumber,
-        type: documentType
-      });
+      uploadedFile = uploadToGoogleDrive
+        ? await uploadDocumentToGoogleDrive({
+            buffer: req.file.buffer,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            requestNumber: request.requestNumber,
+            type: documentType
+          })
+        : await uploadDocumentToCloudinary({
+            buffer: req.file.buffer,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname,
+            requestNumber: request.requestNumber,
+            type: documentType
+          });
     } catch (uploadError) {
       return res.status(400).json({ message: uploadError.message });
     }
@@ -1215,11 +1243,14 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
       type: documentType,
       label,
       originalName: req.file.originalname,
-      fileName: uploadedFile.publicId,
+      fileName: uploadedFile.fileName || uploadedFile.publicId,
       filePath: uploadedFile.fileUrl,
-      cloudinaryPublicId: uploadedFile.publicId,
-      cloudinaryResourceType: uploadedFile.resourceType,
-      mimeType: req.file.mimetype,
+      storageProvider: uploadToGoogleDrive ? "google-drive" : "cloudinary",
+      googleDriveFileId: uploadedFile.fileId || "",
+      googleDriveViewUrl: uploadedFile.viewUrl || "",
+      cloudinaryPublicId: uploadedFile.publicId || "",
+      cloudinaryResourceType: uploadedFile.resourceType || "",
+      mimeType: uploadedFile.mimeType || req.file.mimetype,
       size: uploadedFile.bytes,
       uploadedBy: req.user.name,
       uploadedByRole: req.user.role,
@@ -1252,6 +1283,10 @@ router.get("/purchase-requests/:id/documents/:documentId/view", async (req, res)
   const fileName = document.originalName || document.label || "attachment";
 
   if (!isImageMimeType(mimeType)) {
+    return res.status(415).json({ message: "Only image attachments can be previewed." });
+  }
+
+  if (isDocumentStoredInGoogleDrive(document)) {
     return res.status(415).json({ message: "Only image attachments can be previewed." });
   }
 
@@ -1307,6 +1342,20 @@ router.get("/purchase-requests/:id/documents/:documentId/download", async (req, 
   const mimeType = document.mimeType || "application/octet-stream";
   const fileName = document.originalName || document.label || "attachment";
   const safeFileName = getSafeFileName(fileName);
+
+  if (isDocumentStoredInGoogleDrive(document)) {
+    try {
+      const response = await downloadDocumentFromGoogleDrive(document.googleDriveFileId);
+      res.setHeader("Content-Type", response.headers.get("content-type") || mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${safeFileName}"`);
+      for await (const chunk of response.body) {
+        res.write(chunk);
+      }
+      return res.end();
+    } catch (error) {
+      return res.status(502).json({ message: error.message || "Unable to download this document." });
+    }
+  }
 
   const candidateUrls = [document.filePath].filter(Boolean);
 
@@ -1371,12 +1420,15 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
   }
 
   const filePath = document.filePath?.replace("/uploads/", "");
+  const googleDriveFileId = document.googleDriveFileId;
   const cloudinaryPublicId = document.cloudinaryPublicId;
   const cloudinaryResourceType = document.cloudinaryResourceType || "raw";
   document.deleteOne();
   await request.save();
 
-  if (cloudinaryPublicId) {
+  if (googleDriveFileId) {
+    void deleteDocumentFromGoogleDrive(googleDriveFileId);
+  } else if (cloudinaryPublicId) {
     void deleteDocumentFromCloudinary(cloudinaryPublicId, cloudinaryResourceType);
   } else if (filePath) {
     fs.unlink(`uploads/${filePath}`, () => {});
@@ -1402,9 +1454,15 @@ router.delete("/purchase-requests/:id", async (req, res) => {
   await request.deleteOne();
 
   documents.forEach((document) => {
+    const googleDriveFileId = document.googleDriveFileId;
     const cloudinaryPublicId = document.cloudinaryPublicId;
     const cloudinaryResourceType = document.cloudinaryResourceType || "raw";
     const filePath = document.filePath?.replace("/uploads/", "");
+
+    if (googleDriveFileId) {
+      void deleteDocumentFromGoogleDrive(googleDriveFileId);
+      return;
+    }
 
     if (cloudinaryPublicId) {
       void deleteDocumentFromCloudinary(cloudinaryPublicId, cloudinaryResourceType);
