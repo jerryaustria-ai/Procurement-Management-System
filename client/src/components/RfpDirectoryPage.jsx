@@ -18,6 +18,7 @@ const RFP_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const RFP_PAYMENT_STATUS_OPTIONS = [
   'Approved',
   'Processing',
+  'Released',
   'For Liquidation',
   'Liquidation Submitted',
   'Liquidation Reviewed',
@@ -231,6 +232,10 @@ function getDisplayDueDate(record) {
   return formatDisplayDate(record?.rfpDraft?.dueDate || record?.dateNeeded)
 }
 
+function getDisplayReleasedDate(record) {
+  return formatDisplayDate(record?.rfpDraft?.dateReleased)
+}
+
 function getAvailableClosedYears(items) {
   const currentYear = new Date().getFullYear()
   const years = new Set([currentYear])
@@ -265,12 +270,13 @@ const RFP_STATUS_SORT_ORDER = new Map([
   ['for approval', 0],
   ['approved', 1],
   ['processing', 2],
-  ['for payment', 3],
-  ['for liquidation', 4],
-  ['liquidation submitted', 5],
-  ['liquidation reviewed', 6],
-  ['liquidated / closed', 7],
-  ['not set', 8],
+  ['released', 3],
+  ['for payment', 4],
+  ['for liquidation', 5],
+  ['liquidation submitted', 6],
+  ['liquidation reviewed', 7],
+  ['liquidated / closed', 8],
+  ['not set', 9],
 ])
 
 function getDisplayPayee(record) {
@@ -512,10 +518,12 @@ export default function RfpDirectoryPage({
         !normalizedQuery ||
         [
           record.requestNumber,
+          record.rfpNumber,
           record.title,
           getDisplayPayee(record),
           record.rfpDraft?.invoiceNumber,
           getDisplayDueDate(record),
+          getDisplayReleasedDate(record),
           record.currentStage,
           record.requester,
           record.requesterName,
@@ -646,7 +654,7 @@ export default function RfpDirectoryPage({
               type="button"
               onClick={onCreateNew}
             >
-              New purchase request
+              New Request
             </button>
           ) : null}
           {onViewModeChange || onExportCsv ? (
@@ -914,10 +922,21 @@ export default function RfpDirectoryPage({
                   >
                     <td>
                       <strong>{record.requestNumber}</strong>
+                      <div className="audit-trail-cell-subtext">
+                        {record.rfpNumber || "RFP number pending"}
+                      </div>
                       <div className="audit-trail-cell-subtext">{record.title}</div>
                     </td>
                     <td>{getDisplayPayee(record)}</td>
-                    <td>{getDisplayDueDate(record)}</td>
+                    <td>
+                      <div>{getDisplayDueDate(record)}</div>
+                      {String(record?.rfpDraft?.paymentStatus || "").trim().toLowerCase() === "released" &&
+                      record?.rfpDraft?.dateReleased ? (
+                        <div className="audit-trail-cell-subtext">
+                          Released: {getDisplayReleasedDate(record)}
+                        </div>
+                      ) : null}
+                    </td>
                     <td>
                       <span className={getRfpStatusClassName(record)}>
                         {getDisplayRfpStatus(record)}
@@ -969,6 +988,9 @@ export default function RfpDirectoryPage({
                       <div>
                         <span>Request</span>
                         <strong className="request-list-title">{record.requestNumber}</strong>
+                        <small className="rfp-record-card-title">
+                          {record.rfpNumber || "RFP number pending"}
+                        </small>
                       </div>
                       <span className={getRfpStatusClassName(record)}>
                         {getDisplayRfpStatus(record)}
@@ -986,6 +1008,12 @@ export default function RfpDirectoryPage({
                         <strong className="request-list-stage-value">
                           {getDisplayDueDate(record)}
                         </strong>
+                        {String(record?.rfpDraft?.paymentStatus || "").trim().toLowerCase() === "released" &&
+                        record?.rfpDraft?.dateReleased ? (
+                          <small className="rfp-record-card-title">
+                            Released: {getDisplayReleasedDate(record)}
+                          </small>
+                        ) : null}
                       </div>
                       <div>
                         <span>Amount</span>

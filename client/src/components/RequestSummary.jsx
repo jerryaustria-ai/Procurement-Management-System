@@ -189,7 +189,11 @@ export default function RequestSummary({
         </div>
         <div>
           <span>Department</span>
-          <strong>{item.department}</strong>
+          <strong>{item.department || "Not set"}</strong>
+        </div>
+        <div>
+          <span>Property / Project</span>
+          <strong>{item.propertyProject || "Not set"}</strong>
         </div>
         <div>
           <span>Requester</span>
@@ -198,6 +202,10 @@ export default function RequestSummary({
         <div>
           <span>Budget</span>
           <strong>{formatAmount(item.amount, item.currency)}</strong>
+        </div>
+        <div>
+          <span>Mode of release</span>
+          <strong>{item.modeOfRelease || "Not set"}</strong>
         </div>
         <div>
           <span>Date needed</span>

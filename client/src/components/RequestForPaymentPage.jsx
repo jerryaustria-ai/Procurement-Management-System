@@ -5,6 +5,7 @@ const RFP_PAYMENT_STATUS_OPTIONS = [
   "For Approval",
   "Approved",
   "Processing",
+  "Released",
   "For Liquidation",
   "Liquidation Submitted",
   "Liquidation Reviewed",
@@ -410,10 +411,15 @@ export default function RequestForPaymentPage({
   const normalizedPaymentStatus = String(form.paymentStatus || "").trim().toLowerCase();
   const showInvoiceFields = normalizedPaymentStatus === "processing";
   const showLiquidationFields = normalizedPaymentStatus === "for liquidation";
+  const isBankTransfer = form.modeOfRelease === "Bank Transfer";
+  const invoiceGroupHeading = isBankTransfer ? "Proof of Transfer" : "Invoice Files";
+  const pendingInvoiceHeading = isBankTransfer
+    ? `Pending Proof of Transfer Uploads (${(form.invoiceFiles || []).length})`
+    : `Pending Invoice Uploads (${(form.invoiceFiles || []).length})`;
   const groupedDocuments = [
     {
       key: "invoice",
-      heading: "Invoice Files",
+      heading: invoiceGroupHeading,
       documents: invoiceDocuments
     },
     {
@@ -425,7 +431,7 @@ export default function RequestForPaymentPage({
   const pendingGroups = [
     {
       key: "invoice-pending",
-      heading: `Pending Invoice Uploads (${(form.invoiceFiles || []).length})`,
+      heading: pendingInvoiceHeading,
       files: form.invoiceFiles || [],
       onRemove: onRemovePendingInvoiceFile
     },
@@ -445,12 +451,18 @@ export default function RequestForPaymentPage({
     ? liquidationDocuments.length
       ? "Upload more liquidation files"
       : "Upload liquidation files"
-    : invoiceDocuments.length
-      ? "Upload more invoice files"
-      : "Upload invoice files";
+    : isBankTransfer
+      ? invoiceDocuments.length
+        ? "Upload more proof of transfer files"
+        : "Upload proof of transfer files"
+      : invoiceDocuments.length
+        ? "Upload more invoice files"
+        : "Upload invoice files";
   const activeUploadSubtext = showLiquidationFields
     ? "Drag and drop liquidation files here or click to choose files"
-    : "Drag and drop invoice files here or click to choose files";
+    : isBankTransfer
+      ? "Drag and drop proof of transfer files here or click to choose files"
+      : "Drag and drop invoice files here or click to choose files";
 
   useEffect(() => {
     const normalizedPayee = String(form.payee || "").trim().toLowerCase();
@@ -504,7 +516,7 @@ export default function RequestForPaymentPage({
         <div className="po-page-header">
           <div>
             <p className="eyebrow">Request for Payment</p>
-            <h1>{item.requestNumber} Payment Request</h1>
+            <h1>{item.rfpNumber || item.requestNumber} Payment Request</h1>
             <p className="hero-copy">
               Prepare the payment request details in a focused workspace, then return to the
               procurement workflow.
@@ -543,6 +555,10 @@ export default function RequestForPaymentPage({
             </div>
             <div className="summary-grid">
               <div>
+                <span>RFP number</span>
+                <strong>{item.rfpNumber || "Pending generation"}</strong>
+              </div>
+              <div>
                 <span>Request title</span>
                 <strong>{item.title}</strong>
               </div>
@@ -573,6 +589,10 @@ export default function RequestForPaymentPage({
               <div>
                 <span>Department</span>
                 <strong>{item.department || "Not set"}</strong>
+              </div>
+              <div>
+                <span>Property / Project</span>
+                <strong>{item.propertyProject || "Not set"}</strong>
               </div>
             </div>
           </section>
@@ -661,6 +681,58 @@ export default function RequestForPaymentPage({
                 ))}
               </select>
             </label>
+
+            <label className={showInvoiceFields ? "" : "full-width-field"}>
+              Mode of Release
+              <select
+                name="modeOfRelease"
+                value={form.modeOfRelease || ""}
+                onChange={onChange}
+                disabled={!isEditing}
+              >
+                <option value="">Select mode of release</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Check">Check</option>
+              </select>
+            </label>
+
+            {form.modeOfRelease === "Bank Transfer" ? (
+              <>
+                <label>
+                  Bank Name
+                  <input
+                    name="bankName"
+                    value={form.bankName || ""}
+                    onChange={onChange}
+                    disabled={!isEditing}
+                    placeholder="Enter bank name"
+                  />
+                </label>
+
+                <label>
+                  Account Name
+                  <input
+                    name="accountName"
+                    value={form.accountName || ""}
+                    onChange={onChange}
+                    disabled={!isEditing}
+                    placeholder="Enter account name"
+                  />
+                </label>
+
+                <label className="full-width-field">
+                  Account Number
+                  <input
+                    name="accountNumber"
+                    value={form.accountNumber || ""}
+                    onChange={onChange}
+                    disabled={!isEditing}
+                    placeholder="Enter account number"
+                  />
+                </label>
+              </>
+            ) : null}
 
             {showInvoiceFields ? (
               <label>

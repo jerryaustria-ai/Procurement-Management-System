@@ -170,7 +170,7 @@ export default function RequestList({
               type="button"
               onClick={onCreateNew}
             >
-              New purchase request
+              New Request
             </button>
           ) : null}
           </div>
@@ -276,7 +276,7 @@ export default function RequestList({
               </div>
               <span className="request-list-title">{item.title}</span>
               <small>
-                {item.branch} · {item.department}
+                {[item.branch, item.department, item.propertyProject].filter(Boolean).join(' · ')}
               </small>
               <small className="request-list-meta-line">
                 <span>Requester:</span>{" "}

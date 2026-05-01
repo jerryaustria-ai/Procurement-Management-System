@@ -74,6 +74,7 @@ const requestForPaymentDraftSchema = new mongoose.Schema(
     invoiceNumber: { type: String, default: "" },
     paymentStatus: { type: String, default: "" },
     paymentStatusUpdatedAt: { type: Date, default: null },
+    dateReleased: { type: Date, default: null },
     amountRequested: { type: String, default: "" },
     dueDate: { type: String, default: "" },
     notes: { type: String, default: "" }
@@ -84,15 +85,21 @@ const requestForPaymentDraftSchema = new mongoose.Schema(
 const purchaseRequestSchema = new mongoose.Schema(
   {
     requestNumber: { type: String, required: true, unique: true },
+    rfpNumber: { type: String, unique: true, sparse: true },
     title: { type: String, required: true },
     description: { type: String, default: "" },
     category: { type: String, default: "General Procurement" },
     branch: { type: String, default: "Januarius Holdings" },
     department: { type: String, default: "" },
+    propertyProject: { type: String, default: "" },
     requesterName: { type: String, required: true },
     requesterEmail: { type: String, required: true },
     amount: { type: Number, default: 0 },
     currency: { type: String, default: "PHP" },
+    modeOfRelease: { type: String, default: "" },
+    bankName: { type: String, default: "" },
+    accountName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
     priority: {
       type: String,
       enum: Object.keys(priorityLabels),

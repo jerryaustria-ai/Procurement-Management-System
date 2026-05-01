@@ -100,6 +100,10 @@ export default function PurchaseOrderPage({
               <strong>{item.department || "Not set"}</strong>
             </div>
             <div>
+              <span>Property / Project</span>
+              <strong>{item.propertyProject || "Not set"}</strong>
+            </div>
+            <div>
               <span>Budget</span>
               <strong>{formatAmount(item.amount, item.currency)}</strong>
             </div>

@@ -248,9 +248,98 @@ function canManageRequestForPaymentDraft(req, request) {
   );
 }
 
-async function getNextRequestNumber() {
+function getRequestNumberPrefix(category = "") {
+  const normalizedCategory = String(category || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalizedCategory === "cash advance") {
+    return "CA";
+  }
+
+  return "PR";
+}
+
+function getRfpNumberPrefix(year) {
+  return `RFP-${year}-`;
+}
+
+async function getNextRfpNumber(year = new Date().getFullYear()) {
+  const prefix = getRfpNumberPrefix(year);
+  const latestRequest = await PurchaseRequest.findOne({
+    rfpNumber: { $regex: `^${prefix}` }
+  })
+    .sort({ rfpNumber: -1 })
+    .select("rfpNumber");
+
+  const latestSequence = latestRequest?.rfpNumber
+    ? Number(latestRequest.rfpNumber.slice(prefix.length))
+    : 0;
+  const nextSequence = Number.isFinite(latestSequence) ? latestSequence + 1 : 1;
+
+  return `${prefix}${String(nextSequence).padStart(3, "0")}`;
+}
+
+async function ensureRfpNumbers(requests = []) {
+  const records = Array.isArray(requests) ? requests.filter(Boolean) : [];
+  const missingRecords = records
+    .filter((record) => !String(record.rfpNumber || "").trim())
+    .sort((left, right) => {
+      const leftTime = new Date(left.requestedAt || left.createdAt || 0).getTime();
+      const rightTime = new Date(right.requestedAt || right.createdAt || 0).getTime();
+
+      if (leftTime === rightTime) {
+        return String(left._id).localeCompare(String(right._id));
+      }
+
+      return leftTime - rightTime;
+    });
+
+  if (!missingRecords.length) {
+    return records;
+  }
+
+  const nextSequenceByYear = new Map();
+
+  for (const record of missingRecords) {
+    const requestYear = new Date(record.requestedAt || record.createdAt || Date.now()).getFullYear();
+
+    if (!nextSequenceByYear.has(requestYear)) {
+      const prefix = getRfpNumberPrefix(requestYear);
+      const latestRequestForYear = await PurchaseRequest.findOne({
+        rfpNumber: { $regex: `^${prefix}` }
+      })
+        .sort({ rfpNumber: -1 })
+        .select("rfpNumber");
+
+      const latestSequenceForYear = latestRequestForYear?.rfpNumber
+        ? Number(latestRequestForYear.rfpNumber.slice(prefix.length))
+        : 0;
+
+      nextSequenceByYear.set(
+        requestYear,
+        Number.isFinite(latestSequenceForYear) ? latestSequenceForYear : 0
+      );
+    }
+
+    const nextSequence = nextSequenceByYear.get(requestYear) + 1;
+    const nextRfpNumber = `${getRfpNumberPrefix(requestYear)}${String(nextSequence).padStart(3, "0")}`;
+
+    nextSequenceByYear.set(requestYear, nextSequence);
+    record.rfpNumber = nextRfpNumber;
+
+    await PurchaseRequest.updateOne(
+      { _id: record._id },
+      { $set: { rfpNumber: nextRfpNumber } }
+    );
+  }
+
+  return records;
+}
+
+async function getNextRequestNumber(category = "") {
   const currentYear = new Date().getFullYear();
-  const prefix = `PR-${currentYear}-`;
+  const prefix = `${getRequestNumberPrefix(category)}-${currentYear}-`;
   const latestRequest = await PurchaseRequest.findOne({
     requestNumber: { $regex: `^${prefix}` }
   })
@@ -269,6 +358,7 @@ router.get("/purchase-requests", async (req, res) => {
   const query = req.user.role === "requester" ? { requesterEmail: req.user.email } : {};
   const configuredWorkflowStages = await getConfiguredWorkflowStages();
   const items = await PurchaseRequest.find(query).sort({ createdAt: -1 });
+  await ensureRfpNumbers(items);
 
   res.json({
     stages: configuredWorkflowStages,
@@ -286,8 +376,13 @@ router.post("/purchase-requests", async (req, res) => {
       branch,
       supplier,
       department,
+      propertyProject,
       amount,
       currency,
+      modeOfRelease,
+      bankName,
+      accountName,
+      accountNumber,
       priority,
       dateNeeded,
       deliveryAddress,
@@ -316,7 +411,8 @@ router.post("/purchase-requests", async (req, res) => {
       }
     }
 
-    const requestNumber = await getNextRequestNumber();
+    const requestNumber = await getNextRequestNumber(category);
+    const rfpNumber = await getNextRfpNumber(new Date().getFullYear());
     const requestWorkflowStages = await getConfiguredWorkflowStages();
     const skippedWorkflowStages = await getConfiguredSkippedWorkflowStages(requestWorkflowStages);
     const initialStage = requestWorkflowStages[0];
@@ -368,15 +464,21 @@ router.post("/purchase-requests", async (req, res) => {
 
     const created = await PurchaseRequest.create({
       requestNumber,
+      rfpNumber,
       title,
       description: description || "",
       category: category || "General Procurement",
       branch: branch || "Januarius Holdings",
       department: department || "",
+      propertyProject: propertyProject || "",
       requesterName: requester.name,
       requesterEmail: requester.email,
       amount: parsedAmount,
       currency: currency || "PHP",
+      modeOfRelease: modeOfRelease || "",
+      bankName: bankName || "",
+      accountName: accountName || "",
+      accountNumber: accountNumber || "",
       priority: priority || "medium",
       dateNeeded: dateNeeded || null,
       deliveryAddress: deliveryAddress || "",
@@ -536,7 +638,12 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "category",
           "branch",
           "department",
+          "propertyProject",
           "currency",
+          "modeOfRelease",
+          "bankName",
+          "accountName",
+          "accountNumber",
           "priority",
           "deliveryAddress",
           "paymentTerms",
@@ -549,7 +656,17 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "status",
           "inspectionStatus"
         ]
-      : ["title", "description", "branch", "department", "notes"];
+      : [
+          "title",
+          "description",
+          "branch",
+          "department",
+          "propertyProject",
+          "notes",
+          "bankName",
+          "accountName",
+          "accountNumber"
+        ];
 
   const isCompletedStageSelection =
     req.user.role === "admin" && req.body.currentStage === "Completed";
@@ -712,6 +829,8 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
 
   const previousPaymentStatus = String(request.rfpDraft?.paymentStatus || "").trim();
   const nextPaymentStatus = String(req.body.paymentStatus ?? "").trim();
+  const previousPaymentStatusNormalized = previousPaymentStatus.toLowerCase();
+  const nextPaymentStatusNormalized = nextPaymentStatus.toLowerCase();
 
   if (isPaidPaymentStatusLockedForAccountant(req, request, nextPaymentStatus)) {
     return res.status(400).json({
@@ -721,9 +840,15 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
 
   const paymentStatusChanged =
     nextPaymentStatus &&
-    nextPaymentStatus.toLowerCase() !== previousPaymentStatus.toLowerCase();
+    nextPaymentStatusNormalized !== previousPaymentStatusNormalized;
   const hadPaidEquivalentStatus = isPaidEquivalentRfpPaymentStatus(previousPaymentStatus);
   const hasPaidEquivalentStatus = isPaidEquivalentRfpPaymentStatus(nextPaymentStatus);
+  const dateReleased =
+    nextPaymentStatusNormalized === "released"
+      ? previousPaymentStatusNormalized === "released" && request.rfpDraft?.dateReleased
+        ? request.rfpDraft.dateReleased
+        : new Date()
+      : request.rfpDraft?.dateReleased || null;
   const paymentStatusUpdatedAt =
     paymentStatusChanged
       ? hadPaidEquivalentStatus &&
@@ -740,6 +865,7 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
     invoiceNumber: String(req.body.invoiceNumber ?? ""),
     paymentStatus: nextPaymentStatus,
     paymentStatusUpdatedAt,
+    dateReleased,
     amountRequested: String(req.body.amountRequested ?? ""),
     dueDate: String(req.body.dueDate ?? ""),
     notes: String(req.body.notes ?? "")
@@ -751,6 +877,22 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
 
   if (typeof req.body.invoiceNumber === "string") {
     request.invoiceNumber = req.body.invoiceNumber;
+  }
+
+  if (typeof req.body.modeOfRelease === "string") {
+    request.modeOfRelease = req.body.modeOfRelease;
+  }
+
+  if (typeof req.body.bankName === "string") {
+    request.bankName = req.body.bankName;
+  }
+
+  if (typeof req.body.accountName === "string") {
+    request.accountName = req.body.accountName;
+  }
+
+  if (typeof req.body.accountNumber === "string") {
+    request.accountNumber = req.body.accountNumber;
   }
 
   await request.save();

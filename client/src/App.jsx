@@ -40,6 +40,7 @@ const RFP_PAYMENT_STATUS_OPTIONS = [
   'For Approval',
   'Approved',
   'Processing',
+  'Released',
   'For Liquidation',
   'Liquidation Submitted',
   'Liquidation Reviewed',
@@ -449,17 +450,49 @@ function getInitialRequestForm(
   return {
     requesterName,
     requesterEmail,
+    category: 'Purchase Request',
     title: '',
     description: '',
     branch,
     supplier: '',
     department,
+    propertyProject: '',
     amount: '',
     currency: 'PHP',
+    modeOfRelease: '',
     dateNeeded: '',
     deliveryAddress,
     notes: '',
   }
+}
+
+function getRequestNumberPrefixForCategory(category = '') {
+  return String(category || '').trim().toLowerCase() === 'cash advance'
+    ? 'CA'
+    : 'PR'
+}
+
+function getRequestNumberPreview(items = [], category = '') {
+  const currentYear = new Date().getFullYear()
+  const prefix = `${getRequestNumberPrefixForCategory(category)}-${currentYear}-`
+
+  const latestSequence = items.reduce((highest, item) => {
+    const requestNumber = String(item?.requestNumber || '')
+
+    if (!requestNumber.startsWith(prefix)) {
+      return highest
+    }
+
+    const sequence = Number.parseInt(requestNumber.slice(prefix.length), 10)
+
+    if (!Number.isFinite(sequence)) {
+      return highest
+    }
+
+    return Math.max(highest, sequence)
+  }, 0)
+
+  return `${prefix}${String(latestSequence + 1).padStart(3, '0')}`
 }
 
 function getInitialUserForm() {
@@ -557,6 +590,10 @@ function getInitialRequestForPaymentForm() {
     invoiceFiles: [],
     liquidationFiles: [],
     paymentStatus: '',
+    modeOfRelease: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
     paymentReference: '',
     amountRequested: '',
     dueDate: '',
@@ -687,6 +724,10 @@ function getRequestForPaymentFormFromItem(item) {
     invoiceFiles: [],
     liquidationFiles: [],
     paymentStatus: getDisplayRfpPaymentStatus(savedRfpDraft.paymentStatus, ''),
+    modeOfRelease: item?.modeOfRelease || '',
+    bankName: item?.bankName || '',
+    accountName: item?.accountName || '',
+    accountNumber: item?.accountNumber || '',
     paymentReference: savedRfpDraft.paymentReference || '',
     amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
     dueDate: savedRfpDraft.dueDate || getDefaultRequestForPaymentDueDate(item),
@@ -903,8 +944,10 @@ function getRequestAdminForm(
       description: '',
       branch: defaultBranch,
       department: '',
+      propertyProject: '',
       amount: '',
       dateNeeded: '',
+      modeOfRelease: '',
       status: 'open',
       currentStage: '',
       inspectionStatus: 'pending',
@@ -922,7 +965,9 @@ function getRequestAdminForm(
     description: item.description ?? '',
     branch: item.branch ?? 'Januarius Holdings',
     department: item.department ?? '',
+    propertyProject: item.propertyProject ?? '',
     amount: String(item.amount ?? ''),
+    modeOfRelease: item.modeOfRelease ?? '',
     dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
     status: item.status ?? 'open',
     currentStage:
@@ -1723,6 +1768,7 @@ export default function App() {
   )
   const [requestQuotationFile, setRequestQuotationFile] = useState(null)
   const [requestFormErrors, setRequestFormErrors] = useState({
+    category: false,
     title: false,
     description: false,
     dateNeeded: false,
@@ -1761,6 +1807,10 @@ export default function App() {
     invoiceFiles: [],
     liquidationFiles: [],
     paymentStatus: '',
+    modeOfRelease: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
     dueDate: '',
   })
   const [rfpPreviewError, setRfpPreviewError] = useState('')
@@ -1834,10 +1884,17 @@ export default function App() {
   const showPreviewInvoiceFields = normalizedPreviewPaymentStatus === 'processing'
   const showPreviewLiquidationFields =
     normalizedPreviewPaymentStatus === 'for liquidation'
+  const isPreviewBankTransfer = rfpPreviewForm.modeOfRelease === 'Bank Transfer'
+  const previewInvoiceGroupHeading = isPreviewBankTransfer
+    ? 'Proof of Transfer'
+    : 'Invoice Files'
+  const previewPendingInvoiceHeading = isPreviewBankTransfer
+    ? `Pending Proof of Transfer Uploads (${(rfpPreviewForm.invoiceFiles || []).length})`
+    : `Pending Invoice Uploads (${(rfpPreviewForm.invoiceFiles || []).length})`
   const previewGroupedDocuments = [
     {
       key: 'invoice',
-      heading: 'Invoice Files',
+      heading: previewInvoiceGroupHeading,
       documents: getInvoiceDocuments(rfpPreviewRecord),
     },
     {
@@ -1849,7 +1906,7 @@ export default function App() {
   const previewPendingGroups = [
     {
       key: 'invoice-pending',
-      heading: `Pending Invoice Uploads (${(rfpPreviewForm.invoiceFiles || []).length})`,
+      heading: previewPendingInvoiceHeading,
       files: rfpPreviewForm.invoiceFiles || [],
       onRemove: (index) =>
         handleRemovePendingRfpPreviewDocument('invoiceFiles', index),
@@ -1869,12 +1926,18 @@ export default function App() {
     ? getLiquidationDocuments(rfpPreviewRecord).length
       ? 'Upload more liquidation files'
       : 'Upload liquidation files'
-    : getInvoiceDocuments(rfpPreviewRecord).length
-      ? 'Upload more invoice files'
-      : 'Upload invoice files'
+    : isPreviewBankTransfer
+      ? getInvoiceDocuments(rfpPreviewRecord).length
+        ? 'Upload more proof of transfer files'
+        : 'Upload proof of transfer files'
+      : getInvoiceDocuments(rfpPreviewRecord).length
+        ? 'Upload more invoice files'
+        : 'Upload invoice files'
   const previewActiveUploadSubtext = showPreviewLiquidationFields
     ? 'Drag and drop liquidation files here or click to choose files'
-    : 'Drag and drop invoice files here or click to choose files'
+    : isPreviewBankTransfer
+      ? 'Drag and drop proof of transfer files here or click to choose files'
+      : 'Drag and drop invoice files here or click to choose files'
   const showRfpActionOverlay = Boolean(rfpActionOverlay)
   const requesterOptions = users
   const supplierOptions = Array.from(
@@ -2973,8 +3036,10 @@ export default function App() {
     )
     setRequestQuotationFile(null)
     setRequestFormErrors({
+      category: false,
       title: false,
       description: false,
+      dateNeeded: false,
       amount: false,
     })
     setActionError('')
@@ -4350,6 +4415,14 @@ export default function App() {
       paymentStatus: String(
         overrides.paymentStatus ?? form?.paymentStatus ?? '',
       ),
+      modeOfRelease: String(
+        overrides.modeOfRelease ?? form?.modeOfRelease ?? '',
+      ),
+      bankName: String(overrides.bankName ?? form?.bankName ?? ''),
+      accountName: String(overrides.accountName ?? form?.accountName ?? ''),
+      accountNumber: String(
+        overrides.accountNumber ?? form?.accountNumber ?? '',
+      ),
       paymentReference: String(
         overrides.paymentReference ?? form?.paymentReference ?? '',
       ),
@@ -5302,6 +5375,7 @@ export default function App() {
 
         <CreateRequestForm
           form={requestForm}
+          requestNumberPreview={getRequestNumberPreview(items, requestForm.category)}
           branchOptions={branchOptions}
           isAdmin={isAdmin}
           requesterOptions={requesterOptions}
@@ -5343,6 +5417,22 @@ export default function App() {
       setRequestFormErrors((currentErrors) => ({
         ...currentErrors,
         title: true,
+      }))
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (!requestForm.category.trim()) {
+      const message = 'Request type is required.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        category: true,
       }))
       setActionError(message)
       pushToast({
@@ -7189,6 +7279,10 @@ export default function App() {
         record?.rfpDraft?.paymentStatus,
         '',
       ),
+      modeOfRelease: record?.modeOfRelease || '',
+      bankName: record?.bankName || '',
+      accountName: record?.accountName || '',
+      accountNumber: record?.accountNumber || '',
       dueDate:
         record?.rfpDraft?.dueDate || getDefaultRequestForPaymentDueDate(record),
     })
@@ -7210,6 +7304,10 @@ export default function App() {
       invoiceFiles: [],
       liquidationFiles: [],
       paymentStatus: '',
+      modeOfRelease: '',
+      bankName: '',
+      accountName: '',
+      accountNumber: '',
       dueDate: '',
     })
     setRfpPreviewError('')
@@ -7394,6 +7492,10 @@ export default function App() {
             silent: true,
             overrides: {
               dueDate: rfpPreviewForm.dueDate,
+              modeOfRelease: rfpPreviewForm.modeOfRelease,
+              bankName: rfpPreviewForm.bankName,
+              accountName: rfpPreviewForm.accountName,
+              accountNumber: rfpPreviewForm.accountNumber,
             },
           },
         )) || updatedRecord
@@ -7408,6 +7510,10 @@ export default function App() {
             updatedRecord?.rfpDraft?.paymentStatus,
             '',
           ),
+          modeOfRelease: updatedRecord?.modeOfRelease || '',
+          bankName: updatedRecord?.bankName || '',
+          accountName: updatedRecord?.accountName || '',
+          accountNumber: updatedRecord?.accountNumber || '',
           dueDate:
             updatedRecord?.rfpDraft?.dueDate ||
             getDefaultRequestForPaymentDueDate(updatedRecord),
@@ -8859,7 +8965,7 @@ export default function App() {
                 type='button'
                 onClick={openCreateRequestModal}
               >
-                New purchase request
+                New Request
               </button>
             </div>
           ) : null}
@@ -8910,7 +9016,7 @@ export default function App() {
                 type='button'
                 onClick={openCreateRequestModal}
               >
-                New purchase request
+                New Request
               </button>
             </div>
           ) : null}
@@ -8957,7 +9063,7 @@ export default function App() {
       {rfpPreviewRecord ? (
         <Modal
           eyebrow='Request for Payment'
-          title={rfpPreviewRecord.requestNumber}
+          title={rfpPreviewRecord.rfpNumber || rfpPreviewRecord.requestNumber}
           onClose={closeRfpPreviewModal}
           actions={
             <button
@@ -8979,6 +9085,10 @@ export default function App() {
               </div>
               <div className='rfp-preview-meta'>
                 <div>
+                  <span>RFP number</span>
+                  <strong>{rfpPreviewRecord.rfpNumber || 'Pending generation'}</strong>
+                </div>
+                <div>
                   <span>Requester</span>
                   <strong>{rfpPreviewRecord.requester || rfpPreviewRecord.requesterName || 'Not set'}</strong>
                 </div>
@@ -8998,6 +9108,12 @@ export default function App() {
                     )}
                   </strong>
                 </div>
+                {rfpPreviewRecord.rfpDraft?.dateReleased ? (
+                  <div>
+                    <span>Date Released</span>
+                    <strong>{formatDisplayDate(rfpPreviewRecord.rfpDraft.dateReleased)}</strong>
+                  </div>
+                ) : null}
               </div>
               <div className='rfp-preview-notes'>
                 <span>Description</span>
@@ -9035,6 +9151,58 @@ export default function App() {
                   </span>
                 ) : null}
               </label>
+
+              <label
+                className={
+                  showPreviewInvoiceFields ? '' : 'full-width-field'
+                }
+              >
+                Mode of Release
+                <select
+                  name='modeOfRelease'
+                  value={rfpPreviewForm.modeOfRelease || ''}
+                  onChange={handleRfpPreviewFormChange}
+                >
+                  <option value=''>Select mode of release</option>
+                  <option value='Cash'>Cash</option>
+                  <option value='Bank Transfer'>Bank Transfer</option>
+                  <option value='Check'>Check</option>
+                </select>
+              </label>
+
+              {rfpPreviewForm.modeOfRelease === 'Bank Transfer' ? (
+                <>
+                  <label>
+                    Bank Name
+                    <input
+                      name='bankName'
+                      value={rfpPreviewForm.bankName || ''}
+                      onChange={handleRfpPreviewFormChange}
+                      placeholder='Enter bank name'
+                    />
+                  </label>
+
+                  <label>
+                    Account Name
+                    <input
+                      name='accountName'
+                      value={rfpPreviewForm.accountName || ''}
+                      onChange={handleRfpPreviewFormChange}
+                      placeholder='Enter account name'
+                    />
+                  </label>
+
+                  <label className='full-width-field'>
+                    Account Number
+                    <input
+                      name='accountNumber'
+                      value={rfpPreviewForm.accountNumber || ''}
+                      onChange={handleRfpPreviewFormChange}
+                      placeholder='Enter account number'
+                    />
+                  </label>
+                </>
+              ) : null}
 
               {session?.user?.role === 'admin' ? (
                 <label
@@ -9226,6 +9394,7 @@ export default function App() {
         >
           <CreateRequestForm
             form={requestForm}
+            requestNumberPreview={getRequestNumberPreview(items, requestForm.category)}
             branchOptions={branchOptions}
             isAdmin={isAdmin}
             requesterOptions={requesterOptions}

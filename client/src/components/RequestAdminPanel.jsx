@@ -29,6 +29,10 @@ export default function RequestAdminPanel({
           <input name="department" value={form.department} onChange={onChange} />
         </label>
         <label>
+          Property / Project
+          <input name="propertyProject" value={form.propertyProject} onChange={onChange} />
+        </label>
+        <label>
           Company
           <select name="branch" value={form.branch} onChange={onChange}>
             {branchOptions.map((branch) => (
@@ -42,6 +46,31 @@ export default function RequestAdminPanel({
           Amount
           <input name="amount" value={form.amount} onChange={onChange} required />
         </label>
+        <label>
+          Mode of Release
+          <select name="modeOfRelease" value={form.modeOfRelease} onChange={onChange}>
+            <option value="">Select mode of release</option>
+            <option value="Cash">Cash</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Check">Check</option>
+          </select>
+        </label>
+        {form.modeOfRelease === "Bank Transfer" ? (
+          <>
+            <label>
+              Bank Name
+              <input name="bankName" value={form.bankName} onChange={onChange} />
+            </label>
+            <label>
+              Account Name
+              <input name="accountName" value={form.accountName} onChange={onChange} />
+            </label>
+            <label>
+              Account Number
+              <input name="accountNumber" value={form.accountNumber} onChange={onChange} />
+            </label>
+          </>
+        ) : null}
         <label>
           Date needed
           <input

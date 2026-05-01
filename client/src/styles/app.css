@@ -2064,6 +2064,45 @@ label,
   margin-top: 20px;
 }
 
+.create-request-type-box {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  background: var(--soft-surface);
+}
+
+.create-request-type-label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--muted-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.create-request-type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+}
+
+.create-request-type-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--heading-color);
+  cursor: pointer;
+}
+
+.create-request-type-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
 .create-request-upload-field {
   display: grid;
   gap: 12px;

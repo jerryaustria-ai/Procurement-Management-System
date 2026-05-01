@@ -1,5 +1,6 @@
 export default function CreateRequestForm({
   form,
+  requestNumberPreview,
   branchOptions,
   isAdmin,
   requesterOptions,
@@ -15,9 +16,40 @@ export default function CreateRequestForm({
   canCreate,
   error
 }) {
+  const isCashAdvance = form.category === "Cash Advance"
+
   return (
     <section className="panel action-panel">
+      <div className="create-request-type-box">
+        <label className={errors.category ? 'field-invalid' : ''}>
+          <span className="create-request-type-label">Request type *</span>
+          <select
+            className={errors.category ? 'field-input-invalid' : ''}
+            name="category"
+            value={form.category}
+            onChange={onChange}
+            required
+          >
+            {["Purchase Request", "Cash Advance", "Reimbursement"].map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <div className="form-grid two-column">
+        {isCashAdvance ? (
+          <label>
+            Request Number
+            <input
+              value={requestNumberPreview}
+              readOnly
+            />
+          </label>
+        ) : null}
+
         {isAdmin ? (
           <label>
             Requester
@@ -34,6 +66,14 @@ export default function CreateRequestForm({
               ))}
             </select>
           </label>
+        ) : isCashAdvance ? (
+          <label>
+            Requester
+            <input
+              value={form.requesterName}
+              readOnly
+            />
+          </label>
         ) : null}
 
         <label className={errors.title ? 'field-invalid' : ''}>
@@ -48,14 +88,24 @@ export default function CreateRequestForm({
           />
         </label>
 
-        {isAdmin ? (
+        <label>
+          Department
+          <input
+            name="department"
+            value={form.department}
+            onChange={onChange}
+            placeholder="Department name"
+          />
+        </label>
+
+        {form.category === "Cash Advance" || form.category === "Purchase Request" ? (
           <label>
-            Department
+            Property / Project
             <input
-              name="department"
-              value={form.department}
+              name="propertyProject"
+              value={form.propertyProject}
               onChange={onChange}
-              placeholder="Operations"
+              placeholder="Property or project name"
             />
           </label>
         ) : null}
@@ -134,6 +184,54 @@ export default function CreateRequestForm({
             placeholder="Enter payee or supplier name"
           />
         </label>
+
+        <label>
+          Mode of Release
+          <select
+            name="modeOfRelease"
+            value={form.modeOfRelease}
+            onChange={onChange}
+          >
+            <option value="">Select mode of release</option>
+            <option value="Cash">Cash</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Check">Check</option>
+          </select>
+        </label>
+
+        {form.modeOfRelease === "Bank Transfer" ? (
+          <>
+            <label>
+              Bank Name
+              <input
+                name="bankName"
+                value={form.bankName}
+                onChange={onChange}
+                placeholder="Enter bank name"
+              />
+            </label>
+
+            <label>
+              Account Name
+              <input
+                name="accountName"
+                value={form.accountName}
+                onChange={onChange}
+                placeholder="Enter account name"
+              />
+            </label>
+
+            <label className="full-width-field">
+              Account Number
+              <input
+                name="accountNumber"
+                value={form.accountNumber}
+                onChange={onChange}
+                placeholder="Enter account number"
+              />
+            </label>
+          </>
+        ) : null}
 
         <label className="create-request-upload-field">
           <span>Approved Quotation or Request</span>
