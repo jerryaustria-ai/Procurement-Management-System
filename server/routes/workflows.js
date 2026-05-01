@@ -848,7 +848,7 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
       ? previousPaymentStatusNormalized === "released" && request.rfpDraft?.dateReleased
         ? request.rfpDraft.dateReleased
         : new Date()
-      : request.rfpDraft?.dateReleased || null;
+      : null;
   const paymentStatusUpdatedAt =
     paymentStatusChanged
       ? hadPaidEquivalentStatus &&

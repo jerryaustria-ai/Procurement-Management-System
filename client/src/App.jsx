@@ -1073,6 +1073,21 @@ function getPaymentStatusReferenceDate(item) {
   return parsedDate
 }
 
+function getReleasedDateValue(item) {
+  const explicitReleasedDate = item?.rfpDraft?.dateReleased
+  const normalizedPaymentStatus = getNormalizedPaymentStatus(item)
+
+  if (normalizedPaymentStatus !== 'released') {
+    return null
+  }
+
+  if (explicitReleasedDate) {
+    return explicitReleasedDate
+  }
+
+  return item?.rfpDraft?.paymentStatusUpdatedAt || null
+}
+
 function isPaidPaymentStatusOlderThanOneDay(item) {
   if (getNormalizedPaymentStatus(item) !== 'liquidated / closed') {
     return false
@@ -9108,10 +9123,10 @@ export default function App() {
                     )}
                   </strong>
                 </div>
-                {rfpPreviewRecord.rfpDraft?.dateReleased ? (
+                {getReleasedDateValue(rfpPreviewRecord) ? (
                   <div>
                     <span>Date Released</span>
-                    <strong>{formatDisplayDate(rfpPreviewRecord.rfpDraft.dateReleased)}</strong>
+                    <strong>{formatDate(getReleasedDateValue(rfpPreviewRecord))}</strong>
                   </div>
                 ) : null}
               </div>
