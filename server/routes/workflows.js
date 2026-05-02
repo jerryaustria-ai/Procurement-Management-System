@@ -47,6 +47,17 @@ function markRfpStatusApproved(request) {
   };
 }
 
+function markRfpStatusForApproval(request) {
+  const currentRfpDraft = request.rfpDraft?.toObject?.() || request.rfpDraft || {};
+
+  request.rfpDraft = {
+    ...currentRfpDraft,
+    paymentStatus: "",
+    paymentStatusUpdatedAt: null,
+    dateReleased: null
+  };
+}
+
 router.use(requireAuth);
 
 function getRequestWorkflowStages(request) {
@@ -83,6 +94,22 @@ function isPaidPaymentStatusLockedForAccountant(req, request, nextPaymentStatus)
   }
 
   return Date.now() - new Date(paidReferenceDate).getTime() > ONE_DAY_MS;
+}
+
+function canUsePurchaseOrderNumber(request) {
+  return !["Cash Advance", "Reimbursement"].includes(request?.category);
+}
+
+function clearPurchaseOrderNumber(request) {
+  if (canUsePurchaseOrderNumber(request)) {
+    return;
+  }
+
+  request.poNumber = "";
+  request.poDraft = {
+    ...(request.poDraft?.toObject?.() || request.poDraft || {}),
+    poNumber: ""
+  };
 }
 
 async function getConfiguredWorkflowStages() {
@@ -257,6 +284,10 @@ function getRequestNumberPrefix(category = "") {
     return "CA";
   }
 
+  if (normalizedCategory === "reimbursement") {
+    return "RE";
+  }
+
   return "PR";
 }
 
@@ -278,6 +309,18 @@ async function getNextRfpNumber(year = new Date().getFullYear()) {
   const nextSequence = Number.isFinite(latestSequence) ? latestSequence + 1 : 1;
 
   return `${prefix}${String(nextSequence).padStart(3, "0")}`;
+}
+
+async function ensureRfpNumber(request) {
+  if (!request || String(request.rfpNumber || "").trim()) {
+    return request?.rfpNumber || "";
+  }
+
+  const requestYear = new Date(request.requestedAt || request.createdAt || Date.now()).getFullYear();
+  const nextRfpNumber = await getNextRfpNumber(requestYear);
+  request.rfpNumber = nextRfpNumber;
+
+  return nextRfpNumber;
 }
 
 async function ensureRfpNumbers(requests = []) {
@@ -383,18 +426,27 @@ router.post("/purchase-requests", async (req, res) => {
       bankName,
       accountName,
       accountNumber,
+      checkNumber,
+      checkDate,
       priority,
       dateNeeded,
+      expenseDate,
       deliveryAddress,
       paymentTerms,
       notes
     } = req.body;
+    const isReimbursement = category === "Reimbursement";
+    const isCashAdvance = category === "Cash Advance";
 
     if (!title) {
       return res.status(400).json({ message: "Title is required." });
     }
 
-    if (!dateNeeded) {
+    if (isReimbursement && !expenseDate) {
+      return res.status(400).json({ message: "Expense date is required." });
+    }
+
+    if (!isReimbursement && !dateNeeded) {
       return res.status(400).json({ message: "Date needed is required." });
     }
 
@@ -475,13 +527,16 @@ router.post("/purchase-requests", async (req, res) => {
       requesterEmail: requester.email,
       amount: parsedAmount,
       currency: currency || "PHP",
-      modeOfRelease: modeOfRelease || "",
-      bankName: bankName || "",
-      accountName: accountName || "",
-      accountNumber: accountNumber || "",
+      modeOfRelease: isCashAdvance ? "Cash" : modeOfRelease || "",
+      bankName: isCashAdvance ? "" : bankName || "",
+      accountName: isCashAdvance ? "" : accountName || "",
+      accountNumber: isCashAdvance ? "" : accountNumber || "",
+      checkNumber: isCashAdvance ? "" : checkNumber || "",
+      checkDate: isCashAdvance ? null : checkDate || null,
       priority: priority || "medium",
-      dateNeeded: dateNeeded || null,
-      deliveryAddress: deliveryAddress || "",
+      dateNeeded: isReimbursement ? null : dateNeeded || null,
+      expenseDate: isReimbursement ? expenseDate || null : null,
+      deliveryAddress: isCashAdvance || isReimbursement ? "" : deliveryAddress || "",
       paymentTerms: paymentTerms || "Net 30",
       requestedPayeeSupplier: supplier?.trim() || "",
       supplier: supplier?.trim() || "Pending selection",
@@ -609,10 +664,15 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     typeof req.body.title === "string" ? req.body.title.trim() : request.title;
   const nextDescription =
     typeof req.body.description === "string" ? req.body.description.trim() : request.description;
+  const nextCategory =
+    typeof req.body.category === "string" ? req.body.category : request.category;
   const nextDateNeeded =
     typeof req.body.dateNeeded !== "undefined" ? req.body.dateNeeded : request.dateNeeded;
+  const nextExpenseDate =
+    typeof req.body.expenseDate !== "undefined" ? req.body.expenseDate : request.expenseDate;
   const nextAmount =
     typeof req.body.amount !== "undefined" ? req.body.amount : request.amount;
+  const isReimbursement = nextCategory === "Reimbursement";
 
   if (!nextTitle) {
     return res.status(400).json({ message: "Title is required." });
@@ -622,7 +682,11 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     return res.status(400).json({ message: "Amount is required." });
   }
 
-  if (!nextDateNeeded) {
+  if (isReimbursement && !nextExpenseDate) {
+    return res.status(400).json({ message: "Expense date is required." });
+  }
+
+  if (!isReimbursement && !nextDateNeeded) {
     return res.status(400).json({ message: "Date needed is required." });
   }
 
@@ -645,6 +709,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "accountName",
           "accountNumber",
           "priority",
+          "expenseDate",
           "deliveryAddress",
           "paymentTerms",
           "supplier",
@@ -662,6 +727,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "branch",
           "department",
           "propertyProject",
+          "expenseDate",
           "notes",
           "bankName",
           "accountName",
@@ -723,6 +789,26 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     }
   }
 
+  if (typeof req.body.expenseDate !== "undefined") {
+    request.expenseDate = req.body.expenseDate || null;
+  }
+
+  if (typeof req.body.checkNumber !== "undefined") {
+    request.checkNumber = String(req.body.checkNumber || "");
+  }
+
+  if (typeof req.body.checkDate !== "undefined") {
+    request.checkDate = req.body.checkDate || null;
+  }
+
+  if (request.category === "Reimbursement") {
+    request.dateNeeded = null;
+  } else {
+    request.expenseDate = null;
+  }
+
+  clearPurchaseOrderNumber(request);
+
   if (req.user.role === "admin" && typeof req.body.deliveryDate !== "undefined") {
     request.deliveryDate = req.body.deliveryDate || null;
   }
@@ -749,11 +835,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
       request.filingCompleted = false;
       request.approvalCompleted = false;
       request.requestForPaymentEnabled = true;
-      request.rfpDraft = {
-        ...(request.rfpDraft?.toObject?.() || request.rfpDraft || {}),
-        paymentStatus: "Processing",
-        paymentStatusUpdatedAt: new Date()
-      };
+      markRfpStatusForApproval(request);
     }
   }
 
@@ -786,7 +868,7 @@ router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
 
   request.poDraft = {
     supplier: String(req.body.supplier ?? ""),
-    poNumber: String(req.body.poNumber ?? ""),
+    poNumber: canUsePurchaseOrderNumber(request) ? String(req.body.poNumber ?? "") : "",
     notes: String(req.body.notes ?? ""),
     salesTax: String(req.body.salesTax ?? ""),
     shippingHandling: String(req.body.shippingHandling ?? ""),
@@ -799,8 +881,10 @@ router.patch("/purchase-requests/:id/po-draft", async (req, res) => {
   }
 
   if (typeof req.body.poNumber === "string") {
-    request.poNumber = req.body.poNumber;
+    request.poNumber = canUsePurchaseOrderNumber(request) ? req.body.poNumber : "";
   }
+
+  clearPurchaseOrderNumber(request);
 
   if (typeof req.body.notes === "string") {
     request.notes = req.body.notes;
@@ -826,6 +910,8 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
   if (!canManageRequestForPaymentDraft(req, request)) {
     return res.status(403).json({ message: "Your role cannot update the request for payment draft." });
   }
+
+  await ensureRfpNumber(request);
 
   const previousPaymentStatus = String(request.rfpDraft?.paymentStatus || "").trim();
   const nextPaymentStatus = String(req.body.paymentStatus ?? "").trim();
@@ -893,6 +979,14 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
 
   if (typeof req.body.accountNumber === "string") {
     request.accountNumber = req.body.accountNumber;
+  }
+
+  if (typeof req.body.checkNumber === "string") {
+    request.checkNumber = req.body.checkNumber;
+  }
+
+  if (typeof req.body.checkDate !== "undefined") {
+    request.checkDate = req.body.checkDate || null;
   }
 
   await request.save();
@@ -964,7 +1058,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
   }
 
   if (typeof req.body.poNumber === "string") {
-    request.poNumber = req.body.poNumber;
+    request.poNumber = canUsePurchaseOrderNumber(request) ? req.body.poNumber : "";
   }
 
   if (typeof req.body.invoiceNumber === "string") {
@@ -991,7 +1085,7 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
     const draft = req.body.poDraft;
     request.poDraft = {
       supplier: String(draft.supplier ?? ""),
-      poNumber: String(draft.poNumber ?? ""),
+      poNumber: canUsePurchaseOrderNumber(request) ? String(draft.poNumber ?? "") : "",
       notes: String(draft.notes ?? ""),
       salesTax: String(draft.salesTax ?? ""),
       shippingHandling: String(draft.shippingHandling ?? ""),
@@ -1008,6 +1102,8 @@ router.patch("/purchase-requests/:id/advance", async (req, res) => {
         : []
     };
   }
+
+  clearPurchaseOrderNumber(request);
 
   if (isTerminalStage(request.currentStage, requestWorkflowStages)) {
     request.history = request.history.map((entry) =>
@@ -1309,6 +1405,11 @@ router.patch("/purchase-requests/:id/revert", async (req, res) => {
   request.requestForPaymentEnabled = true;
   request.filingCompleted = false;
   request.status = "open";
+
+  if (previousStage === "Approval") {
+    markRfpStatusForApproval(request);
+  }
+
   request.history.push({
     stage: previousStage,
     status: "current",
@@ -1353,7 +1454,7 @@ router.post("/purchase-requests/:id/documents", async (req, res) => {
     }
 
     const documentType = req.body.type || "other";
-    const allowedTypes = ["quotation", "po", "invoice", "liquidation", "delivery", "inspection", "other"];
+    const allowedTypes = ["quotation", "po", "invoice", "release", "liquidation", "delivery", "inspection", "other"];
 
     if (!allowedTypes.includes(documentType)) {
       return res.status(400).json({ message: "Invalid document type." });
@@ -1527,7 +1628,7 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
   }
 
   const canAccessRequestForPaymentDocument =
-    ["invoice", "liquidation"].includes(document.type) &&
+    ["invoice", "release", "liquidation"].includes(document.type) &&
     canManageRequestForPaymentDraft(req, request);
 
   if (!isRequesterAccessingOwnRequest(req, request) && !canAccessRequestForPaymentDocument && req.user.role !== "admin") {

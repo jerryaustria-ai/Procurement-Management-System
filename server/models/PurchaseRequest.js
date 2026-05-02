@@ -21,7 +21,7 @@ const documentSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["quotation", "po", "invoice", "liquidation", "delivery", "inspection", "other"],
+      enum: ["quotation", "po", "invoice", "release", "liquidation", "delivery", "inspection", "other"],
       required: true
     },
     label: { type: String, required: true },
@@ -100,12 +100,15 @@ const purchaseRequestSchema = new mongoose.Schema(
     bankName: { type: String, default: "" },
     accountName: { type: String, default: "" },
     accountNumber: { type: String, default: "" },
+    checkNumber: { type: String, default: "" },
+    checkDate: { type: Date, default: null },
     priority: {
       type: String,
       enum: Object.keys(priorityLabels),
       default: "medium"
     },
     dateNeeded: { type: Date, default: null },
+    expenseDate: { type: Date, default: null },
     deliveryAddress: { type: String, default: "" },
     paymentTerms: { type: String, default: "Net 30" },
     requestedPayeeSupplier: { type: String, default: "" },

@@ -51,6 +51,20 @@ function getProcurementStatusLabel(item) {
   return `Current stage: ${item.currentStage}`;
 }
 
+function getRequestTypeLabel(item) {
+  const requestNumber = String(item?.requestNumber || "").trim().toUpperCase();
+
+  if (requestNumber.startsWith("CA-")) {
+    return "Cash Advance";
+  }
+
+  if (requestNumber.startsWith("RE-")) {
+    return "Reimbursement";
+  }
+
+  return item?.category || "Purchase Request";
+}
+
 function getSummaryPayee(item) {
   const requestedPayeeSupplier = String(item?.requestedPayeeSupplier || "").trim();
   const savedPayee = String(item?.rfpDraft?.payee || "").trim();
@@ -94,6 +108,8 @@ export default function RequestSummary({
   onViewDocument
 }) {
   const attachments = item.documents ?? [];
+  const hidesPurchaseOrderFields =
+    item.category === "Cash Advance" || item.category === "Reimbursement";
 
   function getDocumentHref(filePath) {
     return /^https?:\/\//i.test(filePath || "") ? filePath : `${apiOrigin}${filePath}`;
@@ -125,7 +141,7 @@ export default function RequestSummary({
       {showHeader ? (
         <div className="summary-header">
           <div>
-            <p className="eyebrow">Purchase Request</p>
+            <p className="eyebrow">{getRequestTypeLabel(item)}</p>
             <h1>{item.requestNumber}</h1>
             <p className="summary-title">{item.title}</p>
             <div className="summary-inline-details">
@@ -173,7 +189,7 @@ export default function RequestSummary({
         <>
       <div className="summary-banner">
         <div>
-          <span>Procurement status</span>
+          <span>Stage Status</span>
           <strong>{getProcurementStatusLabel(item)}</strong>
         </div>
         <div>
@@ -207,42 +223,97 @@ export default function RequestSummary({
           <span>Mode of release</span>
           <strong>{item.modeOfRelease || "Not set"}</strong>
         </div>
-        <div>
-          <span>Date needed</span>
-          <strong>{formatDate(item.dateNeeded)}</strong>
-        </div>
+        {item.modeOfRelease === "Bank Transfer" ? (
+          <>
+            <div>
+              <span>Bank name</span>
+              <strong>{item.bankName || "Not set"}</strong>
+            </div>
+            <div>
+              <span>Account name</span>
+              <strong>{item.accountName || "Not set"}</strong>
+            </div>
+            <div>
+              <span>Account number</span>
+              <strong>{item.accountNumber || "Not set"}</strong>
+            </div>
+          </>
+        ) : null}
+        {item.modeOfRelease === "Check" ? (
+          <>
+            <div>
+              <span>Check number</span>
+              <strong>{item.checkNumber || "Not set"}</strong>
+            </div>
+            <div>
+              <span>Check date</span>
+              <strong>{formatDate(item.checkDate)}</strong>
+            </div>
+            <div>
+              <span>Bank name</span>
+              <strong>{item.bankName || "Not set"}</strong>
+            </div>
+            <div>
+              <span>Account name</span>
+              <strong>{item.accountName || "Not set"}</strong>
+            </div>
+          </>
+        ) : null}
+        {item.category === "Reimbursement" ? (
+          <div>
+            <span>Expense date</span>
+            <strong>{formatDate(item.expenseDate)}</strong>
+          </div>
+        ) : (
+          <div>
+            <span>Date needed</span>
+            <strong>{formatDate(item.dateNeeded)}</strong>
+          </div>
+        )}
         <div>
           <span>Requested at</span>
           <strong>{formatDate(item.requestedAt)}</strong>
         </div>
         <div>
-          <span>Supplier</span>
+          <span>Supplier / Payee</span>
           <strong>{item.supplier}</strong>
         </div>
-        <div>
-          <span>PO number</span>
-          <strong>{item.poNumber || "Pending"}</strong>
-        </div>
-        <div>
-          <span>Invoice number</span>
-          <strong>{item.invoiceNumber || "Pending"}</strong>
-        </div>
-        <div>
-          <span>Payment reference</span>
-          <strong>{item.paymentReference || "Pending"}</strong>
-        </div>
-        <div>
-          <span>Delivery date</span>
-          <strong>{formatDate(item.deliveryDate)}</strong>
-        </div>
-        <div>
-          <span>Inspection</span>
-          <strong>{formatInspectionStatus(item.inspectionStatus)}</strong>
-        </div>
-        <div>
-          <span>Delivery address</span>
-          <strong>{item.deliveryAddress || "Not set"}</strong>
-        </div>
+        {!hidesPurchaseOrderFields ? (
+          <>
+            <div>
+              <span>PO number</span>
+              <strong>{item.poNumber || "Pending"}</strong>
+            </div>
+            <div>
+              <span>Invoice number</span>
+              <strong>{item.invoiceNumber || "Pending"}</strong>
+            </div>
+          </>
+        ) : null}
+        {!hidesPurchaseOrderFields ? (
+          <div>
+            <span>Payment reference</span>
+            <strong>{item.paymentReference || "Pending"}</strong>
+          </div>
+        ) : null}
+        {!hidesPurchaseOrderFields ? (
+          <div>
+            <span>Delivery date</span>
+            <strong>{formatDate(item.deliveryDate)}</strong>
+          </div>
+        ) : null}
+        {!hidesPurchaseOrderFields ? (
+          <div>
+            <span>Inspection</span>
+            <strong>{formatInspectionStatus(item.inspectionStatus)}</strong>
+          </div>
+        ) : null}
+        {!hidesPurchaseOrderFields ? (
+          <div>
+            <span>Delivery address</span>
+            <strong>{item.deliveryAddress || "Not set"}</strong>
+          </div>
+        ) : null}
       </div>
 
       <div className="notes-box">

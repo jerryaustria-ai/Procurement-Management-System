@@ -355,16 +355,16 @@ function formatCurrencyValue(value, currency = 'PHP') {
 function getDisplayRfpStatus(record) {
   const normalizedPaymentStatus = getNormalizedPaymentStatus(record)
 
-  if (normalizedPaymentStatus) {
-    return getDisplayPaymentStatus(record)
-  }
-
   if (getClosedRecordDate(record)) {
     return 'Liquidated / Closed'
   }
 
   if (isForApprovalRecord(record)) {
     return 'For Approval'
+  }
+
+  if (normalizedPaymentStatus) {
+    return getDisplayPaymentStatus(record)
   }
 
   if (isApprovedForRfpRecord(record)) {

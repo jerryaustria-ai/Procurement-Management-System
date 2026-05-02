@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo, useState } from "react";
 import Modal from "./Modal.jsx";
 
 const RFP_PAYMENT_STATUS_OPTIONS = [
-  "For Approval",
   "Approved",
   "Processing",
   "Released",
@@ -364,6 +363,7 @@ export default function RequestForPaymentPage({
   errors = {},
   suppliers = [],
   invoiceDocuments = [],
+  releaseDocuments = [],
   liquidationDocuments = [],
   currentInvoiceDocument = null,
   currentLiquidationDocument = null,
@@ -372,11 +372,14 @@ export default function RequestForPaymentPage({
   canEdit = true,
   onChange,
   onInvoiceFilesSelected,
+  onReleaseFilesSelected,
   onLiquidationFilesSelected,
   onRemovePendingInvoiceFile,
+  onRemovePendingReleaseFile,
   onRemovePendingLiquidationFile,
   onOpenDocument,
   onDeleteInvoiceDocument,
+  onDeleteReleaseDocument,
   onDeleteLiquidationDocument,
   onSelectSupplier,
   onCreateSupplier,
@@ -393,6 +396,7 @@ export default function RequestForPaymentPage({
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [supplierSearch, setSupplierSearch] = useState("");
   const invoiceInputId = useId();
+  const releaseInputId = useId();
   const liquidationInputId = useId();
   const filteredSuppliers = useMemo(() => {
     const normalizedSearch = supplierSearch.trim().toLowerCase();
@@ -410,8 +414,10 @@ export default function RequestForPaymentPage({
   const showSubmitToApproval = item.currentStage === "Request for Payment" && canEdit;
   const normalizedPaymentStatus = String(form.paymentStatus || "").trim().toLowerCase();
   const showInvoiceFields = normalizedPaymentStatus === "processing";
+  const showReleaseFields = normalizedPaymentStatus === "released";
   const showLiquidationFields = normalizedPaymentStatus === "for liquidation";
   const isBankTransfer = form.modeOfRelease === "Bank Transfer";
+  const isCheck = form.modeOfRelease === "Check";
   const invoiceGroupHeading = isBankTransfer ? "Proof of Transfer" : "Invoice Files";
   const pendingInvoiceHeading = isBankTransfer
     ? `Pending Proof of Transfer Uploads (${(form.invoiceFiles || []).length})`
@@ -426,6 +432,11 @@ export default function RequestForPaymentPage({
       key: "liquidation",
       heading: "Liquidation Files",
       documents: liquidationDocuments
+    },
+    {
+      key: "release",
+      heading: "Release Files",
+      documents: releaseDocuments
     }
   ].filter((group) => group.documents.length);
   const pendingGroups = [
@@ -440,17 +451,39 @@ export default function RequestForPaymentPage({
       heading: `Pending Liquidation Uploads (${(form.liquidationFiles || []).length})`,
       files: form.liquidationFiles || [],
       onRemove: onRemovePendingLiquidationFile
+    },
+    {
+      key: "release-pending",
+      heading: `Pending Release Uploads (${(form.releaseFiles || []).length})`,
+      files: form.releaseFiles || [],
+      onRemove: onRemovePendingReleaseFile
     }
   ].filter((group) => group.files.length);
-  const activeUploadTarget = showLiquidationFields ? "liquidation" : "invoice";
+  const activeUploadTarget = showLiquidationFields
+    ? "liquidation"
+    : showReleaseFields
+      ? "release"
+      : "invoice";
   const activeSelectedFiles =
-    activeUploadTarget === "liquidation" ? form.liquidationFiles || [] : form.invoiceFiles || [];
+    activeUploadTarget === "liquidation"
+      ? form.liquidationFiles || []
+      : activeUploadTarget === "release"
+        ? form.releaseFiles || []
+        : form.invoiceFiles || [];
   const activeUploadError =
-    activeUploadTarget === "liquidation" ? errors.liquidationFiles : errors.invoiceFiles;
+    activeUploadTarget === "liquidation"
+      ? errors.liquidationFiles
+      : activeUploadTarget === "release"
+        ? errors.releaseFiles
+        : errors.invoiceFiles;
   const activeUploadPromptLabel = showLiquidationFields
     ? liquidationDocuments.length
       ? "Upload more liquidation files"
       : "Upload liquidation files"
+    : showReleaseFields
+      ? releaseDocuments.length
+        ? "Upload more release files"
+        : "Upload release files"
     : isBankTransfer
       ? invoiceDocuments.length
         ? "Upload more proof of transfer files"
@@ -460,6 +493,8 @@ export default function RequestForPaymentPage({
         : "Upload invoice files";
   const activeUploadSubtext = showLiquidationFields
     ? "Drag and drop liquidation files here or click to choose files"
+    : showReleaseFields
+      ? "Drag and drop release files here or click to choose files"
     : isBankTransfer
       ? "Drag and drop proof of transfer files here or click to choose files"
       : "Drag and drop invoice files here or click to choose files";
@@ -578,10 +613,17 @@ export default function RequestForPaymentPage({
                 <span>Budget</span>
                 <strong>{formatAmount(item.amount, item.currency)}</strong>
               </div>
-              <div>
-                <span>Date needed</span>
-                <strong>{formatDate(item.dateNeeded)}</strong>
-              </div>
+              {item.category === "Reimbursement" ? (
+                <div>
+                  <span>Expense date</span>
+                  <strong>{formatDate(item.expenseDate)}</strong>
+                </div>
+              ) : (
+                <div>
+                  <span>Date needed</span>
+                  <strong>{formatDate(item.dateNeeded)}</strong>
+                </div>
+              )}
               <div>
                 <span>Branch</span>
                 <strong>{item.branch || "Not set"}</strong>
@@ -697,8 +739,35 @@ export default function RequestForPaymentPage({
               </select>
             </label>
 
-            {form.modeOfRelease === "Bank Transfer" ? (
+            {isBankTransfer || isCheck ? (
               <>
+                {isCheck ? (
+                  <>
+                    <label>
+                      Check Number
+                      <input
+                        name="checkNumber"
+                        value={form.checkNumber || ""}
+                        onChange={onChange}
+                        disabled={!isEditing}
+                        placeholder="Enter check number"
+                      />
+                    </label>
+
+                    <label>
+                      Check Date
+                      <input
+                        name="checkDate"
+                        type="date"
+                        value={form.checkDate || ""}
+                        onChange={onChange}
+                        disabled={!isEditing}
+                        onClick={(event) => event.target.showPicker?.()}
+                      />
+                    </label>
+                  </>
+                ) : null}
+
                 <label>
                   Bank Name
                   <input
@@ -721,30 +790,19 @@ export default function RequestForPaymentPage({
                   />
                 </label>
 
-                <label className="full-width-field">
-                  Account Number
-                  <input
-                    name="accountNumber"
-                    value={form.accountNumber || ""}
-                    onChange={onChange}
-                    disabled={!isEditing}
-                    placeholder="Enter account number"
-                  />
-                </label>
+                {isBankTransfer ? (
+                  <label className="full-width-field">
+                    Account Number
+                    <input
+                      name="accountNumber"
+                      value={form.accountNumber || ""}
+                      onChange={onChange}
+                      disabled={!isEditing}
+                      placeholder="Enter account number"
+                    />
+                  </label>
+                ) : null}
               </>
-            ) : null}
-
-            {showInvoiceFields ? (
-              <label>
-                Invoice number
-                <input
-                  name="invoiceNumber"
-                  value={form.invoiceNumber}
-                  onChange={onChange}
-                  placeholder="INV-2026-014"
-                  disabled={!isEditing}
-                />
-              </label>
             ) : null}
 
             <label className="full-width-field">
@@ -760,7 +818,13 @@ export default function RequestForPaymentPage({
             </label>
           </div>
           <AttachmentManagerSection
-            inputId={activeUploadTarget === "liquidation" ? liquidationInputId : invoiceInputId}
+            inputId={
+              activeUploadTarget === "liquidation"
+                ? liquidationInputId
+                : activeUploadTarget === "release"
+                  ? releaseInputId
+                  : invoiceInputId
+            }
             promptLabel={activeUploadPromptLabel}
             promptSubtext={activeUploadSubtext}
             selectedFiles={activeSelectedFiles}
@@ -769,6 +833,8 @@ export default function RequestForPaymentPage({
             onFilesSelected={
               activeUploadTarget === "liquidation"
                 ? onLiquidationFilesSelected
+                : activeUploadTarget === "release"
+                  ? onReleaseFilesSelected
                 : onInvoiceFilesSelected
             }
             onOpenDocument={onOpenDocument}
@@ -776,6 +842,10 @@ export default function RequestForPaymentPage({
               const normalizedType = String(document?.documentType || "").trim().toLowerCase();
               if (normalizedType === "liquidation") {
                 onDeleteLiquidationDocument?.(document);
+                return;
+              }
+              if (normalizedType === "release") {
+                onDeleteReleaseDocument?.(document);
                 return;
               }
               onDeleteInvoiceDocument?.(document);

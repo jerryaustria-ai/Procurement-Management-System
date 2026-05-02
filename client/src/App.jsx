@@ -37,7 +37,6 @@ const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const RFP_PAYMENT_STATUS_OPTIONS = [
-  'For Approval',
   'Approved',
   'Processing',
   'Released',
@@ -460,16 +459,30 @@ function getInitialRequestForm(
     amount: '',
     currency: 'PHP',
     modeOfRelease: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    checkNumber: '',
+    checkDate: '',
     dateNeeded: '',
+    expenseDate: '',
     deliveryAddress,
     notes: '',
   }
 }
 
 function getRequestNumberPrefixForCategory(category = '') {
-  return String(category || '').trim().toLowerCase() === 'cash advance'
-    ? 'CA'
-    : 'PR'
+  const normalizedCategory = String(category || '').trim().toLowerCase()
+
+  if (normalizedCategory === 'cash advance') {
+    return 'CA'
+  }
+
+  if (normalizedCategory === 'reimbursement') {
+    return 'RE'
+  }
+
+  return 'PR'
 }
 
 function getRequestNumberPreview(items = [], category = '') {
@@ -493,6 +506,20 @@ function getRequestNumberPreview(items = [], category = '') {
   }, 0)
 
   return `${prefix}${String(latestSequence + 1).padStart(3, '0')}`
+}
+
+function getRequestTypeLabel(item) {
+  const requestNumber = String(item?.requestNumber || '').trim().toUpperCase()
+
+  if (requestNumber.startsWith('CA-')) {
+    return 'Cash Advance'
+  }
+
+  if (requestNumber.startsWith('RE-')) {
+    return 'Reimbursement'
+  }
+
+  return item?.category || 'Purchase Request'
 }
 
 function getInitialUserForm() {
@@ -588,12 +615,15 @@ function getInitialRequestForPaymentForm() {
     tinNumber: '',
     invoiceNumber: '',
     invoiceFiles: [],
+    releaseFiles: [],
     liquidationFiles: [],
     paymentStatus: '',
     modeOfRelease: '',
     bankName: '',
     accountName: '',
     accountNumber: '',
+    checkNumber: '',
+    checkDate: '',
     paymentReference: '',
     amountRequested: '',
     dueDate: '',
@@ -722,12 +752,15 @@ function getRequestForPaymentFormFromItem(item) {
     tinNumber: savedRfpDraft.tinNumber || '',
     invoiceNumber: savedRfpDraft.invoiceNumber || '',
     invoiceFiles: [],
+    releaseFiles: [],
     liquidationFiles: [],
     paymentStatus: getDisplayRfpPaymentStatus(savedRfpDraft.paymentStatus, ''),
     modeOfRelease: item?.modeOfRelease || '',
     bankName: item?.bankName || '',
     accountName: item?.accountName || '',
     accountNumber: item?.accountNumber || '',
+    checkNumber: item?.checkNumber || '',
+    checkDate: item?.checkDate ? String(item.checkDate).slice(0, 10) : '',
     paymentReference: savedRfpDraft.paymentReference || '',
     amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
     dueDate: savedRfpDraft.dueDate || getDefaultRequestForPaymentDueDate(item),
@@ -926,7 +959,15 @@ function getNextPurchaseOrderNumber(items) {
   return `PO-${highestYear}-${nextSequence}`
 }
 
+function canGeneratePurchaseOrderNumber(item) {
+  return !['Cash Advance', 'Reimbursement'].includes(item?.category)
+}
+
 function getAssignedPurchaseOrderNumber(item, items) {
+  if (!canGeneratePurchaseOrderNumber(item)) {
+    return ''
+  }
+
   return item?.poNumber || getNextPurchaseOrderNumber(items)
 }
 
@@ -947,7 +988,13 @@ function getRequestAdminForm(
       propertyProject: '',
       amount: '',
       dateNeeded: '',
+      expenseDate: '',
       modeOfRelease: '',
+      bankName: '',
+      accountName: '',
+      accountNumber: '',
+      checkNumber: '',
+      checkDate: '',
       status: 'open',
       currentStage: '',
       inspectionStatus: 'pending',
@@ -968,7 +1015,13 @@ function getRequestAdminForm(
     propertyProject: item.propertyProject ?? '',
     amount: String(item.amount ?? ''),
     modeOfRelease: item.modeOfRelease ?? '',
+    bankName: item.bankName ?? '',
+    accountName: item.accountName ?? '',
+    accountNumber: item.accountNumber ?? '',
+    checkNumber: item.checkNumber ?? '',
+    checkDate: item.checkDate ? item.checkDate.slice(0, 10) : '',
     dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
+    expenseDate: item.expenseDate ? item.expenseDate.slice(0, 10) : '',
     status: item.status ?? 'open',
     currentStage:
       item.status === 'completed' ? 'Completed' : (item.currentStage ?? ''),
@@ -1290,6 +1343,12 @@ function formatExportDate(value) {
     month: 'short',
     day: 'numeric',
   }).format(new Date(value))
+}
+
+function getRequestRelevantDate(item) {
+  return item?.category === 'Reimbursement'
+    ? item?.expenseDate
+    : item?.dateNeeded
 }
 
 function escapeCsvValue(value) {
@@ -1787,6 +1846,7 @@ export default function App() {
     title: false,
     description: false,
     dateNeeded: false,
+    expenseDate: false,
     amount: false,
   })
   const [uploadForm, setUploadForm] = useState({
@@ -1820,12 +1880,15 @@ export default function App() {
   const [rfpPreviewForm, setRfpPreviewForm] = useState({
     invoiceNumber: '',
     invoiceFiles: [],
+    releaseFiles: [],
     liquidationFiles: [],
     paymentStatus: '',
     modeOfRelease: '',
     bankName: '',
     accountName: '',
     accountNumber: '',
+    checkNumber: '',
+    checkDate: '',
     dueDate: '',
   })
   const [rfpPreviewError, setRfpPreviewError] = useState('')
@@ -1897,9 +1960,11 @@ export default function App() {
     rfpPreviewForm.paymentStatus,
   )
   const showPreviewInvoiceFields = normalizedPreviewPaymentStatus === 'processing'
+  const showPreviewReleaseFields = normalizedPreviewPaymentStatus === 'released'
   const showPreviewLiquidationFields =
     normalizedPreviewPaymentStatus === 'for liquidation'
   const isPreviewBankTransfer = rfpPreviewForm.modeOfRelease === 'Bank Transfer'
+  const isPreviewCheck = rfpPreviewForm.modeOfRelease === 'Check'
   const previewInvoiceGroupHeading = isPreviewBankTransfer
     ? 'Proof of Transfer'
     : 'Invoice Files'
@@ -1917,6 +1982,11 @@ export default function App() {
       heading: 'Liquidation Files',
       documents: getLiquidationDocuments(rfpPreviewRecord),
     },
+    {
+      key: 'release',
+      heading: 'Release Files',
+      documents: getReleaseDocuments(rfpPreviewRecord),
+    },
   ].filter((group) => group.documents.length)
   const previewPendingGroups = [
     {
@@ -1933,14 +2003,27 @@ export default function App() {
       onRemove: (index) =>
         handleRemovePendingRfpPreviewDocument('liquidationFiles', index),
     },
+    {
+      key: 'release-pending',
+      heading: `Pending Release Uploads (${(rfpPreviewForm.releaseFiles || []).length})`,
+      files: rfpPreviewForm.releaseFiles || [],
+      onRemove: (index) =>
+        handleRemovePendingRfpPreviewDocument('releaseFiles', index),
+    },
   ].filter((group) => group.files.length)
   const previewActiveUploadTarget = showPreviewLiquidationFields
     ? 'liquidation'
+    : showPreviewReleaseFields
+      ? 'release'
     : 'invoice'
   const previewActiveUploadPromptLabel = showPreviewLiquidationFields
     ? getLiquidationDocuments(rfpPreviewRecord).length
       ? 'Upload more liquidation files'
       : 'Upload liquidation files'
+    : showPreviewReleaseFields
+      ? getReleaseDocuments(rfpPreviewRecord).length
+        ? 'Upload more release files'
+        : 'Upload release files'
     : isPreviewBankTransfer
       ? getInvoiceDocuments(rfpPreviewRecord).length
         ? 'Upload more proof of transfer files'
@@ -1950,6 +2033,8 @@ export default function App() {
         : 'Upload invoice files'
   const previewActiveUploadSubtext = showPreviewLiquidationFields
     ? 'Drag and drop liquidation files here or click to choose files'
+    : showPreviewReleaseFields
+      ? 'Drag and drop release files here or click to choose files'
     : isPreviewBankTransfer
       ? 'Drag and drop proof of transfer files here or click to choose files'
       : 'Drag and drop invoice files here or click to choose files'
@@ -3011,15 +3096,49 @@ export default function App() {
         }
       }
 
+      if (name === 'category') {
+        setRequestFormErrors((currentErrors) => ({
+          ...currentErrors,
+          category: false,
+          dateNeeded: false,
+          expenseDate: false,
+        }))
+        return {
+          ...current,
+          category: value,
+          modeOfRelease:
+            value === 'Cash Advance' ? 'Cash' : current.modeOfRelease,
+          bankName: value === 'Cash Advance' ? '' : current.bankName,
+          accountName: value === 'Cash Advance' ? '' : current.accountName,
+          accountNumber: value === 'Cash Advance' ? '' : current.accountNumber,
+          checkNumber: value === 'Cash Advance' ? '' : current.checkNumber,
+          checkDate: value === 'Cash Advance' ? '' : current.checkDate,
+          dateNeeded: value === 'Reimbursement' ? '' : current.dateNeeded,
+          expenseDate: value === 'Reimbursement' ? current.expenseDate : '',
+          deliveryAddress:
+            value === 'Cash Advance' || value === 'Reimbursement'
+              ? ''
+              : getBranchDeliveryAddress(
+                  current.branch,
+                  companySettings,
+                  companyIdentities,
+                ),
+        }
+      }
+
       if (name === 'branch') {
         return {
           ...current,
           branch: value,
-          deliveryAddress: getBranchDeliveryAddress(
-            value,
-            companySettings,
-            companyIdentities,
-          ),
+          deliveryAddress:
+            current.category === 'Cash Advance' ||
+            current.category === 'Reimbursement'
+              ? ''
+              : getBranchDeliveryAddress(
+                  value,
+                  companySettings,
+                  companyIdentities,
+                ),
         }
       }
 
@@ -3055,6 +3174,7 @@ export default function App() {
       title: false,
       description: false,
       dateNeeded: false,
+      expenseDate: false,
       amount: false,
     })
     setActionError('')
@@ -3264,9 +3384,11 @@ export default function App() {
   }
 
   function handleRequestAdminFormChange(event) {
+    const { name, value } = event.target
+
     setRequestAdminForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [name]: value,
     }))
   }
 
@@ -3609,7 +3731,7 @@ export default function App() {
       'Status',
       'Current Stage',
       'Requested At',
-      'Date Needed',
+      'Needed / Expense Date',
       'Supplier',
     ]
 
@@ -3623,7 +3745,7 @@ export default function App() {
       item.status,
       item.currentStage,
       formatExportDate(item.requestedAt),
-      formatExportDate(item.dateNeeded),
+      formatExportDate(getRequestRelevantDate(item)),
       item.supplier || '',
     ])
 
@@ -3720,7 +3842,7 @@ export default function App() {
             <td>${item.currentStage}</td>
             <td>${item.status}</td>
             <td>${formatExportDate(item.requestedAt)}</td>
-            <td>${formatExportDate(item.dateNeeded)}</td>
+            <td>${formatExportDate(getRequestRelevantDate(item))}</td>
             <td>${item.supplier}</td>
           </tr>
         `,
@@ -3874,7 +3996,7 @@ export default function App() {
                 <th>Current Stage</th>
                 <th>Status</th>
                 <th>Requested At</th>
-                <th>Date Needed</th>
+                <th>Needed / Expense Date</th>
                 <th>Supplier</th>
               </tr>
             </thead>
@@ -4268,6 +4390,16 @@ export default function App() {
           })) || workingRecord
       }
 
+      if (
+        normalizedPaymentStatus === 'released' &&
+        requestForPaymentForm.releaseFiles?.length
+      ) {
+        workingRecord =
+          (await saveReleaseDetailsForRecord(workingRecord, requestForPaymentForm, {
+            silent: true,
+          })) || workingRecord
+      }
+
       let nextPaymentStatus = requestForPaymentForm.paymentStatus
 
       if (
@@ -4415,6 +4547,17 @@ export default function App() {
     )
   }
 
+  function getReleaseDocuments(record) {
+    return (record?.documents || []).filter(
+      (document) => document.type === 'release',
+    )
+  }
+
+  function getCurrentReleaseDocument(record) {
+    const releaseDocuments = getReleaseDocuments(record)
+    return releaseDocuments[releaseDocuments.length - 1] || null
+  }
+
   function getCurrentLiquidationDocument(record) {
     const liquidationDocuments = getLiquidationDocuments(record)
     return liquidationDocuments[liquidationDocuments.length - 1] || null
@@ -4438,6 +4581,8 @@ export default function App() {
       accountNumber: String(
         overrides.accountNumber ?? form?.accountNumber ?? '',
       ),
+      checkNumber: String(overrides.checkNumber ?? form?.checkNumber ?? ''),
+      checkDate: String(overrides.checkDate ?? form?.checkDate ?? ''),
       paymentReference: String(
         overrides.paymentReference ?? form?.paymentReference ?? '',
       ),
@@ -4562,6 +4707,56 @@ export default function App() {
       pushToast({
         title: 'Liquidation file uploaded',
         message: `${updatedRecord.requestNumber} liquidation file was updated.`,
+        variant: 'success',
+      })
+    }
+
+    return updatedRecord
+  }
+
+  async function saveReleaseDetailsForRecord(
+    record,
+    form,
+    { silent = false } = {},
+  ) {
+    if (!record || !session?.token) {
+      return null
+    }
+
+    const files = Array.from(form?.releaseFiles || []).filter(Boolean)
+
+    let updatedRecord = record
+
+    for (const file of files) {
+      const optimizedReleaseFile = await optimizeDocumentFile(file)
+      const formData = new FormData()
+      formData.append('type', 'release')
+      formData.append('label', file?.name || 'Release File')
+      formData.append('document', optimizedReleaseFile)
+
+      const uploadResponse = await fetch(
+        `${API_BASE_URL}/workflows/purchase-requests/${record.id}/documents`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+          body: formData,
+        },
+      )
+
+      const uploadData = await uploadResponse.json()
+      if (!uploadResponse.ok) {
+        throw new Error(uploadData.message || 'Failed to upload release file.')
+      }
+
+      updatedRecord = uploadData
+    }
+
+    if (!silent && files.length) {
+      pushToast({
+        title: 'Release file uploaded',
+        message: `${updatedRecord.requestNumber} release file was updated.`,
         variant: 'success',
       })
     }
@@ -4727,6 +4922,19 @@ export default function App() {
     })
   }
 
+  async function deleteReleaseForRecord(
+    record,
+    document = getCurrentReleaseDocument(record),
+    { silent = false } = {},
+  ) {
+    return deleteDocumentForRecord(record, document, {
+      silent,
+      failureMessage: 'Failed to delete release file.',
+      successTitle: 'Release file deleted',
+      successMessage: `${record.requestNumber} release file was removed.`,
+    })
+  }
+
   function handleOpenRfpDocument(document) {
     if (!document) {
       return
@@ -4785,6 +4993,35 @@ export default function App() {
           pushToast({
             title: 'Delete failed',
             message: error.message || 'Failed to delete liquidation file.',
+            variant: 'error',
+            duration: 4200,
+          })
+        }
+      },
+    })
+  }
+
+  function handleConfirmDeleteReleaseDocument(
+    record,
+    document = getCurrentReleaseDocument(record),
+  ) {
+    if (!record) {
+      return
+    }
+
+    openConfirmDialog({
+      title: 'Delete release file?',
+      message:
+        'This will permanently remove the uploaded release file from this request.',
+      confirmLabel: 'Delete file',
+      onConfirm: async () => {
+        setConfirmDialog(null)
+        try {
+          await deleteReleaseForRecord(record, document)
+        } catch (error) {
+          pushToast({
+            title: 'Delete failed',
+            message: error.message || 'Failed to delete release file.',
             variant: 'error',
             duration: 4200,
           })
@@ -5475,7 +5712,29 @@ export default function App() {
       return
     }
 
-    if (!requestForm.dateNeeded) {
+    if (
+      requestForm.category === 'Reimbursement' &&
+      !requestForm.expenseDate
+    ) {
+      const message = 'Expense date is required.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        expenseDate: true,
+      }))
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (
+      requestForm.category !== 'Reimbursement' &&
+      !requestForm.dateNeeded
+    ) {
       const message = 'Date needed is required.'
       setRequestFormErrors((currentErrors) => ({
         ...currentErrors,
@@ -5539,6 +5798,43 @@ export default function App() {
           },
           body: JSON.stringify({
             ...requestForm,
+            modeOfRelease:
+              requestForm.category === 'Cash Advance'
+                ? 'Cash'
+                : requestForm.modeOfRelease,
+            bankName:
+              requestForm.category === 'Cash Advance'
+                ? ''
+                : requestForm.bankName,
+            accountName:
+              requestForm.category === 'Cash Advance'
+                ? ''
+                : requestForm.accountName,
+            accountNumber:
+              requestForm.category === 'Cash Advance'
+                ? ''
+                : requestForm.accountNumber,
+            checkNumber:
+              requestForm.category === 'Cash Advance'
+                ? ''
+                : requestForm.checkNumber,
+            checkDate:
+              requestForm.category === 'Cash Advance'
+                ? ''
+                : requestForm.checkDate,
+            dateNeeded:
+              requestForm.category === 'Reimbursement'
+                ? ''
+                : requestForm.dateNeeded,
+            expenseDate:
+              requestForm.category === 'Reimbursement'
+                ? requestForm.expenseDate
+                : '',
+            deliveryAddress:
+              requestForm.category === 'Cash Advance' ||
+              requestForm.category === 'Reimbursement'
+                ? ''
+                : requestForm.deliveryAddress,
             requesterEmail: isAdmin
               ? requestForm.requesterEmail
               : session.user.email,
@@ -6029,7 +6325,25 @@ export default function App() {
       return
     }
 
-    if (!requestAdminForm.dateNeeded) {
+    if (
+      selectedItem.category === 'Reimbursement' &&
+      !requestAdminForm.expenseDate
+    ) {
+      const message = 'Expense date is required.'
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
+    if (
+      selectedItem.category !== 'Reimbursement' &&
+      !requestAdminForm.dateNeeded
+    ) {
       const message = 'Date needed is required.'
       setActionError(message)
       pushToast({
@@ -6074,6 +6388,25 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
+      const requestUpdatePayload = {
+        ...requestAdminForm,
+        modeOfRelease: String(requestAdminForm.modeOfRelease || ''),
+        bankName: String(requestAdminForm.bankName || ''),
+        accountName: String(requestAdminForm.accountName || ''),
+        accountNumber: String(requestAdminForm.accountNumber || ''),
+        checkNumber: String(requestAdminForm.checkNumber || ''),
+        checkDate: requestAdminForm.checkDate || '',
+        dateNeeded:
+          selectedItem.category === 'Reimbursement'
+            ? ''
+            : requestAdminForm.dateNeeded,
+        expenseDate:
+          selectedItem.category === 'Reimbursement'
+            ? requestAdminForm.expenseDate
+            : '',
+        amount: parsedRequestAmount,
+      }
+
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests/${selectedItem.id}`,
         {
@@ -6082,10 +6415,7 @@ export default function App() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.token}`,
           },
-          body: JSON.stringify({
-            ...requestAdminForm,
-            amount: parsedRequestAmount,
-          }),
+          body: JSON.stringify(requestUpdatePayload),
         },
       )
 
@@ -7289,6 +7619,7 @@ export default function App() {
     setRfpPreviewForm({
       invoiceNumber: record?.rfpDraft?.invoiceNumber || '',
       invoiceFiles: [],
+      releaseFiles: [],
       liquidationFiles: [],
       paymentStatus: getDisplayRfpPaymentStatus(
         record?.rfpDraft?.paymentStatus,
@@ -7298,6 +7629,8 @@ export default function App() {
       bankName: record?.bankName || '',
       accountName: record?.accountName || '',
       accountNumber: record?.accountNumber || '',
+      checkNumber: record?.checkNumber || '',
+      checkDate: record?.checkDate ? String(record.checkDate).slice(0, 10) : '',
       dueDate:
         record?.rfpDraft?.dueDate || getDefaultRequestForPaymentDueDate(record),
     })
@@ -7317,12 +7650,15 @@ export default function App() {
     setRfpPreviewForm({
       invoiceNumber: '',
       invoiceFiles: [],
+      releaseFiles: [],
       liquidationFiles: [],
       paymentStatus: '',
       modeOfRelease: '',
       bankName: '',
       accountName: '',
       accountNumber: '',
+      checkNumber: '',
+      checkDate: '',
       dueDate: '',
     })
     setRfpPreviewError('')
@@ -7486,6 +7822,16 @@ export default function App() {
           })) || updatedRecord
       }
 
+      if (
+        normalizedPaymentStatus === 'released' &&
+        rfpPreviewForm.releaseFiles?.length
+      ) {
+        updatedRecord =
+          (await saveReleaseDetailsForRecord(updatedRecord, rfpPreviewForm, {
+            silent: true,
+          })) || updatedRecord
+      }
+
       let nextPaymentStatus = rfpPreviewForm.paymentStatus
 
       if (
@@ -7511,6 +7857,8 @@ export default function App() {
               bankName: rfpPreviewForm.bankName,
               accountName: rfpPreviewForm.accountName,
               accountNumber: rfpPreviewForm.accountNumber,
+              checkNumber: rfpPreviewForm.checkNumber,
+              checkDate: rfpPreviewForm.checkDate,
             },
           },
         )) || updatedRecord
@@ -7520,6 +7868,7 @@ export default function App() {
         setRfpPreviewForm({
           invoiceNumber: updatedRecord?.rfpDraft?.invoiceNumber || '',
           invoiceFiles: [],
+          releaseFiles: [],
           liquidationFiles: [],
           paymentStatus: getDisplayRfpPaymentStatus(
             updatedRecord?.rfpDraft?.paymentStatus,
@@ -7529,6 +7878,10 @@ export default function App() {
           bankName: updatedRecord?.bankName || '',
           accountName: updatedRecord?.accountName || '',
           accountNumber: updatedRecord?.accountNumber || '',
+          checkNumber: updatedRecord?.checkNumber || '',
+          checkDate: updatedRecord?.checkDate
+            ? String(updatedRecord.checkDate).slice(0, 10)
+            : '',
           dueDate:
             updatedRecord?.rfpDraft?.dueDate ||
             getDefaultRequestForPaymentDueDate(updatedRecord),
@@ -8108,6 +8461,7 @@ export default function App() {
           errors={requestForPaymentErrors}
           suppliers={suppliers}
           invoiceDocuments={getInvoiceDocuments(selectedItem)}
+          releaseDocuments={getReleaseDocuments(selectedItem)}
           liquidationDocuments={getLiquidationDocuments(selectedItem)}
           currentInvoiceDocument={getCurrentInvoiceDocument(selectedItem)}
           currentLiquidationDocument={getCurrentLiquidationDocument(selectedItem)}
@@ -8118,11 +8472,17 @@ export default function App() {
           onInvoiceFilesSelected={(files) =>
             handleRequestForPaymentDocumentFiles('invoiceFiles', files)
           }
+          onReleaseFilesSelected={(files) =>
+            handleRequestForPaymentDocumentFiles('releaseFiles', files)
+          }
           onLiquidationFilesSelected={(files) =>
             handleRequestForPaymentDocumentFiles('liquidationFiles', files)
           }
           onRemovePendingInvoiceFile={(index) =>
             handleRemovePendingRequestForPaymentDocument('invoiceFiles', index)
+          }
+          onRemovePendingReleaseFile={(index) =>
+            handleRemovePendingRequestForPaymentDocument('releaseFiles', index)
           }
           onRemovePendingLiquidationFile={(index) =>
             handleRemovePendingRequestForPaymentDocument(
@@ -8133,6 +8493,9 @@ export default function App() {
           onOpenDocument={handleOpenRfpDocument}
           onDeleteInvoiceDocument={(document) =>
             handleConfirmDeleteInvoiceDocument(selectedItem, document)
+          }
+          onDeleteReleaseDocument={(document) =>
+            handleConfirmDeleteReleaseDocument(selectedItem, document)
           }
           onDeleteLiquidationDocument={(document) =>
             handleConfirmDeleteLiquidationDocument(selectedItem, document)
@@ -9185,8 +9548,33 @@ export default function App() {
                 </select>
               </label>
 
-              {rfpPreviewForm.modeOfRelease === 'Bank Transfer' ? (
+              {isPreviewBankTransfer || isPreviewCheck ? (
                 <>
+                  {isPreviewCheck ? (
+                    <>
+                      <label>
+                        Check Number
+                        <input
+                          name='checkNumber'
+                          value={rfpPreviewForm.checkNumber || ''}
+                          onChange={handleRfpPreviewFormChange}
+                          placeholder='Enter check number'
+                        />
+                      </label>
+
+                      <label>
+                        Check Date
+                        <input
+                          name='checkDate'
+                          type='date'
+                          value={rfpPreviewForm.checkDate || ''}
+                          onChange={handleRfpPreviewFormChange}
+                          onClick={(event) => event.target.showPicker?.()}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
                   <label>
                     Bank Name
                     <input
@@ -9207,15 +9595,17 @@ export default function App() {
                     />
                   </label>
 
-                  <label className='full-width-field'>
-                    Account Number
-                    <input
-                      name='accountNumber'
-                      value={rfpPreviewForm.accountNumber || ''}
-                      onChange={handleRfpPreviewFormChange}
-                      placeholder='Enter account number'
-                    />
-                  </label>
+                  {isPreviewBankTransfer ? (
+                    <label className='full-width-field'>
+                      Account Number
+                      <input
+                        name='accountNumber'
+                        value={rfpPreviewForm.accountNumber || ''}
+                        onChange={handleRfpPreviewFormChange}
+                        placeholder='Enter account number'
+                      />
+                    </label>
+                  ) : null}
                 </>
               ) : null}
 
@@ -9235,25 +9625,14 @@ export default function App() {
                 </label>
               ) : null}
 
-              {showPreviewInvoiceFields ? (
-                <>
-                  <label>
-                    Invoice number
-                    <input
-                      name='invoiceNumber'
-                      value={rfpPreviewForm.invoiceNumber}
-                      onChange={handleRfpPreviewFormChange}
-                      placeholder='Enter invoice number'
-                    />
-                  </label>
-                </>
-              ) : null}
             </div>
 
             <AttachmentManagerSection
               inputId={
                 previewActiveUploadTarget === 'liquidation'
                   ? 'rfp-preview-liquidation-file'
+                  : previewActiveUploadTarget === 'release'
+                    ? 'rfp-preview-release-file'
                   : 'rfp-preview-invoice-file'
               }
               promptLabel={previewActiveUploadPromptLabel}
@@ -9264,6 +9643,8 @@ export default function App() {
                 handleRfpPreviewDocumentFiles(
                   previewActiveUploadTarget === 'liquidation'
                     ? 'liquidationFiles'
+                    : previewActiveUploadTarget === 'release'
+                      ? 'releaseFiles'
                     : 'invoiceFiles',
                   files,
                 )
@@ -9277,6 +9658,13 @@ export default function App() {
                   .toLowerCase()
                 if (normalizedType === 'liquidation') {
                   handleConfirmDeleteLiquidationDocument(
+                    rfpPreviewRecord,
+                    document,
+                  )
+                  return
+                }
+                if (normalizedType === 'release') {
+                  handleConfirmDeleteReleaseDocument(
                     rfpPreviewRecord,
                     document,
                   )
@@ -9329,16 +9717,6 @@ export default function App() {
               void handleSubmitInvoiceUpload()
             }}
           >
-            <label>
-              Invoice number
-              <input
-                name='invoiceNumber'
-                value={invoiceUploadForm.invoiceNumber}
-                onChange={handleInvoiceUploadFormChange}
-                placeholder='Enter invoice number'
-              />
-            </label>
-
             {getCurrentInvoiceDocument(invoiceUploadRecord) ? (
               <div className='invoice-upload-current'>
                 <p className='invoice-upload-caption'>Current invoice file</p>
@@ -9450,7 +9828,7 @@ export default function App() {
             expandedPanel === 'workflow'
               ? undefined
               : expandedPanel === 'request-summary'
-                ? 'Purchase Request'
+                ? getRequestTypeLabel(selectedItem)
                 : undefined
           }
           title={

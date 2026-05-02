@@ -16,6 +16,11 @@ export default function RequestAdminPanel({
   }
 
   const stageOptions = Array.from(new Set([...stages, "Completed"]));
+  const hidesPurchaseOrderFields =
+    item.category === "Cash Advance" || item.category === "Reimbursement";
+  const isReimbursement = item.category === "Reimbursement";
+  const isBankTransfer = form.modeOfRelease === "Bank Transfer";
+  const isCheck = form.modeOfRelease === "Check";
 
   return (
     <section className="panel action-panel">
@@ -55,8 +60,26 @@ export default function RequestAdminPanel({
             <option value="Check">Check</option>
           </select>
         </label>
-        {form.modeOfRelease === "Bank Transfer" ? (
+        {isBankTransfer || isCheck ? (
           <>
+            {isCheck ? (
+              <>
+                <label>
+                  Check Number
+                  <input name="checkNumber" value={form.checkNumber} onChange={onChange} />
+                </label>
+                <label>
+                  Check Date
+                  <input
+                    name="checkDate"
+                    type="date"
+                    value={form.checkDate}
+                    onChange={onChange}
+                    onClick={(event) => event.target.showPicker?.()}
+                  />
+                </label>
+              </>
+            ) : null}
             <label>
               Bank Name
               <input name="bankName" value={form.bankName} onChange={onChange} />
@@ -65,23 +88,39 @@ export default function RequestAdminPanel({
               Account Name
               <input name="accountName" value={form.accountName} onChange={onChange} />
             </label>
-            <label>
-              Account Number
-              <input name="accountNumber" value={form.accountNumber} onChange={onChange} />
-            </label>
+            {isBankTransfer ? (
+              <label>
+                Account Number
+                <input name="accountNumber" value={form.accountNumber} onChange={onChange} />
+              </label>
+            ) : null}
           </>
         ) : null}
-        <label>
-          Date needed
-          <input
-            name="dateNeeded"
-            type="date"
-            value={form.dateNeeded}
-            onChange={onChange}
-            onClick={(event) => event.target.showPicker?.()}
-            required
-          />
-        </label>
+        {isReimbursement ? (
+          <label>
+            Expense date
+            <input
+              name="expenseDate"
+              type="date"
+              value={form.expenseDate}
+              onChange={onChange}
+              onClick={(event) => event.target.showPicker?.()}
+              required
+            />
+          </label>
+        ) : (
+          <label>
+            Date needed
+            <input
+              name="dateNeeded"
+              type="date"
+              value={form.dateNeeded}
+              onChange={onChange}
+              onClick={(event) => event.target.showPicker?.()}
+              required
+            />
+          </label>
+        )}
         {isAdmin ? (
           <>
             <label>
@@ -102,30 +141,38 @@ export default function RequestAdminPanel({
                 ))}
               </select>
             </label>
-            <label>
-              Inspection
-              <select name="inspectionStatus" value={form.inspectionStatus} onChange={onChange}>
-                <option value="pending">Pending</option>
-                <option value="passed">Passed</option>
-                <option value="failed">Failed</option>
-              </select>
-            </label>
+            {!hidesPurchaseOrderFields ? (
+              <label>
+                Inspection
+                <select name="inspectionStatus" value={form.inspectionStatus} onChange={onChange}>
+                  <option value="pending">Pending</option>
+                  <option value="passed">Passed</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </label>
+            ) : null}
             <label>
               Supplier
               <input name="supplier" value={form.supplier} onChange={onChange} />
             </label>
-            <label>
-              PO number
-              <input name="poNumber" value={form.poNumber} onChange={onChange} />
-            </label>
-            <label>
-              Invoice number
-              <input name="invoiceNumber" value={form.invoiceNumber} onChange={onChange} />
-            </label>
-            <label>
-              Payment reference
-              <input name="paymentReference" value={form.paymentReference} onChange={onChange} />
-            </label>
+            {!hidesPurchaseOrderFields ? (
+              <>
+                <label>
+                  PO number
+                  <input name="poNumber" value={form.poNumber} onChange={onChange} />
+                </label>
+                <label>
+                  Invoice number
+                  <input name="invoiceNumber" value={form.invoiceNumber} onChange={onChange} />
+                </label>
+              </>
+            ) : null}
+            {!hidesPurchaseOrderFields ? (
+              <label>
+                Payment reference
+                <input name="paymentReference" value={form.paymentReference} onChange={onChange} />
+              </label>
+            ) : null}
           </>
         ) : null}
       </div>
