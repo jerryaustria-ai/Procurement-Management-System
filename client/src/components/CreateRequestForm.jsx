@@ -146,20 +146,20 @@ export default function CreateRequestForm({
               required
             />
           </label>
-        ) : (
-          <label className={errors.dateNeeded ? 'field-invalid' : ''}>
-            Date needed
-            <input
-              className={errors.dateNeeded ? 'field-input-invalid' : ''}
-              name='dateNeeded'
-              type='date'
-              value={form.dateNeeded}
-              onChange={onChange}
-              onClick={(event) => event.target.showPicker?.()}
-              required
-            />
-          </label>
-        )}
+        ) : null}
+
+        <label className={errors.dateNeeded ? 'field-invalid' : ''}>
+          Date needed
+          <input
+            className={errors.dateNeeded ? 'field-input-invalid' : ''}
+            name='dateNeeded'
+            type='date'
+            value={form.dateNeeded}
+            onChange={onChange}
+            onClick={(event) => event.target.showPicker?.()}
+            required
+          />
+        </label>
 
         {isAdmin && !isCashAdvance && !isReimbursement ? (
           <label className='full-width-field'>

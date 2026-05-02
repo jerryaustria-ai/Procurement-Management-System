@@ -725,17 +725,17 @@ function getDisplayRfpDueDate(record) {
   }).format(date)
 }
 
-function sortRfpRecordsByDueDateDescending(records) {
+function sortRfpRecordsByDueDateAscending(records) {
   return [...records].sort((left, right) => {
     const dateDifference =
-      getRfpDueDateSortValue(right) - getRfpDueDateSortValue(left)
+      getRfpDueDateSortValue(left) - getRfpDueDateSortValue(right)
 
     if (dateDifference !== 0) {
       return dateDifference
     }
 
-    return String(right?.requestNumber || '').localeCompare(
-      String(left?.requestNumber || ''),
+    return String(left?.requestNumber || '').localeCompare(
+      String(right?.requestNumber || ''),
     )
   })
 }
@@ -1020,7 +1020,11 @@ function getRequestAdminForm(
     accountNumber: item.accountNumber ?? '',
     checkNumber: item.checkNumber ?? '',
     checkDate: item.checkDate ? item.checkDate.slice(0, 10) : '',
-    dateNeeded: item.dateNeeded ? item.dateNeeded.slice(0, 10) : '',
+    dateNeeded: item.dateNeeded
+      ? item.dateNeeded.slice(0, 10)
+      : item.category === 'Reimbursement' && item.expenseDate
+        ? item.expenseDate.slice(0, 10)
+        : '',
     expenseDate: item.expenseDate ? item.expenseDate.slice(0, 10) : '',
     status: item.status ?? 'open',
     currentStage:
@@ -1346,9 +1350,7 @@ function formatExportDate(value) {
 }
 
 function getRequestRelevantDate(item) {
-  return item?.category === 'Reimbursement'
-    ? item?.expenseDate
-    : item?.dateNeeded
+  return item?.dateNeeded
 }
 
 function escapeCsvValue(value) {
@@ -2090,7 +2092,7 @@ export default function App() {
   const purchaseOrderRecords = items.filter((item) =>
     String(item.poNumber || item.poDraft?.poNumber || '').trim(),
   )
-  const requestForPaymentRecords = sortRfpRecordsByDueDateDescending(
+  const requestForPaymentRecords = sortRfpRecordsByDueDateAscending(
     items.filter((item) => canAccessRequestForPayment(item)),
   )
   const accountantForPaymentRecords = isAccountant
@@ -3113,7 +3115,6 @@ export default function App() {
           accountNumber: value === 'Cash Advance' ? '' : current.accountNumber,
           checkNumber: value === 'Cash Advance' ? '' : current.checkNumber,
           checkDate: value === 'Cash Advance' ? '' : current.checkDate,
-          dateNeeded: value === 'Reimbursement' ? '' : current.dateNeeded,
           expenseDate: value === 'Reimbursement' ? current.expenseDate : '',
           deliveryAddress:
             value === 'Cash Advance' || value === 'Reimbursement'
@@ -5731,10 +5732,7 @@ export default function App() {
       return
     }
 
-    if (
-      requestForm.category !== 'Reimbursement' &&
-      !requestForm.dateNeeded
-    ) {
+    if (!requestForm.dateNeeded) {
       const message = 'Date needed is required.'
       setRequestFormErrors((currentErrors) => ({
         ...currentErrors,
@@ -5822,10 +5820,7 @@ export default function App() {
               requestForm.category === 'Cash Advance'
                 ? ''
                 : requestForm.checkDate,
-            dateNeeded:
-              requestForm.category === 'Reimbursement'
-                ? ''
-                : requestForm.dateNeeded,
+            dateNeeded: requestForm.dateNeeded,
             expenseDate:
               requestForm.category === 'Reimbursement'
                 ? requestForm.expenseDate
@@ -6340,10 +6335,7 @@ export default function App() {
       return
     }
 
-    if (
-      selectedItem.category !== 'Reimbursement' &&
-      !requestAdminForm.dateNeeded
-    ) {
+    if (!requestAdminForm.dateNeeded) {
       const message = 'Date needed is required.'
       setActionError(message)
       pushToast({
@@ -6396,10 +6388,7 @@ export default function App() {
         accountNumber: String(requestAdminForm.accountNumber || ''),
         checkNumber: String(requestAdminForm.checkNumber || ''),
         checkDate: requestAdminForm.checkDate || '',
-        dateNeeded:
-          selectedItem.category === 'Reimbursement'
-            ? ''
-            : requestAdminForm.dateNeeded,
+        dateNeeded: requestAdminForm.dateNeeded,
         expenseDate:
           selectedItem.category === 'Reimbursement'
             ? requestAdminForm.expenseDate

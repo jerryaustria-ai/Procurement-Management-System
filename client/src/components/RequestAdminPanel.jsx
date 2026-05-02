@@ -108,19 +108,18 @@ export default function RequestAdminPanel({
               required
             />
           </label>
-        ) : (
-          <label>
-            Date needed
-            <input
-              name="dateNeeded"
-              type="date"
-              value={form.dateNeeded}
-              onChange={onChange}
-              onClick={(event) => event.target.showPicker?.()}
-              required
-            />
-          </label>
-        )}
+        ) : null}
+        <label>
+          Date needed
+          <input
+            name="dateNeeded"
+            type="date"
+            value={form.dateNeeded}
+            onChange={onChange}
+            onClick={(event) => event.target.showPicker?.()}
+            required
+          />
+        </label>
         {isAdmin ? (
           <>
             <label>

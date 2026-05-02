@@ -267,15 +267,15 @@ const MONTH_OPTIONS = [
 
 const VALID_RFP_FILTERS = ['all', 'for-payment', 'for-liquidation', 'closed']
 const RFP_STATUS_SORT_ORDER = new Map([
-  ['for approval', 0],
-  ['approved', 1],
-  ['processing', 2],
-  ['released', 3],
-  ['for payment', 4],
-  ['for liquidation', 5],
-  ['liquidation submitted', 6],
-  ['liquidation reviewed', 7],
-  ['liquidated / closed', 8],
+  ['approved', 0],
+  ['processing', 1],
+  ['released', 2],
+  ['for liquidation', 3],
+  ['liquidation submitted', 4],
+  ['liquidation reviewed', 5],
+  ['for approval', 6],
+  ['liquidated / closed', 7],
+  ['for payment', 8],
   ['not set', 9],
 ])
 
@@ -592,12 +592,27 @@ export default function RfpDirectoryPage({
 
       const leftDate = getRfpDueDateSortValue(left)
       const rightDate = getRfpDueDateSortValue(right)
+      const statusRankDifference =
+        getRfpStatusSortRank(left) - getRfpStatusSortRank(right)
 
-      if (sortValue === 'due-date-desc') {
-        return rightDate - leftDate
+      if (sortValue === 'due-date-asc' || sortValue === 'due-date-desc') {
+        if (statusRankDifference !== 0) {
+          return statusRankDifference
+        }
+
+        const dateDifference =
+          sortValue === 'due-date-desc'
+            ? rightDate - leftDate
+            : leftDate - rightDate
+
+        if (dateDifference !== 0) {
+          return dateDifference
+        }
       }
 
-      return leftDate - rightDate
+      return String(left.requestNumber || '').localeCompare(
+        String(right.requestNumber || ''),
+      )
     })
 
     return sortedItems

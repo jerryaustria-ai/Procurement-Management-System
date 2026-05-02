@@ -446,7 +446,9 @@ router.post("/purchase-requests", async (req, res) => {
       return res.status(400).json({ message: "Expense date is required." });
     }
 
-    if (!isReimbursement && !dateNeeded) {
+    const resolvedDateNeeded = dateNeeded || (isReimbursement ? expenseDate : "");
+
+    if (!resolvedDateNeeded) {
       return res.status(400).json({ message: "Date needed is required." });
     }
 
@@ -534,7 +536,7 @@ router.post("/purchase-requests", async (req, res) => {
       checkNumber: isCashAdvance ? "" : checkNumber || "",
       checkDate: isCashAdvance ? null : checkDate || null,
       priority: priority || "medium",
-      dateNeeded: isReimbursement ? null : dateNeeded || null,
+      dateNeeded: resolvedDateNeeded || null,
       expenseDate: isReimbursement ? expenseDate || null : null,
       deliveryAddress: isCashAdvance || isReimbursement ? "" : deliveryAddress || "",
       paymentTerms: paymentTerms || "Net 30",
@@ -666,10 +668,12 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     typeof req.body.description === "string" ? req.body.description.trim() : request.description;
   const nextCategory =
     typeof req.body.category === "string" ? req.body.category : request.category;
-  const nextDateNeeded =
-    typeof req.body.dateNeeded !== "undefined" ? req.body.dateNeeded : request.dateNeeded;
   const nextExpenseDate =
     typeof req.body.expenseDate !== "undefined" ? req.body.expenseDate : request.expenseDate;
+  const nextDateNeeded =
+    typeof req.body.dateNeeded !== "undefined"
+      ? req.body.dateNeeded || (nextCategory === "Reimbursement" ? nextExpenseDate : "")
+      : request.dateNeeded || (nextCategory === "Reimbursement" ? nextExpenseDate : "");
   const nextAmount =
     typeof req.body.amount !== "undefined" ? req.body.amount : request.amount;
   const isReimbursement = nextCategory === "Reimbursement";
@@ -686,7 +690,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     return res.status(400).json({ message: "Expense date is required." });
   }
 
-  if (!isReimbursement && !nextDateNeeded) {
+  if (!nextDateNeeded) {
     return res.status(400).json({ message: "Date needed is required." });
   }
 
@@ -772,7 +776,8 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     const previousDateNeeded = request.dateNeeded
       ? new Date(request.dateNeeded).toISOString().slice(0, 10)
       : "";
-    const nextDateNeeded = req.body.dateNeeded || null;
+    const nextDateNeeded =
+      req.body.dateNeeded || (request.category === "Reimbursement" ? request.expenseDate : null);
     request.dateNeeded = nextDateNeeded;
 
     const currentRfpDraft = request.rfpDraft?.toObject?.() || request.rfpDraft || {};
@@ -801,9 +806,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     request.checkDate = req.body.checkDate || null;
   }
 
-  if (request.category === "Reimbursement") {
-    request.dateNeeded = null;
-  } else {
+  if (request.category !== "Reimbursement") {
     request.expenseDate = null;
   }
 

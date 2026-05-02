@@ -112,12 +112,11 @@ export default function PurchaseOrderPage({
                 <span>Expense date</span>
                 <strong>{formatDate(item.expenseDate)}</strong>
               </div>
-            ) : (
-              <div>
-                <span>Date needed</span>
-                <strong>{formatDate(item.dateNeeded)}</strong>
-              </div>
-            )}
+            ) : null}
+            <div>
+              <span>Date needed</span>
+              <strong>{formatDate(item.dateNeeded)}</strong>
+            </div>
             <div>
               <span>Delivery address</span>
               <strong>{item.deliveryAddress || "Not set"}</strong>

@@ -264,12 +264,11 @@ export default function RequestSummary({
             <span>Expense date</span>
             <strong>{formatDate(item.expenseDate)}</strong>
           </div>
-        ) : (
-          <div>
-            <span>Date needed</span>
-            <strong>{formatDate(item.dateNeeded)}</strong>
-          </div>
-        )}
+        ) : null}
+        <div>
+          <span>Date needed</span>
+          <strong>{formatDate(item.dateNeeded)}</strong>
+        </div>
         <div>
           <span>Requested at</span>
           <strong>{formatDate(item.requestedAt)}</strong>
