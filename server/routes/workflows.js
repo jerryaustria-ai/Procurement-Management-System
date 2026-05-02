@@ -713,6 +713,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "accountName",
           "accountNumber",
           "priority",
+          "dateNeeded",
           "expenseDate",
           "deliveryAddress",
           "paymentTerms",
@@ -731,6 +732,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "branch",
           "department",
           "propertyProject",
+          "dateNeeded",
           "expenseDate",
           "notes",
           "bankName",
@@ -772,13 +774,17 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     request.amount = parsedAmount;
   }
 
+  if (typeof req.body.expenseDate !== "undefined") {
+    request.expenseDate = req.body.expenseDate || null;
+  }
+
   if (typeof req.body.dateNeeded !== "undefined") {
     const previousDateNeeded = request.dateNeeded
       ? new Date(request.dateNeeded).toISOString().slice(0, 10)
       : "";
     const nextDateNeeded =
       req.body.dateNeeded || (request.category === "Reimbursement" ? request.expenseDate : null);
-    request.dateNeeded = nextDateNeeded;
+    request.dateNeeded = nextDateNeeded || null;
 
     const currentRfpDraft = request.rfpDraft?.toObject?.() || request.rfpDraft || {};
     const currentRfpDueDate = String(currentRfpDraft.dueDate || "").trim();
@@ -786,16 +792,16 @@ router.patch("/purchase-requests/:id", async (req, res) => {
       ? new Date(nextDateNeeded).toISOString().slice(0, 10)
       : "";
 
-    if (!currentRfpDueDate || currentRfpDueDate === previousDateNeeded) {
+    if (
+      request.category === "Reimbursement" ||
+      !currentRfpDueDate ||
+      currentRfpDueDate === previousDateNeeded
+    ) {
       request.rfpDraft = {
         ...currentRfpDraft,
         dueDate: nextDateNeededValue
       };
     }
-  }
-
-  if (typeof req.body.expenseDate !== "undefined") {
-    request.expenseDate = req.body.expenseDate || null;
   }
 
   if (typeof req.body.checkNumber !== "undefined") {
