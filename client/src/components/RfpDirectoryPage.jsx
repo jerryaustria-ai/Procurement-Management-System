@@ -553,6 +553,13 @@ export default function RfpDirectoryPage({
     })
 
     const sortedItems = [...filteredItems].sort((left, right) => {
+      const urgentDifference =
+        Number(Boolean(right.isUrgent)) - Number(Boolean(left.isUrgent))
+
+      if (urgentDifference !== 0) {
+        return urgentDifference
+      }
+
       if (sortValue === 'request-number-asc') {
         return String(left.requestNumber || '').localeCompare(
           String(right.requestNumber || ''),
