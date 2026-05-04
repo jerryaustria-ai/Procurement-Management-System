@@ -112,6 +112,18 @@ function clearPurchaseOrderNumber(request) {
   };
 }
 
+function parseBooleanValue(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+  }
+
+  return Boolean(value);
+}
+
 async function getConfiguredWorkflowStages() {
   const globalSetting = await Setting.findOne({ key: "global" }).select("workflowStages");
 
@@ -432,6 +444,7 @@ router.post("/purchase-requests", async (req, res) => {
       accountNumber,
       checkNumber,
       checkDate,
+      isUrgent,
       priority,
       dateNeeded,
       expenseDate,
@@ -550,6 +563,7 @@ router.post("/purchase-requests", async (req, res) => {
       accountNumber: isCashAdvance ? "" : accountNumber || "",
       checkNumber: isCashAdvance ? "" : checkNumber || "",
       checkDate: isCashAdvance ? null : checkDate || null,
+      isUrgent: parseBooleanValue(isUrgent),
       priority: priority || "medium",
       dateNeeded: resolvedDateNeeded || null,
       expenseDate: isReimbursement ? expenseDate || null : null,
@@ -727,6 +741,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "bankName",
           "accountName",
           "accountNumber",
+          "isUrgent",
           "priority",
           "dateNeeded",
           "expenseDate",
@@ -752,7 +767,8 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "notes",
           "bankName",
           "accountName",
-          "accountNumber"
+          "accountNumber",
+          "isUrgent"
         ];
 
   const isCompletedStageSelection =
@@ -787,6 +803,10 @@ router.patch("/purchase-requests/:id", async (req, res) => {
       return res.status(400).json({ message: "Amount must be a valid number greater than zero." });
     }
     request.amount = parsedAmount;
+  }
+
+  if (typeof req.body.isUrgent !== "undefined") {
+    request.isUrgent = parseBooleanValue(req.body.isUrgent);
   }
 
   if (typeof req.body.expenseDate !== "undefined") {

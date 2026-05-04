@@ -46,6 +46,7 @@ export function serializePurchaseRequest(request) {
     accountNumber: request.accountNumber,
     checkNumber: request.checkNumber,
     checkDate: request.checkDate,
+    isUrgent: Boolean(request.isUrgent),
     priority: request.priority,
     priorityLabel: priorityLabels[request.priority],
     dateNeeded: request.dateNeeded,

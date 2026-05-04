@@ -181,6 +181,16 @@ export default function RequestAdminPanel({
         <textarea name="description" value={form.description} onChange={onChange} rows="3" required />
       </label>
 
+      <label className="checkbox-field">
+        <input
+          name="isUrgent"
+          type="checkbox"
+          checked={Boolean(form.isUrgent)}
+          onChange={onChange}
+        />
+        <span>Mark as Urgent</span>
+      </label>
+
       <label>
         Notes
         <textarea name="notes" value={form.notes} onChange={onChange} rows="3" />

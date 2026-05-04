@@ -200,6 +200,16 @@ export default function CreateRequestForm({
         />
       </label>
 
+      <label className='checkbox-field'>
+        <input
+          name='isUrgent'
+          type='checkbox'
+          checked={Boolean(form.isUrgent)}
+          onChange={onChange}
+        />
+        <span>Mark as Urgent</span>
+      </label>
+
       <div className='create-request-divider' aria-hidden='true' />
 
       <div className='form-grid two-column'>

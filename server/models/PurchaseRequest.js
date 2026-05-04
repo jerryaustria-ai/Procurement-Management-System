@@ -102,6 +102,7 @@ const purchaseRequestSchema = new mongoose.Schema(
     accountNumber: { type: String, default: "" },
     checkNumber: { type: String, default: "" },
     checkDate: { type: Date, default: null },
+    isUrgent: { type: Boolean, default: false },
     priority: {
       type: String,
       enum: Object.keys(priorityLabels),

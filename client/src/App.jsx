@@ -464,6 +464,7 @@ function getInitialRequestForm(
     accountNumber: '',
     checkNumber: '',
     checkDate: '',
+    isUrgent: false,
     dateNeeded: '',
     expenseDate: '',
     deliveryAddress,
@@ -1012,6 +1013,7 @@ function getRequestAdminForm(
       accountNumber: '',
       checkNumber: '',
       checkDate: '',
+      isUrgent: false,
       status: 'open',
       currentStage: '',
       inspectionStatus: 'pending',
@@ -1037,6 +1039,7 @@ function getRequestAdminForm(
     accountNumber: item.accountNumber ?? '',
     checkNumber: item.checkNumber ?? '',
     checkDate: item.checkDate ? item.checkDate.slice(0, 10) : '',
+    isUrgent: Boolean(item.isUrgent),
     dateNeeded: item.dateNeeded
       ? item.dateNeeded.slice(0, 10)
       : item.category === 'Reimbursement' && item.expenseDate
@@ -3091,7 +3094,8 @@ export default function App() {
   }
 
   function handleRequestFormChange(event) {
-    const { name, value } = event.target
+    const { checked, name, type, value } = event.target
+    const nextValue = type === 'checkbox' ? checked : value
 
     setRequestForm((current) => {
       if (name === 'requesterEmail') {
@@ -3169,7 +3173,7 @@ export default function App() {
 
       return {
         ...current,
-        [name]: value,
+        [name]: nextValue,
       }
     })
   }
@@ -3284,7 +3288,11 @@ export default function App() {
         nextSupplier
 
       setItems((current) =>
-        current.map((item) => (item.id === data.id ? data : item)),
+        current.map((item) =>
+          item.id === data.id
+            ? { ...data, isUrgent: requestUpdatePayload.isUrgent }
+            : item,
+        ),
       )
       setPurchaseOrderDrafts((current) => ({
         ...current,
@@ -3405,11 +3413,11 @@ export default function App() {
   }
 
   function handleRequestAdminFormChange(event) {
-    const { name, value } = event.target
+    const { checked, name, type, value } = event.target
 
     setRequestAdminForm((current) => ({
       ...current,
-      [name]: value,
+      [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
@@ -5857,6 +5865,7 @@ export default function App() {
                 ? ''
                 : requestForm.checkDate,
             dateNeeded: requestForm.dateNeeded,
+            isUrgent: Boolean(requestForm.isUrgent),
             expenseDate:
               requestForm.category === 'Reimbursement'
                 ? requestForm.expenseDate
@@ -6425,6 +6434,7 @@ export default function App() {
         checkNumber: String(requestAdminForm.checkNumber || ''),
         checkDate: requestAdminForm.checkDate || '',
         dateNeeded: requestAdminForm.dateNeeded,
+        isUrgent: Boolean(requestAdminForm.isUrgent),
         expenseDate:
           selectedItem.category === 'Reimbursement'
             ? requestAdminForm.expenseDate
