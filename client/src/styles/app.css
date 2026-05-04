@@ -3005,7 +3005,12 @@ label,
   outline: none;
 }
 
+.supplier-row.urgent td {
+  border-color: rgba(195, 75, 66, 0.28);
+}
+
 .supplier-row td {
+  position: relative;
   padding: 12px 14px;
   background: var(--card-bg);
   color: var(--heading-color);
@@ -3039,6 +3044,27 @@ label,
     rgba(213, 181, 108, 0.12) 0%,
     rgba(255, 255, 255, 0.04) 100%
   );
+}
+
+.rfp-table-urgent-watermark {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+  color: rgba(195, 75, 66, 0.12) !important;
+  font-size: 1.8rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  transform: translateY(-50%);
+}
+
+.rfp-table-urgent-watermark + strong,
+.rfp-table-urgent-watermark ~ .audit-trail-cell-subtext {
+  position: relative;
+  z-index: 1;
 }
 
 .supplier-table-footer td {

@@ -925,7 +925,7 @@ export default function RfpDirectoryPage({
                 return (
                   <tr
                     key={record.id}
-                    className="supplier-row audit-trail-row"
+                    className={`supplier-row audit-trail-row ${record.isUrgent ? "urgent" : ""}`}
                     onClick={handlePreview}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -936,6 +936,11 @@ export default function RfpDirectoryPage({
                     tabIndex={0}
                   >
                     <td>
+                      {record.isUrgent ? (
+                        <span className="rfp-table-urgent-watermark" aria-hidden="true">
+                          URGENT
+                        </span>
+                      ) : null}
                       <strong>{record.requestNumber}</strong>
                       <div className="audit-trail-cell-subtext">{record.title}</div>
                     </td>
@@ -987,10 +992,15 @@ export default function RfpDirectoryPage({
               return (
                 <article
                   key={record.id}
-                  className={`request-list-item rfp-record-card ${
+                  className={`request-list-item rfp-record-card ${record.isUrgent ? "urgent" : ""} ${
                     record.status === "completed" || record.filingCompleted ? "completed" : ""
                   } ${record.status === "rejected" ? "rejected" : ""}`}
                 >
+                  {record.isUrgent ? (
+                    <span className="request-list-urgent-watermark" aria-hidden="true">
+                      URGENT
+                    </span>
+                  ) : null}
                   <button
                     className="request-card-select"
                     type="button"
