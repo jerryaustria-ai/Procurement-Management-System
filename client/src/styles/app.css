@@ -1804,6 +1804,24 @@ label,
   border-color: rgba(213, 181, 108, 0.18);
 }
 
+.request-list-item.urgent {
+  border-color: rgba(195, 75, 66, 0.34);
+}
+
+.request-list-urgent-watermark {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+  color: rgba(195, 75, 66, 0.14) !important;
+  font-size: clamp(1.65rem, 4vw, 3rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 .request-card-select {
   width: 100%;
   padding: 0;
@@ -1812,6 +1830,8 @@ label,
   color: inherit;
   text-align: left;
   cursor: pointer;
+  position: relative;
+  z-index: 1;
 }
 
 .request-card-select:hover {
@@ -1985,6 +2005,8 @@ label,
 }
 
 .request-list-footer {
+  position: relative;
+  z-index: 1;
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid rgba(168, 185, 204, 0.08);

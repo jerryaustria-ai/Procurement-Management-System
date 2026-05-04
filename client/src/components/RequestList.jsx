@@ -293,11 +293,16 @@ export default function RequestList({
           return (
           <article
             key={item.id}
-            className={`request-list-item ${selectedId === item.id ? "selected" : ""} ${
+            className={`request-list-item ${item.isUrgent ? "urgent" : ""} ${selectedId === item.id ? "selected" : ""} ${
               item.status === "completed" ? "completed" : ""
             } ${item.status === "rejected" ? "rejected" : ""
             }`}
           >
+            {item.isUrgent ? (
+              <span className="request-list-urgent-watermark" aria-hidden="true">
+                URGENT
+              </span>
+            ) : null}
             <button
               className="request-card-select"
               type="button"
