@@ -449,7 +449,7 @@ function getInitialRequestForm(
   return {
     requesterName,
     requesterEmail,
-    category: 'Purchase Request',
+    category: '',
     title: '',
     description: '',
     branch,
@@ -474,6 +474,10 @@ function getInitialRequestForm(
 function getRequestNumberPrefixForCategory(category = '') {
   const normalizedCategory = String(category || '').trim().toLowerCase()
 
+  if (normalizedCategory === 'request for payment (rfp)') {
+    return 'RFP'
+  }
+
   if (normalizedCategory === 'cash advance') {
     return 'CA'
   }
@@ -488,9 +492,14 @@ function getRequestNumberPrefixForCategory(category = '') {
 function getRequestNumberPreview(items = [], category = '') {
   const currentYear = new Date().getFullYear()
   const prefix = `${getRequestNumberPrefixForCategory(category)}-${currentYear}-`
+  const normalizedCategory = String(category || '').trim().toLowerCase()
+  const numberField =
+    normalizedCategory === 'request for payment (rfp)'
+      ? 'rfpNumber'
+      : 'requestNumber'
 
   const latestSequence = items.reduce((highest, item) => {
-    const requestNumber = String(item?.requestNumber || '')
+    const requestNumber = String(item?.[numberField] || '')
 
     if (!requestNumber.startsWith(prefix)) {
       return highest
@@ -520,6 +529,14 @@ function getRequestTypeLabel(item) {
   }
 
   return item?.category || 'Purchase Request'
+}
+
+function getDisplayRequestNumber(item) {
+  if (item?.category === 'Request for Payment (RFP)') {
+    return item.rfpNumber || item.requestNumber
+  }
+
+  return item?.requestNumber
 }
 
 function getInitialUserForm() {
@@ -1845,6 +1862,7 @@ export default function App() {
   const [requestQuotationFile, setRequestQuotationFile] = useState(null)
   const [requestFormErrors, setRequestFormErrors] = useState({
     category: false,
+    requester: false,
     title: false,
     description: false,
     dateNeeded: false,
@@ -3101,9 +3119,10 @@ export default function App() {
       if (name === 'category') {
         setRequestFormErrors((currentErrors) => ({
           ...currentErrors,
-          category: false,
-          dateNeeded: false,
-          expenseDate: false,
+        category: false,
+        requester: false,
+        dateNeeded: false,
+        expenseDate: false,
         }))
         return {
           ...current,
@@ -3173,6 +3192,7 @@ export default function App() {
     setRequestFormErrors({
       category: false,
       title: false,
+      requester: false,
       description: false,
       dateNeeded: false,
       expenseDate: false,
@@ -5697,6 +5717,22 @@ export default function App() {
       return
     }
 
+    if (!requestForm.amount.trim()) {
+      const message = 'Amount is required.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        amount: true,
+      }))
+      setActionError(message)
+      pushToast({
+        title: 'Missing required fields',
+        message,
+        variant: 'error',
+        duration: 4200,
+      })
+      return
+    }
+
     if (!requestForm.description.trim()) {
       const message = 'Description is required.'
       setRequestFormErrors((currentErrors) => ({
@@ -5750,6 +5786,10 @@ export default function App() {
 
     if (isAdmin && !requestForm.requesterEmail) {
       const message = 'Requester must be selected from system users.'
+      setRequestFormErrors((currentErrors) => ({
+        ...currentErrors,
+        requester: true,
+      }))
       setActionError(message)
       pushToast({
         title: 'Missing requester',
@@ -5762,12 +5802,8 @@ export default function App() {
 
     const parsedRequestAmount = parseAmountValue(requestForm.amount)
 
-    if (
-      requestForm.amount &&
-      (Number.isNaN(parsedRequestAmount) || parsedRequestAmount <= 0)
-    ) {
-      const message =
-        'Amount must be a valid number greater than zero if provided.'
+    if (Number.isNaN(parsedRequestAmount) || parsedRequestAmount <= 0) {
+      const message = 'Amount must be a valid number greater than zero.'
       setRequestFormErrors((currentErrors) => ({
         ...currentErrors,
         amount: true,
@@ -9824,7 +9860,7 @@ export default function App() {
             expandedPanel === 'workflow' && selectedItem
               ? undefined
               : expandedPanel === 'request-summary' && selectedItem
-                ? selectedItem.requestNumber
+                ? getDisplayRequestNumber(selectedItem)
                 : undefined
           }
           actions={
@@ -10038,7 +10074,7 @@ export default function App() {
       {isEditRequestModalOpen && selectedItem ? (
         <Modal
           eyebrow={isAdmin ? 'Admin Request' : 'Edit Request'}
-          title={`Edit ${selectedItem.requestNumber}`}
+          title={`Edit ${getDisplayRequestNumber(selectedItem)}`}
           onClose={() => setIsEditRequestModalOpen(false)}
         >
           <RequestAdminPanel

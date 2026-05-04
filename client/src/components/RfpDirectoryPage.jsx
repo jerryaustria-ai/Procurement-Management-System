@@ -937,9 +937,6 @@ export default function RfpDirectoryPage({
                   >
                     <td>
                       <strong>{record.requestNumber}</strong>
-                      <div className="audit-trail-cell-subtext">
-                        {record.rfpNumber || "RFP number pending"}
-                      </div>
                       <div className="audit-trail-cell-subtext">{record.title}</div>
                     </td>
                     <td>{getDisplayPayee(record)}</td>
@@ -1003,9 +1000,6 @@ export default function RfpDirectoryPage({
                       <div>
                         <span>Request</span>
                         <strong className="request-list-title">{record.requestNumber}</strong>
-                        <small className="rfp-record-card-title">
-                          {record.rfpNumber || "RFP number pending"}
-                        </small>
                       </div>
                       <span className={getRfpStatusClassName(record)}>
                         {getDisplayRfpStatus(record)}

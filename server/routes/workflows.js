@@ -280,6 +280,10 @@ function getRequestNumberPrefix(category = "") {
     .trim()
     .toLowerCase();
 
+  if (normalizedCategory === "request for payment (rfp)") {
+    return "RFP";
+  }
+
   if (normalizedCategory === "cash advance") {
     return "CA";
   }
@@ -437,9 +441,18 @@ router.post("/purchase-requests", async (req, res) => {
     } = req.body;
     const isReimbursement = category === "Reimbursement";
     const isCashAdvance = category === "Cash Advance";
+    const isRequestForPayment = category === "Request for Payment (RFP)";
+
+    if (!category) {
+      return res.status(400).json({ message: "Request type is required." });
+    }
 
     if (!title) {
       return res.status(400).json({ message: "Title is required." });
+    }
+
+    if (typeof amount === "undefined" || amount === "" || amount === null) {
+      return res.status(400).json({ message: "Amount is required." });
     }
 
     if (isReimbursement && !expenseDate) {
@@ -465,8 +478,10 @@ router.post("/purchase-requests", async (req, res) => {
       }
     }
 
-    const requestNumber = await getNextRequestNumber(category);
     const rfpNumber = await getNextRfpNumber(new Date().getFullYear());
+    const requestNumber = isRequestForPayment
+      ? rfpNumber
+      : await getNextRequestNumber(category);
     const requestWorkflowStages = await getConfiguredWorkflowStages();
     const skippedWorkflowStages = await getConfiguredSkippedWorkflowStages(requestWorkflowStages);
     const initialStage = requestWorkflowStages[0];
@@ -512,8 +527,8 @@ router.post("/purchase-requests", async (req, res) => {
 
     const parsedAmount = parseAmountValue(amount);
 
-    if (typeof amount !== "undefined" && amount !== "" && Number.isNaN(parsedAmount)) {
-      return res.status(400).json({ message: "Amount must be a valid number." });
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ message: "Amount must be a valid number greater than zero." });
     }
 
     const created = await PurchaseRequest.create({
@@ -521,7 +536,7 @@ router.post("/purchase-requests", async (req, res) => {
       rfpNumber,
       title,
       description: description || "",
-      category: category || "General Procurement",
+      category,
       branch: branch || "Januarius Holdings",
       department: department || "",
       propertyProject: propertyProject || "",

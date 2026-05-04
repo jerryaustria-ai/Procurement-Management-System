@@ -71,6 +71,37 @@ function getProcurementStageValue(item) {
   return currentStage;
 }
 
+function getDisplayRequestNumber(item) {
+  if (item?.category === "Request for Payment (RFP)") {
+    return item.rfpNumber || item.requestNumber;
+  }
+
+  return item?.requestNumber;
+}
+
+function getDisplayRequestType(item) {
+  const category = String(item?.category || "").trim();
+  const displayNumber = String(getDisplayRequestNumber(item) || "").toUpperCase();
+
+  if (category === "Request for Payment (RFP)" || displayNumber.startsWith("RFP-")) {
+    return "Request for Payment";
+  }
+
+  if (category) {
+    return category;
+  }
+
+  if (displayNumber.startsWith("RE-")) {
+    return "Reimbursement";
+  }
+
+  if (displayNumber.startsWith("CA-")) {
+    return "Cash Advance";
+  }
+
+  return "Purchase Request";
+}
+
 export default function RequestList({
   items,
   selectedId,
@@ -255,7 +286,11 @@ export default function RequestList({
       </div>
 
       <div className={`request-list request-list--${viewMode}`}>
-        {paginatedItems.map((item) => (
+        {paginatedItems.map((item) => {
+          const displayRequestNumber = getDisplayRequestNumber(item);
+          const displayRequestType = getDisplayRequestType(item);
+
+          return (
           <article
             key={item.id}
             className={`request-list-item ${selectedId === item.id ? "selected" : ""} ${
@@ -272,7 +307,8 @@ export default function RequestList({
               }}
             >
               <div className="request-list-topline">
-                <strong>{item.requestNumber}</strong>
+                <strong>{displayRequestNumber}</strong>
+                <small className="request-list-meta-line">{displayRequestType}</small>
               </div>
               <span className="request-list-title">{item.title}</span>
               <small>
@@ -304,7 +340,7 @@ export default function RequestList({
                     className="request-open-link danger-link"
                     type="button"
                     onClick={() => onDelete?.(item.id)}
-                    aria-label={`Delete ${item.requestNumber}`}
+                    aria-label={`Delete ${displayRequestNumber}`}
                     title="Delete request"
                   >
                     Delete
@@ -323,7 +359,8 @@ export default function RequestList({
               </div>
             </div>
           </article>
-        ))}
+          );
+        })}
         {items.length === 0 ? (
           <p className="empty-state">No requests available.</p>
         ) : null}

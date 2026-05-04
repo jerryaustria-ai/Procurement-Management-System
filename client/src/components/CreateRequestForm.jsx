@@ -18,6 +18,7 @@ export default function CreateRequestForm({
 }) {
   const isCashAdvance = form.category === 'Cash Advance'
   const isReimbursement = form.category === 'Reimbursement'
+  const isRequestForPayment = form.category === 'Request for Payment (RFP)'
   const isBankTransfer = form.modeOfRelease === 'Bank Transfer'
   const isCheck = form.modeOfRelease === 'Check'
 
@@ -33,32 +34,42 @@ export default function CreateRequestForm({
             onChange={onChange}
             required
           >
-            {['Purchase Request', 'Cash Advance', 'Reimbursement'].map(
-              (option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ),
-            )}
+            <option value=''>Select request type</option>
+            {[
+              'Purchase Request',
+              'Cash Advance',
+              'Reimbursement',
+              'Request for Payment (RFP)',
+            ].map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
         </label>
       </div>
 
       <div className='form-grid two-column'>
-        {isCashAdvance || isReimbursement ? (
+        {isCashAdvance || isReimbursement || isRequestForPayment ? (
           <label>
-            {isReimbursement ? 'Reimbursement Number' : 'Request Number'}
+            {isRequestForPayment
+              ? 'RFP Number'
+              : isReimbursement
+                ? 'Reimbursement Number'
+                : 'Request Number'}
             <input value={requestNumberPreview} readOnly />
           </label>
         ) : null}
 
         {isAdmin ? (
-          <label>
-            Requester
+          <label className={errors.requester ? 'field-invalid' : ''}>
+            Requester *
             <select
+              className={errors.requester ? 'field-input-invalid' : ''}
               name='requesterEmail'
               value={form.requesterEmail}
               onChange={onChange}
+              required
             >
               <option value=''>Select a system user</option>
               {requesterOptions.map((user) => (
@@ -70,13 +81,13 @@ export default function CreateRequestForm({
           </label>
         ) : isCashAdvance ? (
           <label>
-            Requester
+            Requester *
             <input value={form.requesterName} readOnly />
           </label>
         ) : null}
 
         <label className={errors.title ? 'field-invalid' : ''}>
-          Request title
+          Request title *
           <input
             className={errors.title ? 'field-input-invalid' : ''}
             name='title'
@@ -99,7 +110,8 @@ export default function CreateRequestForm({
 
         {form.category === 'Cash Advance' ||
         form.category === 'Purchase Request' ||
-        form.category === 'Reimbursement' ? (
+        form.category === 'Reimbursement' ||
+        form.category === 'Request for Payment (RFP)' ? (
           <label>
             Property / Project
             <input
@@ -123,13 +135,14 @@ export default function CreateRequestForm({
         </label>
 
         <label className={errors.amount ? 'field-invalid' : ''}>
-          Amount
+          Amount *
           <input
             className={errors.amount ? 'field-input-invalid' : ''}
             name='amount'
             value={form.amount}
             onChange={onChange}
             inputMode='decimal'
+            required
           />
         </label>
 
@@ -149,7 +162,7 @@ export default function CreateRequestForm({
         ) : null}
 
         <label className={errors.dateNeeded ? 'field-invalid' : ''}>
-          Date needed
+          Date needed *
           <input
             className={errors.dateNeeded ? 'field-input-invalid' : ''}
             name='dateNeeded'
@@ -175,7 +188,7 @@ export default function CreateRequestForm({
       </div>
 
       <label className={errors.description ? 'field-invalid' : ''}>
-        Description
+        Description *
         <textarea
           className={errors.description ? 'field-input-invalid' : ''}
           name='description'

@@ -65,6 +65,14 @@ function getRequestTypeLabel(item) {
   return item?.category || "Purchase Request";
 }
 
+function getDisplayRequestNumber(item) {
+  if (item?.category === "Request for Payment (RFP)") {
+    return item.rfpNumber || item.requestNumber;
+  }
+
+  return item?.requestNumber;
+}
+
 function getSummaryPayee(item) {
   const requestedPayeeSupplier = String(item?.requestedPayeeSupplier || "").trim();
   const savedPayee = String(item?.rfpDraft?.payee || "").trim();
@@ -142,7 +150,7 @@ export default function RequestSummary({
         <div className="summary-header">
           <div>
             <p className="eyebrow">{getRequestTypeLabel(item)}</p>
-            <h1>{item.requestNumber}</h1>
+            <h1>{getDisplayRequestNumber(item)}</h1>
             <p className="summary-title">{item.title}</p>
             <div className="summary-inline-details">
               <p>
