@@ -38,11 +38,7 @@ const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const RFP_PAYMENT_STATUS_OPTIONS = [
   'Approved',
-  'Processing',
   'Released',
-  'For Liquidation',
-  'Liquidation Submitted',
-  'Liquidation Reviewed',
   'Liquidated / Closed',
 ]
 const RFP_PAID_EQUIVALENT_STATUSES = new Set([
@@ -2077,6 +2073,9 @@ export default function App() {
   const filteredItems = searchRequests(
     filterRequests(visibleRegistryItems, requestRegistryFilter),
     requestSearchQuery,
+  ).sort(
+    (left, right) =>
+      Number(Boolean(right.isUrgent)) - Number(Boolean(left.isUrgent)),
   )
   const selectedItem =
     items.find((item) => item.id === selectedId) ??
@@ -3150,6 +3149,18 @@ export default function App() {
         }
       }
 
+      if (name === 'modeOfRelease') {
+        return {
+          ...current,
+          modeOfRelease: value,
+          bankName: value === 'Cash' ? '' : current.bankName,
+          accountName: value === 'Cash' ? '' : current.accountName,
+          accountNumber: value === 'Cash' ? '' : current.accountNumber,
+          checkNumber: value === 'Check' ? current.checkNumber : '',
+          checkDate: value === 'Check' ? current.checkDate : '',
+        }
+      }
+
       if (name === 'branch') {
         return {
           ...current,
@@ -3415,10 +3426,26 @@ export default function App() {
   function handleRequestAdminFormChange(event) {
     const { checked, name, type, value } = event.target
 
-    setRequestAdminForm((current) => ({
-      ...current,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
+    setRequestAdminForm((current) => {
+      const nextValue = type === 'checkbox' ? checked : value
+
+      if (name === 'modeOfRelease') {
+        return {
+          ...current,
+          modeOfRelease: nextValue,
+          bankName: nextValue === 'Cash' ? '' : current.bankName,
+          accountName: nextValue === 'Cash' ? '' : current.accountName,
+          accountNumber: nextValue === 'Cash' ? '' : current.accountNumber,
+          checkNumber: nextValue === 'Check' ? current.checkNumber : '',
+          checkDate: nextValue === 'Check' ? current.checkDate : '',
+        }
+      }
+
+      return {
+        ...current,
+        [name]: nextValue,
+      }
+    })
   }
 
   function handleUserFormChange(event) {
@@ -5830,6 +5857,10 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
+      const normalizedModeOfRelease =
+        requestForm.category === 'Cash Advance'
+          ? 'Cash'
+          : requestForm.modeOfRelease
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests`,
         {
@@ -5840,30 +5871,27 @@ export default function App() {
           },
           body: JSON.stringify({
             ...requestForm,
-            modeOfRelease:
-              requestForm.category === 'Cash Advance'
-                ? 'Cash'
-                : requestForm.modeOfRelease,
+            modeOfRelease: normalizedModeOfRelease,
             bankName:
-              requestForm.category === 'Cash Advance'
+              normalizedModeOfRelease === 'Cash'
                 ? ''
                 : requestForm.bankName,
             accountName:
-              requestForm.category === 'Cash Advance'
+              normalizedModeOfRelease === 'Cash'
                 ? ''
                 : requestForm.accountName,
             accountNumber:
-              requestForm.category === 'Cash Advance'
+              normalizedModeOfRelease === 'Cash'
                 ? ''
                 : requestForm.accountNumber,
             checkNumber:
-              requestForm.category === 'Cash Advance'
-                ? ''
-                : requestForm.checkNumber,
+              normalizedModeOfRelease === 'Check'
+                ? requestForm.checkNumber
+                : '',
             checkDate:
-              requestForm.category === 'Cash Advance'
-                ? ''
-                : requestForm.checkDate,
+              normalizedModeOfRelease === 'Check'
+                ? requestForm.checkDate
+                : '',
             dateNeeded: requestForm.dateNeeded,
             isUrgent: Boolean(requestForm.isUrgent),
             expenseDate:
@@ -6425,14 +6453,32 @@ export default function App() {
     setIsSubmitting(true)
 
     try {
+      const normalizedModeOfRelease = String(
+        requestAdminForm.modeOfRelease || '',
+      )
       const requestUpdatePayload = {
         ...requestAdminForm,
-        modeOfRelease: String(requestAdminForm.modeOfRelease || ''),
-        bankName: String(requestAdminForm.bankName || ''),
-        accountName: String(requestAdminForm.accountName || ''),
-        accountNumber: String(requestAdminForm.accountNumber || ''),
-        checkNumber: String(requestAdminForm.checkNumber || ''),
-        checkDate: requestAdminForm.checkDate || '',
+        modeOfRelease: normalizedModeOfRelease,
+        bankName:
+          normalizedModeOfRelease === 'Cash'
+            ? ''
+            : String(requestAdminForm.bankName || ''),
+        accountName:
+          normalizedModeOfRelease === 'Cash'
+            ? ''
+            : String(requestAdminForm.accountName || ''),
+        accountNumber:
+          normalizedModeOfRelease === 'Cash'
+            ? ''
+            : String(requestAdminForm.accountNumber || ''),
+        checkNumber:
+          normalizedModeOfRelease === 'Check'
+            ? String(requestAdminForm.checkNumber || '')
+            : '',
+        checkDate:
+          normalizedModeOfRelease === 'Check'
+            ? requestAdminForm.checkDate || ''
+            : '',
         dateNeeded: requestAdminForm.dateNeeded,
         isUrgent: Boolean(requestAdminForm.isUrgent),
         expenseDate:
@@ -7181,6 +7227,7 @@ export default function App() {
     const description = record.rfpDraft?.notes || record.description || ''
     const payee = getEffectiveRequestForPaymentPayee(record) || 'Not set'
     const tinNumber = record.rfpDraft?.tinNumber || 'Not set'
+    const propertyProject = record.propertyProject || 'Not set'
     const invoiceNumber = record.rfpDraft?.invoiceNumber || 'Not set'
     const matchedSupplier = suppliers.find(
       (supplier) =>
@@ -7520,6 +7567,10 @@ export default function App() {
                       <span>TIN:</span>
                       <div class="line-fill">${tinNumber}</div>
                     </div>
+                    <div class="line-row line-row--wide-label">
+                      <span>Property / Project:</span>
+                      <div class="line-fill">${propertyProject}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -7774,10 +7825,24 @@ export default function App() {
       return
     }
 
-    setRfpPreviewForm((current) => ({
-      ...current,
-      [name]: value,
-    }))
+    setRfpPreviewForm((current) => {
+      if (name === 'modeOfRelease') {
+        return {
+          ...current,
+          modeOfRelease: value,
+          bankName: value === 'Cash' ? '' : current.bankName,
+          accountName: value === 'Cash' ? '' : current.accountName,
+          accountNumber: value === 'Cash' ? '' : current.accountNumber,
+          checkNumber: value === 'Check' ? current.checkNumber : '',
+          checkDate: value === 'Check' ? current.checkDate : '',
+        }
+      }
+
+      return {
+        ...current,
+        [name]: value,
+      }
+    })
   }
 
   function handleRfpPreviewDocumentFiles(name, nextFiles) {
@@ -7889,11 +7954,26 @@ export default function App() {
             overrides: {
               dueDate: rfpPreviewForm.dueDate,
               modeOfRelease: rfpPreviewForm.modeOfRelease,
-              bankName: rfpPreviewForm.bankName,
-              accountName: rfpPreviewForm.accountName,
-              accountNumber: rfpPreviewForm.accountNumber,
-              checkNumber: rfpPreviewForm.checkNumber,
-              checkDate: rfpPreviewForm.checkDate,
+              bankName:
+                rfpPreviewForm.modeOfRelease === 'Cash'
+                  ? ''
+                  : rfpPreviewForm.bankName,
+              accountName:
+                rfpPreviewForm.modeOfRelease === 'Cash'
+                  ? ''
+                  : rfpPreviewForm.accountName,
+              accountNumber:
+                rfpPreviewForm.modeOfRelease === 'Cash'
+                  ? ''
+                  : rfpPreviewForm.accountNumber,
+              checkNumber:
+                rfpPreviewForm.modeOfRelease === 'Check'
+                  ? rfpPreviewForm.checkNumber
+                  : '',
+              checkDate:
+                rfpPreviewForm.modeOfRelease === 'Check'
+                  ? rfpPreviewForm.checkDate
+                  : '',
             },
           },
         )) || updatedRecord
@@ -9512,14 +9592,6 @@ export default function App() {
                 <div>
                   <span>Amount requested</span>
                   <strong>{formatCurrencyValue(getRecordAmount(rfpPreviewRecord))}</strong>
-                </div>
-                <div>
-                  <span>Status</span>
-                  <strong>
-                    {getDisplayRfpPaymentStatus(
-                      rfpPreviewRecord.rfpDraft?.paymentStatus,
-                    )}
-                  </strong>
                 </div>
                 {getReleasedDateValue(rfpPreviewRecord) ? (
                   <div>

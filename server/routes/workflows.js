@@ -112,6 +112,18 @@ function clearPurchaseOrderNumber(request) {
   };
 }
 
+function clearReleaseDetailsForCash(request) {
+  if (request.modeOfRelease !== "Cash") {
+    return;
+  }
+
+  request.bankName = "";
+  request.accountName = "";
+  request.accountNumber = "";
+  request.checkNumber = "";
+  request.checkDate = null;
+}
+
 function parseBooleanValue(value) {
   if (typeof value === "boolean") {
     return value;
@@ -544,6 +556,9 @@ router.post("/purchase-requests", async (req, res) => {
       return res.status(400).json({ message: "Amount must be a valid number greater than zero." });
     }
 
+    const resolvedModeOfRelease = isCashAdvance ? "Cash" : modeOfRelease || "";
+    const clearsReleaseDetails = resolvedModeOfRelease === "Cash";
+
     const created = await PurchaseRequest.create({
       requestNumber,
       rfpNumber,
@@ -557,12 +572,12 @@ router.post("/purchase-requests", async (req, res) => {
       requesterEmail: requester.email,
       amount: parsedAmount,
       currency: currency || "PHP",
-      modeOfRelease: isCashAdvance ? "Cash" : modeOfRelease || "",
-      bankName: isCashAdvance ? "" : bankName || "",
-      accountName: isCashAdvance ? "" : accountName || "",
-      accountNumber: isCashAdvance ? "" : accountNumber || "",
-      checkNumber: isCashAdvance ? "" : checkNumber || "",
-      checkDate: isCashAdvance ? null : checkDate || null,
+      modeOfRelease: resolvedModeOfRelease,
+      bankName: clearsReleaseDetails ? "" : bankName || "",
+      accountName: clearsReleaseDetails ? "" : accountName || "",
+      accountNumber: clearsReleaseDetails ? "" : accountNumber || "",
+      checkNumber: resolvedModeOfRelease === "Check" ? checkNumber || "" : "",
+      checkDate: resolvedModeOfRelease === "Check" ? checkDate || null : null,
       isUrgent: parseBooleanValue(isUrgent),
       priority: priority || "medium",
       dateNeeded: resolvedDateNeeded || null,
@@ -851,6 +866,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
     request.expenseDate = null;
   }
 
+  clearReleaseDetailsForCash(request);
   clearPurchaseOrderNumber(request);
 
   if (req.user.role === "admin" && typeof req.body.deliveryDate !== "undefined") {
@@ -1032,6 +1048,8 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
   if (typeof req.body.checkDate !== "undefined") {
     request.checkDate = req.body.checkDate || null;
   }
+
+  clearReleaseDetailsForCash(request);
 
   await request.save();
   return res.json(serializePurchaseRequest(request));

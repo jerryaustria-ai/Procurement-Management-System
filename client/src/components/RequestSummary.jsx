@@ -117,7 +117,9 @@ export default function RequestSummary({
 }) {
   const attachments = item.documents ?? [];
   const hidesPurchaseOrderFields =
-    item.category === "Cash Advance" || item.category === "Reimbursement";
+    item.category === "Cash Advance" ||
+    item.category === "Reimbursement" ||
+    item.category === "Request for Payment (RFP)";
 
   function getDocumentHref(filePath) {
     return /^https?:\/\//i.test(filePath || "") ? filePath : `${apiOrigin}${filePath}`;
