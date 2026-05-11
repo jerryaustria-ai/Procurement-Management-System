@@ -1692,16 +1692,20 @@ router.delete("/purchase-requests/:id/documents/:documentId", async (req, res) =
   const canAccessRequestForPaymentDocument =
     ["invoice", "release", "liquidation"].includes(document.type) &&
     canManageRequestForPaymentDraft(req, request);
+  const isDocumentUploader = document.uploadedBy === req.user.name;
 
-  if (!isRequesterAccessingOwnRequest(req, request) && !canAccessRequestForPaymentDocument && req.user.role !== "admin") {
+  if (
+    !isRequesterAccessingOwnRequest(req, request) &&
+    !canAccessRequestForPaymentDocument &&
+    !isDocumentUploader &&
+    req.user.role !== "admin"
+  ) {
     return res.status(403).json({ message: "You can only access your own purchase requests." });
   }
 
   const canDelete =
     req.user.role === "admin" ||
-    document.uploadedBy === req.user.name ||
-    getAllowedRoles(request.currentStage).includes(req.user.role) ||
-    canAccessRequestForPaymentDocument;
+    isDocumentUploader;
 
   if (!canDelete) {
     return res.status(403).json({ message: "Your role cannot delete this document." });

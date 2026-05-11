@@ -1994,6 +1994,11 @@ export default function App() {
     : `Pending Invoice Uploads (${(rfpPreviewForm.invoiceFiles || []).length})`
   const previewGroupedDocuments = [
     {
+      key: 'request-attachments',
+      heading: 'Request Attachments',
+      documents: getRequestAttachmentDocuments(rfpPreviewRecord),
+    },
+    {
       key: 'invoice',
       heading: previewInvoiceGroupHeading,
       documents: getInvoiceDocuments(rfpPreviewRecord),
@@ -4625,6 +4630,24 @@ export default function App() {
   function getReleaseDocuments(record) {
     return (record?.documents || []).filter(
       (document) => document.type === 'release',
+    )
+  }
+
+  function getRequestAttachmentDocuments(record) {
+    return (record?.documents || []).filter(
+      (document) =>
+        !['invoice', 'release', 'liquidation'].includes(document.type),
+    )
+  }
+
+  function canDeleteAttachmentDocument(document) {
+    if (!session?.user || !document) {
+      return false
+    }
+
+    return (
+      session.user.role === 'admin' ||
+      String(document.uploadedBy || '') === String(session.user.name || '')
     )
   }
 
@@ -8502,6 +8525,7 @@ export default function App() {
           form={requestForPaymentForm}
           errors={requestForPaymentErrors}
           suppliers={suppliers}
+          requestDocuments={getRequestAttachmentDocuments(selectedItem)}
           invoiceDocuments={getInvoiceDocuments(selectedItem)}
           releaseDocuments={getReleaseDocuments(selectedItem)}
           liquidationDocuments={getLiquidationDocuments(selectedItem)}
@@ -8542,6 +8566,10 @@ export default function App() {
           onDeleteLiquidationDocument={(document) =>
             handleConfirmDeleteLiquidationDocument(selectedItem, document)
           }
+          onDeleteRequestDocument={(document) =>
+            handleDeleteDocument(document.id)
+          }
+          canDeleteDocument={canDeleteAttachmentDocument}
           onSelectSupplier={handleRequestForPaymentSupplierSelect}
           onCreateSupplier={openCreateSupplierModal}
           canCreateSupplier={session.user.role === 'admin'}
@@ -9136,7 +9164,9 @@ export default function App() {
               index,
             )
           }
+          requestDocuments={getRequestAttachmentDocuments(selectedItem)}
           invoiceDocuments={getInvoiceDocuments(selectedItem)}
+          releaseDocuments={getReleaseDocuments(selectedItem)}
           liquidationDocuments={getLiquidationDocuments(selectedItem)}
           currentInvoiceDocument={getCurrentInvoiceDocument(selectedItem)}
           currentLiquidationDocument={getCurrentLiquidationDocument(selectedItem)}
@@ -9144,9 +9174,16 @@ export default function App() {
           onRequestForPaymentDeleteInvoiceDocument={(document) =>
             handleConfirmDeleteInvoiceDocument(selectedItem, document)
           }
+          onRequestForPaymentDeleteReleaseDocument={(document) =>
+            handleConfirmDeleteReleaseDocument(selectedItem, document)
+          }
           onRequestForPaymentDeleteLiquidationDocument={(document) =>
             handleConfirmDeleteLiquidationDocument(selectedItem, document)
           }
+          onRequestForPaymentDeleteRequestDocument={(document) =>
+            handleDeleteDocument(document.id)
+          }
+          canDeleteRequestForPaymentDocument={canDeleteAttachmentDocument}
           onRequestForPaymentSupplierSelect={handleRequestForPaymentSupplierSelect}
           onRequestForPaymentEdit={() => {
             if (!canEditRequestForPayment(session?.user, selectedItem)) {
@@ -9506,8 +9543,8 @@ export default function App() {
               </div>
               <div className='rfp-preview-meta'>
                 <div>
-                  <span>RFP number</span>
-                  <strong>{rfpPreviewRecord.rfpNumber || 'Pending generation'}</strong>
+                  <span>Supplier / Payee</span>
+                  <strong>{getEffectiveRequestForPaymentPayee(rfpPreviewRecord) || 'Not set'}</strong>
                 </div>
                 <div>
                   <span>Requester</span>
@@ -9531,6 +9568,10 @@ export default function App() {
               <div className='rfp-preview-notes'>
                 <span>Description</span>
                 <p>{rfpPreviewRecord.rfpDraft?.notes || rfpPreviewRecord.description || 'No description provided.'}</p>
+              </div>
+              <div className='rfp-preview-notes'>
+                <span>Business justification / notes</span>
+                <p>{rfpPreviewRecord.notes || 'No notes yet.'}</p>
               </div>
             </div>
 
@@ -9705,9 +9746,14 @@ export default function App() {
                   )
                   return
                 }
+                if (normalizedType !== 'invoice') {
+                  handleDeleteDocument(document.id)
+                  return
+                }
                 handleConfirmDeleteInvoiceDocument(rfpPreviewRecord, document)
               }}
               canDelete
+              canDeleteDocument={canDeleteAttachmentDocument}
               disabled={false}
             />
 
@@ -10107,6 +10153,7 @@ export default function App() {
             onDeleteDocument={(document) => handleDeleteDocument(document.id)}
             pendingAttachmentFiles={requestAdminAttachmentFiles}
             canManageAttachments={canEditSelectedRequest}
+            canDeleteAttachmentDocument={canDeleteAttachmentDocument}
             canDelete={isAdmin}
             isAdmin={isAdmin}
             isSubmitting={isSubmitting}

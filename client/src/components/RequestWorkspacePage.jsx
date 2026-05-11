@@ -37,13 +37,18 @@ export default function RequestWorkspacePage({
   onRequestForPaymentLiquidationFilesSelected,
   onRequestForPaymentRemovePendingInvoiceFile,
   onRequestForPaymentRemovePendingLiquidationFile,
+  requestDocuments,
   invoiceDocuments,
+  releaseDocuments,
   liquidationDocuments,
   currentInvoiceDocument,
   currentLiquidationDocument,
   onRequestForPaymentOpenDocument,
   onRequestForPaymentDeleteInvoiceDocument,
+  onRequestForPaymentDeleteReleaseDocument,
   onRequestForPaymentDeleteLiquidationDocument,
+  onRequestForPaymentDeleteRequestDocument,
+  canDeleteRequestForPaymentDocument,
   onRequestForPaymentSupplierSelect,
   onRequestForPaymentEdit,
   onRequestForPaymentCancel,
@@ -145,7 +150,9 @@ export default function RequestWorkspacePage({
                 form={requestForPaymentForm}
                 errors={requestForPaymentErrors}
                 suppliers={suppliers}
+                requestDocuments={requestDocuments}
                 invoiceDocuments={invoiceDocuments}
+                releaseDocuments={releaseDocuments}
                 liquidationDocuments={liquidationDocuments}
                 currentInvoiceDocument={currentInvoiceDocument}
                 currentLiquidationDocument={currentLiquidationDocument}
@@ -159,7 +166,10 @@ export default function RequestWorkspacePage({
                 onRemovePendingLiquidationFile={onRequestForPaymentRemovePendingLiquidationFile}
                 onOpenDocument={onRequestForPaymentOpenDocument}
                 onDeleteInvoiceDocument={onRequestForPaymentDeleteInvoiceDocument}
+                onDeleteReleaseDocument={onRequestForPaymentDeleteReleaseDocument}
                 onDeleteLiquidationDocument={onRequestForPaymentDeleteLiquidationDocument}
+                onDeleteRequestDocument={onRequestForPaymentDeleteRequestDocument}
+                canDeleteDocument={canDeleteRequestForPaymentDocument}
                 onSelectSupplier={onRequestForPaymentSupplierSelect}
                 onCreateSupplier={onCreateSupplier}
                 canCreateSupplier={user.role === "admin"}

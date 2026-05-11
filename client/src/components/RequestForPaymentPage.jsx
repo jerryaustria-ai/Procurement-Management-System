@@ -194,6 +194,7 @@ export function AttachmentManagerSection({
   onOpenDocument,
   onDeleteDocument,
   canDelete,
+  canDeleteDocument = () => true,
   disabled,
   error
 }) {
@@ -320,7 +321,7 @@ export function AttachmentManagerSection({
                           document={document}
                           onOpen={() => onOpenDocument?.(document)}
                           onDelete={() => onDeleteDocument?.(document)}
-                          canDelete={canDelete}
+                          canDelete={canDelete && canDeleteDocument(document)}
                         />
                       ))}
                     </div>
@@ -358,6 +359,7 @@ export default function RequestForPaymentPage({
   form,
   errors = {},
   suppliers = [],
+  requestDocuments = [],
   invoiceDocuments = [],
   releaseDocuments = [],
   liquidationDocuments = [],
@@ -377,6 +379,8 @@ export default function RequestForPaymentPage({
   onDeleteInvoiceDocument,
   onDeleteReleaseDocument,
   onDeleteLiquidationDocument,
+  onDeleteRequestDocument,
+  canDeleteDocument,
   onSelectSupplier,
   onCreateSupplier,
   canCreateSupplier = false,
@@ -419,6 +423,11 @@ export default function RequestForPaymentPage({
     ? `Pending Proof of Transfer Uploads (${(form.invoiceFiles || []).length})`
     : `Pending Invoice Uploads (${(form.invoiceFiles || []).length})`;
   const groupedDocuments = [
+    {
+      key: "request-attachments",
+      heading: "Request Attachments",
+      documents: requestDocuments
+    },
     {
       key: "invoice",
       heading: invoiceGroupHeading,
@@ -843,9 +852,14 @@ export default function RequestForPaymentPage({
                 onDeleteReleaseDocument?.(document);
                 return;
               }
+              if (normalizedType !== "invoice") {
+                onDeleteRequestDocument?.(document);
+                return;
+              }
               onDeleteInvoiceDocument?.(document);
             }}
             canDelete={isEditing}
+            canDeleteDocument={canDeleteDocument}
             disabled={!isEditing}
             error={activeUploadError}
           />

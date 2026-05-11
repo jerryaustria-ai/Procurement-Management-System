@@ -15,6 +15,7 @@ export default function RequestAdminPanel({
   onDeleteDocument,
   pendingAttachmentFiles = [],
   canManageAttachments = true,
+  canDeleteAttachmentDocument,
   canDelete,
   isAdmin,
   isSubmitting,
@@ -229,6 +230,7 @@ export default function RequestAdminPanel({
         onOpenDocument={onOpenDocument}
         onDeleteDocument={onDeleteDocument}
         canDelete={canManageAttachments}
+        canDeleteDocument={canDeleteAttachmentDocument}
         disabled={isSubmitting}
         error={uploadError}
       />
