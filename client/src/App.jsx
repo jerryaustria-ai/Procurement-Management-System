@@ -7311,7 +7311,6 @@ export default function App() {
     const payee = getEffectiveRequestForPaymentPayee(record) || 'Not set'
     const tinNumber = record.rfpDraft?.tinNumber || 'Not set'
     const propertyProject = record.propertyProject || 'Not set'
-    const invoiceNumber = record.rfpDraft?.invoiceNumber || 'Not set'
     const matchedSupplier = suppliers.find(
       (supplier) =>
         String(supplier.name || '')
@@ -7326,6 +7325,14 @@ export default function App() {
       record.deliveryAddress ||
       activeCompanyIdentity.address ||
       'Not set'
+    const modeOfPayment = record.modeOfRelease || ''
+    const bankName = record.bankName || ''
+    const accountName = record.accountName || ''
+    const accountNumber = record.accountNumber || ''
+    const checkNumber = record.checkNumber || ''
+    const contactPerson = matchedSupplier?.contactPerson || ''
+    const contactNumber = matchedSupplier?.phone || ''
+    const emailAddress = matchedSupplier?.email || ''
     const logoMarkup = companySettings.logoUrl
       ? `<img src="${companySettings.logoUrl}" alt="${companySettings.companyName}" />`
       : ''
@@ -7522,6 +7529,38 @@ export default function App() {
               margin-top: 28px;
               border-top: 1px solid #444;
             }
+            .payment-info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 18px 52px;
+              margin-top: 42px;
+              font-size: 12px;
+              font-weight: 700;
+            }
+            .payment-info-column {
+              display: grid;
+              gap: 24px;
+              align-content: start;
+            }
+            .payment-info-column--right {
+              padding-top: 49px;
+            }
+            .payment-info-row {
+              display: grid;
+              grid-template-columns: max-content 150px;
+              gap: 14px;
+              align-items: end;
+            }
+            .payment-info-label {
+              white-space: nowrap;
+            }
+            .payment-info-line {
+              min-height: 14px;
+              border-bottom: 1px solid #111;
+              padding: 0 4px 1px;
+              font-weight: 400;
+              line-height: 1.1;
+            }
             .muted {
               color: #444;
             }
@@ -7621,6 +7660,45 @@ export default function App() {
               </div>
 
               <div class="print-divider"></div>
+
+              <div class="payment-info-grid">
+                <div class="payment-info-column">
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Mode of Payment:</span>
+                    <div class="payment-info-line">${modeOfPayment}</div>
+                  </div>
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Bank Name:</span>
+                    <div class="payment-info-line">${bankName}</div>
+                  </div>
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Account Name:</span>
+                    <div class="payment-info-line">${accountName}</div>
+                  </div>
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Account Number:</span>
+                    <div class="payment-info-line">${accountNumber}</div>
+                  </div>
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Check Number:</span>
+                    <div class="payment-info-line">${checkNumber}</div>
+                  </div>
+                </div>
+                <div class="payment-info-column payment-info-column--right">
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Contact: Person:</span>
+                    <div class="payment-info-line">${contactPerson}</div>
+                  </div>
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Contact Number:</span>
+                    <div class="payment-info-line">${contactNumber}</div>
+                  </div>
+                  <div class="payment-info-row">
+                    <span class="payment-info-label">Email Address:</span>
+                    <div class="payment-info-line">${emailAddress}</div>
+                  </div>
+                </div>
+              </div>
 
             </div>
           </div>
