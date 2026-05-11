@@ -1,3 +1,6 @@
+import { useId } from "react";
+import { AttachmentManagerSection } from "./RequestForPaymentPage.jsx";
+
 export default function RequestAdminPanel({
   item,
   stages,
@@ -6,10 +9,17 @@ export default function RequestAdminPanel({
   onChange,
   onSave,
   onDelete,
+  onAttachmentFilesSelected,
+  onRemovePendingAttachmentFile,
+  onOpenDocument,
+  onDeleteDocument,
+  pendingAttachmentFiles = [],
+  canManageAttachments = true,
   canDelete,
   isAdmin,
   isSubmitting,
-  error
+  error,
+  uploadError
 }) {
   if (!item) {
     return null;
@@ -21,6 +31,16 @@ export default function RequestAdminPanel({
   const isReimbursement = item.category === "Reimbursement";
   const isBankTransfer = form.modeOfRelease === "Bank Transfer";
   const isCheck = form.modeOfRelease === "Check";
+  const attachmentInputId = useId();
+  const groupedDocuments = item.documents?.length
+    ? [
+        {
+          key: "attachments",
+          heading: `Current Attachments (${item.documents.length})`,
+          documents: item.documents
+        }
+      ]
+    : [];
 
   return (
     <section className="panel action-panel">
@@ -195,6 +215,23 @@ export default function RequestAdminPanel({
         Notes
         <textarea name="notes" value={form.notes} onChange={onChange} rows="3" />
       </label>
+
+      <AttachmentManagerSection
+        title="Attachments / Uploaded Files"
+        helperText="Upload files to add attachments. You can view and delete files anytime."
+        inputId={attachmentInputId}
+        promptLabel="Upload attachment files"
+        promptSubtext="Drag and drop attachment files here or click to choose files"
+        selectedFiles={pendingAttachmentFiles}
+        groupedDocuments={groupedDocuments}
+        onFilesSelected={onAttachmentFilesSelected}
+        onRemovePendingFile={onRemovePendingAttachmentFile}
+        onOpenDocument={onOpenDocument}
+        onDeleteDocument={onDeleteDocument}
+        canDelete={canManageAttachments}
+        disabled={isSubmitting}
+        error={uploadError}
+      />
 
       <div className="button-row">
         <button disabled={isSubmitting} type="button" onClick={onSave}>

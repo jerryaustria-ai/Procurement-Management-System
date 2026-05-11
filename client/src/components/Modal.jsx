@@ -1,6 +1,13 @@
 import { useEffect, useRef } from "react";
 
-export default function Modal({ title, eyebrow, onClose, actions, children }) {
+export default function Modal({
+  title,
+  eyebrow,
+  onClose,
+  actions,
+  children,
+  isTopLayer = false
+}) {
   const shellRef = useRef(null);
 
   useEffect(() => {
@@ -56,7 +63,10 @@ export default function Modal({ title, eyebrow, onClose, actions, children }) {
   }, []);
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className={`modal-backdrop${isTopLayer ? " modal-backdrop-top-layer" : ""}`}
+      role="presentation"
+    >
       <div
         ref={shellRef}
         className="modal-shell"

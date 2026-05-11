@@ -1858,7 +1858,7 @@ export default function App() {
       ),
     ),
   )
-  const [requestQuotationFile, setRequestQuotationFile] = useState(null)
+  const [requestQuotationFiles, setRequestQuotationFiles] = useState([])
   const [requestFormErrors, setRequestFormErrors] = useState({
     category: false,
     requester: false,
@@ -1873,6 +1873,8 @@ export default function App() {
     label: '',
     file: null,
   })
+  const [requestAdminAttachmentFiles, setRequestAdminAttachmentFiles] =
+    useState([])
   const [requestAdminForm, setRequestAdminForm] = useState(() =>
     getRequestAdminForm(null),
   )
@@ -2572,7 +2574,7 @@ export default function App() {
         ),
       ),
     )
-    setRequestQuotationFile(null)
+    setRequestQuotationFiles([])
     setRequestAdminForm(
       getRequestAdminForm(null, DEFAULT_COMPANY_SETTINGS.companyName),
     )
@@ -3203,7 +3205,7 @@ export default function App() {
         ),
       ),
     )
-    setRequestQuotationFile(null)
+    setRequestQuotationFiles([])
     setRequestFormErrors({
       category: false,
       title: false,
@@ -3217,29 +3219,23 @@ export default function App() {
     setIsCreateRequestModalOpen(false)
   }
 
-  function handleRequestQuotationFileChange(event) {
-    const file = event.target.files?.[0] ?? null
+  function handleRequestQuotationFilesSelected(nextFiles) {
+    const { files, error } = getValidatedUploadFiles(nextFiles)
 
-    if (isUploadFileTooLarge(file)) {
-      event.target.value = ''
-      setRequestQuotationFile(null)
-      setActionError(getUploadFileLimitMessage(file))
-      return
-    }
-
-    if (isUploadFileUnsupported(file)) {
-      event.target.value = ''
-      setRequestQuotationFile(null)
-      setActionError(getUploadFileTypeMessage(file))
+    if (error) {
+      setActionError(error)
       return
     }
 
     setActionError('')
-    setRequestQuotationFile(file)
+    setRequestQuotationFiles((current) => [...current, ...files])
   }
 
-  function handleClearRequestQuotationFile() {
-    setRequestQuotationFile(null)
+  function handleRemovePendingRequestQuotationFile(index) {
+    setRequestQuotationFiles((current) =>
+      current.filter((_, currentIndex) => currentIndex !== index),
+    )
+    setActionError('')
   }
 
   async function handleActionFormChange(event) {
@@ -3421,6 +3417,25 @@ export default function App() {
       label: 'Boss approval attachment',
       file: null,
     })
+  }
+
+  function handleRequestAdminAttachmentFilesSelected(nextFiles) {
+    const { files, error } = getValidatedUploadFiles(nextFiles)
+
+    if (error) {
+      setUploadError(error)
+      return
+    }
+
+    setUploadError('')
+    setRequestAdminAttachmentFiles((current) => [...current, ...files])
+  }
+
+  function handleRemovePendingRequestAdminAttachmentFile(index) {
+    setRequestAdminAttachmentFiles((current) =>
+      current.filter((_, currentIndex) => currentIndex !== index),
+    )
+    setUploadError('')
   }
 
   function handleRequestAdminFormChange(event) {
@@ -4087,7 +4102,7 @@ export default function App() {
         ),
       ),
     )
-    setRequestQuotationFile(null)
+    setRequestQuotationFiles([])
     setIsCreateRequestModalOpen(true)
   }
 
@@ -4097,6 +4112,8 @@ export default function App() {
     }
 
     setRequestAdminForm(getRequestAdminForm(selectedItem))
+    setRequestAdminAttachmentFiles([])
+    setUploadError('')
     setIsEditRequestModalOpen(true)
   }
 
@@ -4114,6 +4131,8 @@ export default function App() {
 
     setSelectedId(targetItem.id)
     setRequestAdminForm(getRequestAdminForm(targetItem))
+    setRequestAdminAttachmentFiles([])
+    setUploadError('')
     setIsEditRequestModalOpen(true)
   }
 
@@ -5688,10 +5707,9 @@ export default function App() {
           isAdmin={isAdmin}
           requesterOptions={requesterOptions}
           onChange={handleRequestFormChange}
-          onQuotationFileChange={handleRequestQuotationFileChange}
-          onClearQuotationFile={handleClearRequestQuotationFile}
-          quotationFile={requestQuotationFile}
-          quotationFileName={requestQuotationFile?.name ?? ''}
+          onQuotationFilesSelected={handleRequestQuotationFilesSelected}
+          onRemovePendingQuotationFile={handleRemovePendingRequestQuotationFile}
+          quotationFiles={requestQuotationFiles}
           onSubmit={handleCreateRequest}
           onCancel={handleCloseCreateRequestModal}
           errors={requestFormErrors}
@@ -5919,16 +5937,23 @@ export default function App() {
 
       let createdRequest = data
 
-      if (requestQuotationFile) {
-        const optimizedQuotationFile =
-          await optimizeDocumentFile(requestQuotationFile)
+      for (const requestFile of requestQuotationFiles) {
+        const optimizedRequestFile = await optimizeDocumentFile(requestFile)
         const formData = new FormData()
-        formData.append('type', 'quotation')
-        formData.append('label', 'Approved Quotation or Request')
-        formData.append('document', optimizedQuotationFile)
+        formData.append(
+          'type',
+          requestForm.category === 'Reimbursement' ? 'other' : 'quotation',
+        )
+        formData.append(
+          'label',
+          requestForm.category === 'Reimbursement'
+            ? 'Reimbursement Document'
+            : 'Approved Quotation or Request',
+        )
+        formData.append('document', optimizedRequestFile)
 
         const uploadResponse = await fetch(
-          `${API_BASE_URL}/workflows/purchase-requests/${data.id}/documents`,
+          `${API_BASE_URL}/workflows/purchase-requests/${createdRequest.id}/documents`,
           {
             method: 'POST',
             headers: {
@@ -5942,7 +5967,7 @@ export default function App() {
         if (!uploadResponse.ok) {
           throw new Error(
             uploadData.message ||
-              'Request created, but quotation upload failed.',
+              'Request created, but document upload failed.',
           )
         }
 
@@ -5964,7 +5989,7 @@ export default function App() {
           ),
         ),
       )
-      setRequestQuotationFile(null)
+      setRequestQuotationFiles([])
       setIsCreateRequestModalOpen(false)
       pushToast({
         title: 'Request created',
@@ -6505,13 +6530,48 @@ export default function App() {
         throw new Error(data.message || 'Failed to update request.')
       }
 
+      let updatedRequest = data
+
+      for (const attachmentFile of requestAdminAttachmentFiles) {
+        const optimizedAttachmentFile =
+          await optimizeDocumentFile(attachmentFile)
+        const formData = new FormData()
+        formData.append('type', 'other')
+        formData.append('label', attachmentFile.name || 'Attachment')
+        formData.append('document', optimizedAttachmentFile)
+
+        const uploadResponse = await fetch(
+          `${API_BASE_URL}/workflows/purchase-requests/${updatedRequest.id}/documents`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session.token}`,
+            },
+            body: formData,
+          },
+        )
+
+        const uploadData = await uploadResponse.json()
+        if (!uploadResponse.ok) {
+          throw new Error(
+            uploadData.message ||
+              'Request updated, but attachment upload failed.',
+          )
+        }
+
+        updatedRequest = uploadData
+      }
+
       setItems((current) =>
-        current.map((item) => (item.id === data.id ? data : item)),
+        current.map((item) =>
+          item.id === updatedRequest.id ? updatedRequest : item,
+        ),
       )
+      setRequestAdminAttachmentFiles([])
       setIsEditRequestModalOpen(false)
       pushToast({
         title: 'Request updated',
-        message: `${data.requestNumber} changes were saved.`,
+        message: `${updatedRequest.requestNumber} changes were saved.`,
         variant: 'success',
       })
     } catch (error) {
@@ -7434,79 +7494,10 @@ export default function App() {
               font-size: 10px;
               line-height: 0.95;
             }
-            .accounting-block {
-              margin-top: 30px;
-              padding-top: 30px;
+            .print-divider {
+              width: 100%;
+              margin-top: 28px;
               border-top: 1px solid #444;
-            }
-            .accounting-only {
-              margin-bottom: 8px;
-              font-size: 11px;
-              font-weight: 700;
-            }
-            .entry-caption {
-              border: 1px solid #444;
-              padding: 2px 6px;
-              margin-bottom: 8px;
-              text-align: center;
-              font-size: 11px;
-            }
-            .entry-table td {
-              height: 18px;
-            }
-            .entry-table .fill-row td {
-              height: 16px;
-            }
-            .entry-table .total-row td {
-              font-weight: 700;
-            }
-            .bottom-approvals {
-              margin-top: 18px;
-              display: grid;
-              grid-template-columns: 110px 10px 1fr;
-              gap: 30px 4px;
-              align-items: center;
-              font-size: 11px;
-            }
-            .approval-label {
-              font-weight: 700;
-              white-space: nowrap;
-            }
-            .approval-value {
-              display: grid;
-              gap: 0;
-              min-width: 0;
-              justify-items: start;
-            }
-            .approval-name {
-              width: 170px;
-              text-align: center;
-              font-weight: 700;
-              font-size: 10px;
-              line-height: 1;
-              margin-bottom: -6px;
-            }
-            .approval-value .line-fill {
-              min-width: 170px;
-              width: 170px;
-              justify-content: flex-start;
-              text-align: left;
-              font-weight: 700;
-            }
-            .approval-subtitle {
-              width: 170px;
-              text-align: center;
-              font-size: 10px;
-              line-height: 1.2;
-            }
-            .approval-date-label {
-              font-weight: 700;
-              white-space: nowrap;
-              align-self: center;
-            }
-            .approval-date-line {
-              min-width: 170px;
-              width: 170px;
             }
             .muted {
               color: #444;
@@ -7606,72 +7597,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div class="accounting-block">
-                <div class="accounting-only">For Accounting Only:</div>
-                <div class="entry-caption">Recommending Entry Form</div>
-                <table class="entry-table">
-                  <thead>
-                    <tr>
-                      <th style="width:22%;">GL Code</th>
-                      <th>Account</th>
-                      <th style="width:14%;">Debit</th>
-                      <th style="width:14%;">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td></td>
-                      <td></td>
-                      <td class="amount-cell"></td>
-                      <td></td>
-                    </tr>
-                    <tr>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td class="amount-cell"></td>
-                    </tr>
-                    <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="fill-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="total-row">
-                      <td colspan="2" style="text-align:right;">Total</td>
-                      <td class="amount-cell"></td>
-                      <td class="amount-cell"></td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="print-divider"></div>
 
-                <div class="bottom-approvals">
-                  <span class="approval-label">Prepared by</span>
-                  <span class="muted">:</span>
-                  <div class="approval-value">
-                    <div class="approval-name"></div>
-                    <div class="line-fill"></div>
-                    <div class="approval-subtitle">Accounting Assistant</div>
-                  </div>
-
-                  <span class="approval-label">Checked by</span>
-                  <span class="muted">:</span>
-                  <div class="approval-value">
-                    <div class="approval-name">${companySettings.generalAccountantName || ''}</div>
-                    <div class="line-fill"></div>
-                    <div class="approval-subtitle">General Accountant / HEADACC</div>
-                  </div>
-
-                  <span class="approval-label">Approved by</span>
-                  <span class="muted">:</span>
-                  <div class="approval-value">
-                    <div class="approval-name">${companySettings.chiefInvestmentOfficerName || ''}</div>
-                    <div class="line-fill"></div>
-                    <div class="approval-subtitle">Chief of Investment Officer</div>
-                  </div>
-
-                  <span class="approval-date-label">Date</span>
-                  <span class="muted">:</span>
-                  <div class="line-fill approval-date-line"></div>
-                </div>
-              </div>
             </div>
           </div>
           ${
@@ -9256,6 +9183,7 @@ export default function App() {
           <Modal
             eyebrow='Attachment'
             title={getAttachmentViewerLabel(attachmentViewerDocument)}
+            isTopLayer
             actions={
               attachmentViewerObjectUrl ||
               getAttachmentDirectUrl(attachmentViewerDocument) ||
@@ -9899,10 +9827,9 @@ export default function App() {
             isAdmin={isAdmin}
             requesterOptions={requesterOptions}
             onChange={handleRequestFormChange}
-            onQuotationFileChange={handleRequestQuotationFileChange}
-            onClearQuotationFile={handleClearRequestQuotationFile}
-            quotationFile={requestQuotationFile}
-            quotationFileName={requestQuotationFile?.name ?? ''}
+            onQuotationFilesSelected={handleRequestQuotationFilesSelected}
+            onRemovePendingQuotationFile={handleRemovePendingRequestQuotationFile}
+            quotationFiles={requestQuotationFiles}
             onSubmit={handleCreateRequest}
             onCancel={handleCloseCreateRequestModal}
             errors={requestFormErrors}
@@ -10081,6 +10008,7 @@ export default function App() {
         <Modal
           eyebrow='Attachment'
           title={getAttachmentViewerLabel(attachmentViewerDocument)}
+          isTopLayer
           actions={
             attachmentViewerObjectUrl ||
             getAttachmentDirectUrl(attachmentViewerDocument) ||
@@ -10157,7 +10085,11 @@ export default function App() {
         <Modal
           eyebrow={isAdmin ? 'Admin Request' : 'Edit Request'}
           title={`Edit ${getDisplayRequestNumber(selectedItem)}`}
-          onClose={() => setIsEditRequestModalOpen(false)}
+          onClose={() => {
+            setRequestAdminAttachmentFiles([])
+            setUploadError('')
+            setIsEditRequestModalOpen(false)
+          }}
         >
           <RequestAdminPanel
             item={selectedItem}
@@ -10169,10 +10101,17 @@ export default function App() {
             onChange={handleRequestAdminFormChange}
             onSave={handleSaveRequest}
             onDelete={handleDeleteRequest}
+            onAttachmentFilesSelected={handleRequestAdminAttachmentFilesSelected}
+            onRemovePendingAttachmentFile={handleRemovePendingRequestAdminAttachmentFile}
+            onOpenDocument={handleOpenAttachmentDocument}
+            onDeleteDocument={(document) => handleDeleteDocument(document.id)}
+            pendingAttachmentFiles={requestAdminAttachmentFiles}
+            canManageAttachments={canEditSelectedRequest}
             canDelete={isAdmin}
             isAdmin={isAdmin}
             isSubmitting={isSubmitting}
             error={actionError}
+            uploadError={uploadError}
           />
         </Modal>
       ) : null}

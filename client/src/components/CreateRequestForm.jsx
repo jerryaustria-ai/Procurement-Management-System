@@ -1,3 +1,6 @@
+import { useId } from 'react'
+import { AttachmentManagerSection } from './RequestForPaymentPage.jsx'
+
 export default function CreateRequestForm({
   form,
   requestNumberPreview,
@@ -5,10 +8,9 @@ export default function CreateRequestForm({
   isAdmin,
   requesterOptions,
   onChange,
-  onQuotationFileChange,
-  onClearQuotationFile,
-  quotationFile,
-  quotationFileName,
+  onQuotationFilesSelected,
+  onRemovePendingQuotationFile,
+  quotationFiles = [],
   onSubmit,
   onCancel,
   errors = {},
@@ -21,6 +23,10 @@ export default function CreateRequestForm({
   const isRequestForPayment = form.category === 'Request for Payment (RFP)'
   const isBankTransfer = form.modeOfRelease === 'Bank Transfer'
   const isCheck = form.modeOfRelease === 'Check'
+  const uploadInputId = useId()
+  const uploadLabel = isReimbursement
+    ? 'Upload Reimbursement Documents'
+    : 'Approved Quotation or Request'
 
   return (
     <section className='panel action-panel'>
@@ -298,29 +304,18 @@ export default function CreateRequestForm({
           </>
         ) : null}
 
-        <label className='create-request-upload-field'>
-          <span>Approved Quotation or Request</span>
-          <input
-            key={quotationFileName || 'empty-request-quotation'}
-            id='request-quotation-upload'
-            type='file'
-            accept='.png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt'
-            onChange={onQuotationFileChange}
-          />
-          {quotationFileName ? (
-            <div className='create-request-upload-inline-row'>
-              <small>{quotationFileName}</small>
-              <button
-                className='ghost-button'
-                type='button'
-                onClick={() => onClearQuotationFile?.()}
-              >
-                Clear
-              </button>
-            </div>
-          ) : null}
-          <small>Images, PDF, Word, Excel, CSV, or text files only.</small>
-        </label>
+        <AttachmentManagerSection
+          title={uploadLabel}
+          helperText='Select one or more files before creating this request.'
+          inputId={uploadInputId}
+          promptLabel={uploadLabel}
+          promptSubtext='Drag and drop files here or click to choose files'
+          selectedFiles={quotationFiles}
+          onFilesSelected={onQuotationFilesSelected}
+          onRemovePendingFile={onRemovePendingQuotationFile}
+          canDelete
+          disabled={isSubmitting}
+        />
       </div>
 
       <div className='button-row create-request-actions'>

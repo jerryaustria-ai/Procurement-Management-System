@@ -4519,6 +4519,10 @@ button.inline-link {
   backdrop-filter: blur(10px);
 }
 
+.modal-backdrop-top-layer {
+  z-index: 80;
+}
+
 .modal-shell {
   width: min(920px, 100%);
   max-height: calc(100vh - 48px);
