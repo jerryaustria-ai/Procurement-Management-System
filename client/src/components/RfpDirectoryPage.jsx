@@ -479,7 +479,7 @@ export default function RfpDirectoryPage({
   const [sortValue, setSortValue] = useState('due-date-desc')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(50)
 
   const availableClosedYears = useMemo(
     () => getAvailableClosedYears(items),
