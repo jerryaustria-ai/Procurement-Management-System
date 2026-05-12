@@ -1217,7 +1217,12 @@ function getAccountantForPaymentItems(items) {
       return false
     }
 
-    if (isPaidEquivalentRfpPaymentStatus(item?.rfpDraft?.paymentStatus)) {
+    const normalizedPaymentStatus = getNormalizedPaymentStatus(item)
+
+    if (
+      normalizedPaymentStatus === 'processed' ||
+      isPaidEquivalentRfpPaymentStatus(item?.rfpDraft?.paymentStatus)
+    ) {
       return false
     }
 
