@@ -3,6 +3,7 @@ import Modal from "./Modal.jsx";
 
 const RFP_PAYMENT_STATUS_OPTIONS = [
   "Approved",
+  "Processed",
   "Released",
   "Liquidated / Closed"
 ];

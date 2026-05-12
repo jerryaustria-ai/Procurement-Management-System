@@ -17,6 +17,7 @@ const DEFAULT_WORKFLOW_STAGES = [
 const RFP_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const RFP_PAYMENT_STATUS_OPTIONS = [
   'Approved',
+  'Processed',
   'Processing',
   'Released',
   'For Liquidation',
@@ -268,6 +269,7 @@ const MONTH_OPTIONS = [
 const VALID_RFP_FILTERS = ['all', 'for-payment', 'for-liquidation', 'closed']
 const RFP_STATUS_SORT_ORDER = new Map([
   ['approved', 0],
+  ['processed', 1],
   ['processing', 1],
   ['released', 2],
   ['for liquidation', 3],
@@ -403,7 +405,7 @@ function getRfpStatusClassName(record) {
     return 'rfp-status-text is-for-payment'
   }
 
-  if (normalizedStatus === 'processing') {
+  if (normalizedStatus === 'processed' || normalizedStatus === 'processing') {
     return 'rfp-status-text is-processing'
   }
 

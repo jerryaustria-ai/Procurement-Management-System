@@ -38,6 +38,7 @@ const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const RFP_PAYMENT_STATUS_OPTIONS = [
   'Approved',
+  'Processed',
   'Released',
   'Liquidated / Closed',
 ]
@@ -1177,7 +1178,10 @@ function isAccountantForApprovalItem(item) {
 
 function getAccountantDashboardStats(items, referenceDate = new Date()) {
   const forPaymentItems = getAccountantForPaymentItems(items)
-  const forLiquidationItems = getAccountantForLiquidationItems(items)
+  const processedThisMonthItems = getAccountantProcessedThisMonthItems(
+    items,
+    referenceDate,
+  )
   const liquidatedClosedItems = getAccountantLiquidatedClosedItems(
     items,
     referenceDate,
@@ -1193,9 +1197,8 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
       actionKey: 'for-payment',
     },
     {
-      label: 'For Liquidation',
-      value: String(forLiquidationItems.length).padStart(2, '0'),
-      actionKey: 'for-liquidation',
+      label: 'Processed (This Month)',
+      value: String(processedThisMonthItems.length).padStart(2, '0'),
     },
     {
       label: 'Liquidated / Closed (This Month)',
@@ -1235,6 +1238,28 @@ function getAccountantForPaymentItems(items) {
     }
 
     return true
+  })
+}
+
+function getAccountantProcessedThisMonthItems(items, referenceDate = new Date()) {
+  const currentMonth = referenceDate.getMonth()
+  const currentYear = referenceDate.getFullYear()
+
+  return items.filter((item) => {
+    if (getNormalizedPaymentStatus(item) !== 'processed') {
+      return false
+    }
+
+    const processedDate = getPaymentStatusReferenceDate(item)
+
+    if (!processedDate) {
+      return false
+    }
+
+    return (
+      processedDate.getMonth() === currentMonth &&
+      processedDate.getFullYear() === currentYear
+    )
   })
 }
 
@@ -4610,6 +4635,25 @@ export default function App() {
     return saveRfpPaymentStatusForRecord(record, paymentStatus)
   }
 
+  function shouldMarkRfpProcessedOnPrint(record) {
+    if (
+      !record ||
+      !['accountant', 'admin'].includes(session?.user?.role)
+    ) {
+      return false
+    }
+
+    const normalizedStatus = getNormalizedRfpPaymentStatusValue(
+      record?.rfpDraft?.paymentStatus,
+    )
+
+    return (
+      normalizedStatus !== 'processed' &&
+      normalizedStatus !== 'released' &&
+      normalizedStatus !== 'liquidated / closed'
+    )
+  }
+
   function getInvoiceDocuments(record) {
     return (record?.documents || []).filter(
       (document) => document.type === 'invoice',
@@ -7816,12 +7860,52 @@ export default function App() {
     setRfpPreviewError('')
   }
 
-  function handlePrintRequestForPaymentRecord(record) {
+  async function handlePrintRequestForPaymentRecord(record) {
     if (shouldBlockAccountantRfpRecord(record)) {
       return
     }
 
-    openRequestForPaymentPreviewWindow(record, { autoPrint: true })
+    const printWindow = openRequestForPaymentPreviewWindow(record, {
+      autoPrint: true,
+    })
+
+    if (!printWindow || !shouldMarkRfpProcessedOnPrint(record)) {
+      return
+    }
+
+    try {
+      const updatedRecord = await saveRfpPaymentStatusForRecord(
+        record,
+        'Processed',
+        { silent: true },
+      )
+
+      if (updatedRecord && rfpPreviewRecord?.id === updatedRecord.id) {
+        setRfpPreviewRecord(updatedRecord)
+        setRfpPreviewForm((current) => ({
+          ...current,
+          paymentStatus: getDisplayRfpPaymentStatus(
+            updatedRecord?.rfpDraft?.paymentStatus,
+            '',
+          ),
+        }))
+      }
+
+      pushToast({
+        title: 'RFP processed',
+        message: `${record.requestNumber} was marked as Processed after printing.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      pushToast({
+        title: 'Status update failed',
+        message:
+          error.message ||
+          `${record.requestNumber} was printed but could not be marked as Processed.`,
+        variant: 'error',
+        duration: 4200,
+      })
+    }
   }
 
   function closeRfpPreviewModal() {
