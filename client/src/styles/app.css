@@ -1914,6 +1914,50 @@ label,
   box-shadow: inset 0 0 0 1px rgba(114, 197, 154, 0.12);
 }
 
+.request-list-item.partially-completed {
+  border-color: rgba(34, 197, 94, 0.42);
+  background: linear-gradient(
+    180deg,
+    rgba(34, 197, 94, 0.14) 0%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.13);
+}
+
+.request-list-item.partially-completed::after {
+  content: 'PARTIALLY COMPLETED';
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-14deg);
+  font-size: clamp(1.15rem, 2.8vw, 2rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: rgba(34, 197, 94, 0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.request-list-item.partially-completed.selected {
+  border-color: rgba(34, 197, 94, 0.58);
+  background: linear-gradient(
+    180deg,
+    rgba(34, 197, 94, 0.2) 0%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.18);
+}
+
+.request-list-item.partially-completed:hover {
+  border-color: rgba(34, 197, 94, 0.52);
+}
+
+.request-list-item.partially-completed .request-card-select,
+.request-list-item.partially-completed .request-list-footer {
+  position: relative;
+  z-index: 1;
+}
+
 .request-list-item.completed::after {
   content: 'COMPLETED';
   position: absolute;

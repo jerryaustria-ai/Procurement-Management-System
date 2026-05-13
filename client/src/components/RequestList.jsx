@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 const RFP_PAYMENT_STATUS_OPTIONS = [
+  "Approved",
+  "Processed",
   "Processing",
   "For Liquidation",
   "Liquidation Submitted",
@@ -69,6 +71,15 @@ function getProcurementStageValue(item) {
   }
 
   return currentStage;
+}
+
+function isPartiallyCompletedRequest(item) {
+  return (
+    item?.currentStage === "Request for Payment" &&
+    getNormalizedRfpStatus(item).toLowerCase() === "processed" &&
+    item.status !== "completed" &&
+    !item.filingCompleted
+  );
 }
 
 function getDisplayRequestNumber(item) {
@@ -291,11 +302,12 @@ export default function RequestList({
           const displayRequestNumber = getDisplayRequestNumber(item);
           const displayRequestType = getDisplayRequestType(item);
           const hasAttachments = Array.isArray(item.documents) && item.documents.length > 0;
+          const isPartiallyCompleted = isPartiallyCompletedRequest(item);
 
           return (
           <article
             key={item.id}
-            className={`request-list-item ${item.isUrgent ? "urgent" : ""} ${selectedId === item.id ? "selected" : ""} ${
+            className={`request-list-item ${item.isUrgent ? "urgent" : ""} ${isPartiallyCompleted ? "partially-completed" : ""} ${selectedId === item.id ? "selected" : ""} ${
               item.status === "completed" ? "completed" : ""
             } ${item.status === "rejected" ? "rejected" : ""
             }`}
