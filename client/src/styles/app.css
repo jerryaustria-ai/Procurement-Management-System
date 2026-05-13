@@ -2004,6 +2004,46 @@ label,
   margin-bottom: 10px;
 }
 
+.request-list-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.request-attachment-indicator {
+  display: inline-flex !important;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.95em;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.request-attachment-indicator:hover,
+.request-attachment-indicator:focus-visible {
+  color: var(--accent-strong);
+  outline: none;
+}
+
+.request-attachment-modal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.request-attachment-list-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  background: rgba(226, 236, 247, 0.95);
+  color: var(--text-muted);
+  font-size: 1.35rem;
+}
+
 .request-list-footer {
   position: relative;
   z-index: 1;

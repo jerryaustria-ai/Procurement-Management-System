@@ -119,13 +119,14 @@ export default function RequestList({
   onOpenDetails,
   onEdit,
   onDelete,
+  onOpenAttachments,
   onExportCsv,
   canEditItem,
   canDeleteItem,
   canOpenItem,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const menuRef = useRef(null);
 
@@ -289,6 +290,7 @@ export default function RequestList({
         {paginatedItems.map((item) => {
           const displayRequestNumber = getDisplayRequestNumber(item);
           const displayRequestType = getDisplayRequestType(item);
+          const hasAttachments = Array.isArray(item.documents) && item.documents.length > 0;
 
           return (
           <article
@@ -312,7 +314,31 @@ export default function RequestList({
               }}
             >
               <div className="request-list-topline">
-                <strong>{displayRequestNumber}</strong>
+                <strong className="request-list-number">
+                  {hasAttachments ? (
+                    <span
+                      className="request-attachment-indicator"
+                      aria-label="Has attachments"
+                      title="Has attachments"
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenAttachments?.(item);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onOpenAttachments?.(item);
+                        }
+                      }}
+                    >
+                      📎
+                    </span>
+                  ) : null}
+                  {displayRequestNumber}
+                </strong>
                 <small className="request-list-meta-line">{displayRequestType}</small>
               </div>
               <span className="request-list-title">{item.title}</span>

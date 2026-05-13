@@ -176,6 +176,26 @@ function formatDate(value) {
   }).format(date)
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return 'Not set'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
+
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
 function getCompanyIdentityForBranch(branch, companySettings, identities = []) {
   const normalizedBranch = String(branch || '')
     .trim()
@@ -1514,6 +1534,24 @@ function getAttachmentViewerLabel(document) {
   )
 }
 
+function formatAttachmentFileSize(size) {
+  const numericSize = Number(size)
+
+  if (!Number.isFinite(numericSize) || numericSize <= 0) {
+    return ''
+  }
+
+  if (numericSize >= 1024 * 1024) {
+    return `${(numericSize / (1024 * 1024)).toFixed(2)} MB`
+  }
+
+  if (numericSize >= 1024) {
+    return `${Math.round(numericSize / 1024)} KB`
+  }
+
+  return `${numericSize} bytes`
+}
+
 function getAttachmentViewerType(document) {
   const mimeType = String(document?.mimeType || '').toLowerCase()
   const viewerUrl = getAttachmentViewerUrl(document).toLowerCase()
@@ -1950,6 +1988,7 @@ export default function App() {
   const [attachmentViewerError, setAttachmentViewerError] = useState('')
   const [isAttachmentViewerLoading, setIsAttachmentViewerLoading] =
     useState(false)
+  const [attachmentListRecord, setAttachmentListRecord] = useState(null)
   const [isRequestForPaymentPageOpen, setIsRequestForPaymentPageOpen] =
     useState(false)
   const [requestForPaymentForm, setRequestForPaymentForm] = useState(
@@ -2938,6 +2977,14 @@ export default function App() {
     }
 
     void downloadAttachmentDocument(document)
+  }
+
+  function handleOpenRequestAttachmentList(record) {
+    if (!record || !Array.isArray(record.documents) || !record.documents.length) {
+      return
+    }
+
+    setAttachmentListRecord(record)
   }
 
   function handleCredentialChange(event) {
@@ -9676,6 +9723,7 @@ export default function App() {
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
             onDelete={handleDeleteRequestById}
+            onOpenAttachments={handleOpenRequestAttachmentList}
             onExportCsv={handleExportCsv}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
             canOpenItem={(item) =>
@@ -9727,6 +9775,7 @@ export default function App() {
             onOpenDetails={handleOpenRequestDetails}
             onEdit={openEditRequestModalForItem}
             onDelete={handleDeleteRequestById}
+            onOpenAttachments={handleOpenRequestAttachmentList}
             onExportCsv={handleExportCsv}
             canEditItem={(item) => canUserEditRequest(session?.user, item)}
             canOpenItem={(item) =>
@@ -9749,6 +9798,56 @@ export default function App() {
           />
         </div>
       )}
+
+      {attachmentListRecord ? (
+        <Modal
+          eyebrow='Attachments'
+          title={getDisplayRequestNumber(attachmentListRecord)}
+          onClose={() => setAttachmentListRecord(null)}
+        >
+          <div className='request-attachment-modal-list'>
+            {(attachmentListRecord.documents || []).map((document) => {
+              const sizeLabel = formatAttachmentFileSize(document?.size)
+              const metaParts = [
+                document?.type ? String(document.type).toUpperCase() : '',
+                sizeLabel,
+              ].filter(Boolean)
+
+              return (
+                <article
+                  className='rfp-uploaded-file-card'
+                  key={document.id || document.filename || document.filePath}
+                >
+                  <div className='rfp-uploaded-file-meta'>
+                    <span className='request-attachment-list-icon' aria-hidden='true'>
+                      📎
+                    </span>
+                    <div className='rfp-uploaded-file-copy'>
+                      <strong>{getAttachmentViewerLabel(document)}</strong>
+                      <span>{metaParts.join(' • ') || 'Uploaded file'}</span>
+                      <small>
+                        Uploaded:{' '}
+                        {document?.uploadedAt
+                          ? formatDateTime(document.uploadedAt)
+                          : 'Not set'}
+                      </small>
+                    </div>
+                  </div>
+                  <div className='rfp-uploaded-file-actions'>
+                    <button
+                      className='ghost-button rfp-file-open-button'
+                      type='button'
+                      onClick={() => handleOpenAttachmentDocument(document)}
+                    >
+                      View
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </Modal>
+      ) : null}
 
       {rfpPreviewRecord ? (
         <Modal
@@ -9774,6 +9873,19 @@ export default function App() {
                 <span>{getEffectiveRequestForPaymentPayee(rfpPreviewRecord)}</span>
               </div>
               <div className='rfp-preview-meta'>
+                <div>
+                  <span>Request ID</span>
+                  <strong>{rfpPreviewRecord.requestNumber || 'Not set'}</strong>
+                </div>
+                <div>
+                  <span>Date Created</span>
+                  <strong>
+                    {formatDateTime(
+                      rfpPreviewRecord.requestedAt ||
+                        rfpPreviewRecord.createdAt,
+                    )}
+                  </strong>
+                </div>
                 <div>
                   <span>Supplier / Payee</span>
                   <strong>{getEffectiveRequestForPaymentPayee(rfpPreviewRecord) || 'Not set'}</strong>
@@ -10179,6 +10291,7 @@ export default function App() {
               onOpenDetails={handleOpenRequestDetails}
               onEdit={openEditRequestModalForItem}
               onDelete={handleDeleteRequestById}
+              onOpenAttachments={handleOpenRequestAttachmentList}
               onExportCsv={handleExportCsv}
               canEditItem={(item) => canUserEditRequest(session?.user, item)}
               canOpenItem={(item) =>
