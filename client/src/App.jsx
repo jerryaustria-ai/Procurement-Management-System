@@ -481,11 +481,37 @@ function getInitialRequestForm(
     accountNumber: '',
     checkNumber: '',
     checkDate: '',
+    digitalWalletProvider: '',
+    digitalWalletMobileNumber: '',
     isUrgent: false,
     dateNeeded: '',
     expenseDate: '',
     deliveryAddress,
     notes: '',
+  }
+}
+
+const DIGITAL_WALLET_MODE = 'Digital Wallet (GCash / Maya)'
+const RELEASE_MODES_WITH_BANK_DETAILS = new Set(['Bank Transfer', 'Check'])
+
+function getReleaseDetailResetValues(modeOfRelease = '', current = {}) {
+  const mode = String(modeOfRelease || '')
+  const usesBankDetails = RELEASE_MODES_WITH_BANK_DETAILS.has(mode)
+  const usesCheckDetails = mode === 'Check'
+  const usesDigitalWalletDetails = mode === DIGITAL_WALLET_MODE
+
+  return {
+    bankName: usesBankDetails ? current.bankName || '' : '',
+    accountName: usesBankDetails ? current.accountName || '' : '',
+    accountNumber: mode === 'Bank Transfer' ? current.accountNumber || '' : '',
+    checkNumber: usesCheckDetails ? current.checkNumber || '' : '',
+    checkDate: usesCheckDetails ? current.checkDate || '' : '',
+    digitalWalletProvider: usesDigitalWalletDetails
+      ? current.digitalWalletProvider || ''
+      : '',
+    digitalWalletMobileNumber: usesDigitalWalletDetails
+      ? current.digitalWalletMobileNumber || ''
+      : '',
   }
 }
 
@@ -659,6 +685,8 @@ function getInitialRequestForPaymentForm() {
     accountNumber: '',
     checkNumber: '',
     checkDate: '',
+    digitalWalletProvider: '',
+    digitalWalletMobileNumber: '',
     paymentReference: '',
     amountRequested: '',
     dueDate: '',
@@ -796,6 +824,8 @@ function getRequestForPaymentFormFromItem(item) {
     accountNumber: item?.accountNumber || '',
     checkNumber: item?.checkNumber || '',
     checkDate: item?.checkDate ? String(item.checkDate).slice(0, 10) : '',
+    digitalWalletProvider: item?.digitalWalletProvider || '',
+    digitalWalletMobileNumber: item?.digitalWalletMobileNumber || '',
     paymentReference: savedRfpDraft.paymentReference || '',
     amountRequested: savedRfpDraft.amountRequested || getDefaultRequestForPaymentAmount(item),
     dueDate: savedRfpDraft.dueDate || getDefaultRequestForPaymentDueDate(item),
@@ -965,6 +995,20 @@ function canSeeRequestInRegistry(user, item) {
   )
 }
 
+function getApproverApprovalRequests(items) {
+  return items.filter(
+    (item) =>
+      item?.currentStage === 'Approval' &&
+      item?.status !== 'completed' &&
+      item?.status !== 'rejected' &&
+      !item?.filingCompleted,
+  )
+}
+
+function getApproverApprovalRequestCount(items) {
+  return getApproverApprovalRequests(items).length
+}
+
 function getNextPurchaseOrderNumber(items) {
   const currentYear = new Date().getFullYear()
   let highestYear = currentYear
@@ -1030,6 +1074,8 @@ function getRequestAdminForm(
       accountNumber: '',
       checkNumber: '',
       checkDate: '',
+      digitalWalletProvider: '',
+      digitalWalletMobileNumber: '',
       isUrgent: false,
       status: 'open',
       currentStage: '',
@@ -1056,6 +1102,8 @@ function getRequestAdminForm(
     accountNumber: item.accountNumber ?? '',
     checkNumber: item.checkNumber ?? '',
     checkDate: item.checkDate ? item.checkDate.slice(0, 10) : '',
+    digitalWalletProvider: item.digitalWalletProvider ?? '',
+    digitalWalletMobileNumber: item.digitalWalletMobileNumber ?? '',
     isUrgent: Boolean(item.isUrgent),
     dateNeeded: item.dateNeeded
       ? item.dateNeeded.slice(0, 10)
@@ -1591,26 +1639,32 @@ function CompanyHeader({
   onOpenSettings,
   canOpenRfp = false,
   rfpItems = [],
+  approvalNotificationCount = 0,
+  approvalNotificationItems = [],
+  onOpenApprovalNotification,
   companySettings = DEFAULT_COMPANY_SETTINGS,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isRfpModalOpen, setIsRfpModalOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const menuRef = useRef(null)
 
   useEffect(() => {
-    if (!isMenuOpen) {
+    if (!isMenuOpen && !isNotificationsOpen) {
       return undefined
     }
 
     function handlePointerDown(event) {
       if (!menuRef.current?.contains(event.target)) {
         setIsMenuOpen(false)
+        setIsNotificationsOpen(false)
       }
     }
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         setIsMenuOpen(false)
+        setIsNotificationsOpen(false)
       }
     }
 
@@ -1621,15 +1675,17 @@ function CompanyHeader({
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isMenuOpen])
+  }, [isMenuOpen, isNotificationsOpen])
 
   function handleMenuAction(action) {
     setIsMenuOpen(false)
+    setIsNotificationsOpen(false)
     action?.()
   }
 
   function handleOpenRfpModal() {
     setIsMenuOpen(false)
+    setIsNotificationsOpen(false)
     onOpenRfpDirectory?.()
     setIsRfpModalOpen(true)
   }
@@ -1637,6 +1693,11 @@ function CompanyHeader({
   function handleOpenRfpRecord(item) {
     setIsRfpModalOpen(false)
     onOpenRfpRecord?.(item)
+  }
+
+  function handleOpenNotificationItem(item) {
+    setIsNotificationsOpen(false)
+    onOpenApprovalNotification?.(item.id)
   }
 
   function handlePrintRfpRecord(item) {
@@ -1709,6 +1770,90 @@ function CompanyHeader({
               autoCapitalize='none'
               spellCheck={false}
             />
+          ) : null}
+          {user ? (
+            <div className='header-notification-wrap'>
+              <button
+                className='header-notification-button'
+                type='button'
+                aria-haspopup='menu'
+                aria-expanded={isNotificationsOpen}
+                aria-label={
+                  user.role === 'approver'
+                    ? `${approvalNotificationCount} requests need approval`
+                    : 'Notifications'
+                }
+                title={
+                  user.role === 'approver'
+                    ? `${approvalNotificationCount} requests need approval`
+                    : 'Notifications'
+                }
+                onClick={() => {
+                  setIsMenuOpen(false)
+                  setIsNotificationsOpen((current) => !current)
+                }}
+              >
+                <svg viewBox='0 0 24 24' aria-hidden='true'>
+                  <path
+                    d='M18 10.5a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 16.5 18 10.5Z'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth='1.8'
+                  />
+                  <path
+                    d='M9.75 20a2.5 2.5 0 0 0 4.5 0'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeLinecap='round'
+                    strokeWidth='1.8'
+                  />
+                </svg>
+                {user.role === 'approver' ? (
+                  <span className='header-notification-badge'>
+                    {approvalNotificationCount}
+                  </span>
+                ) : null}
+              </button>
+              {isNotificationsOpen ? (
+                <div
+                  className='header-notification-dropdown'
+                  role='menu'
+                  aria-label='Pending approval requests'
+                >
+                  <div className='header-notification-heading'>
+                    <strong>Pending approvals</strong>
+                    <span>
+                      {approvalNotificationCount}{' '}
+                      {approvalNotificationCount === 1 ? 'request' : 'requests'}
+                    </span>
+                  </div>
+                  {user.role === 'approver' && approvalNotificationItems.length ? (
+                    <div className='header-notification-list'>
+                      {approvalNotificationItems.map((item) => (
+                        <button
+                          className='header-notification-item'
+                          key={item.id}
+                          type='button'
+                          role='menuitem'
+                          onClick={() => handleOpenNotificationItem(item)}
+                        >
+                          <strong>{getDisplayRequestNumber(item)}</strong>
+                          <span>{item.title || 'Untitled request'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className='header-notification-empty'>
+                      {user.role === 'approver'
+                        ? 'No pending approval requests.'
+                        : 'No notifications.'}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           ) : null}
           {user ? (
             <div className='header-menu-wrap'>
@@ -1978,6 +2123,8 @@ export default function App() {
     accountNumber: '',
     checkNumber: '',
     checkDate: '',
+    digitalWalletProvider: '',
+    digitalWalletMobileNumber: '',
     dueDate: '',
   })
   const [rfpPreviewError, setRfpPreviewError] = useState('')
@@ -2035,6 +2182,10 @@ export default function App() {
 
   const isAdmin = session?.user?.role === 'admin'
   const isAccountant = session?.user?.role === 'accountant'
+  const approvalNotificationItems =
+    session?.user?.role === 'approver' ? getApproverApprovalRequests(items) : []
+  const approvalNotificationCount =
+    session?.user?.role === 'approver' ? approvalNotificationItems.length : 0
   const branchOptions = Array.from(
     new Set([
       companySettings.companyName,
@@ -3216,11 +3367,10 @@ export default function App() {
           category: value,
           modeOfRelease:
             value === 'Cash Advance' ? 'Cash' : current.modeOfRelease,
-          bankName: value === 'Cash Advance' ? '' : current.bankName,
-          accountName: value === 'Cash Advance' ? '' : current.accountName,
-          accountNumber: value === 'Cash Advance' ? '' : current.accountNumber,
-          checkNumber: value === 'Cash Advance' ? '' : current.checkNumber,
-          checkDate: value === 'Cash Advance' ? '' : current.checkDate,
+          ...getReleaseDetailResetValues(
+            value === 'Cash Advance' ? 'Cash' : current.modeOfRelease,
+            current,
+          ),
           expenseDate: value === 'Reimbursement' ? current.expenseDate : '',
           deliveryAddress:
             value === 'Cash Advance' || value === 'Reimbursement'
@@ -3237,11 +3387,7 @@ export default function App() {
         return {
           ...current,
           modeOfRelease: value,
-          bankName: value === 'Cash' ? '' : current.bankName,
-          accountName: value === 'Cash' ? '' : current.accountName,
-          accountNumber: value === 'Cash' ? '' : current.accountNumber,
-          checkNumber: value === 'Check' ? current.checkNumber : '',
-          checkDate: value === 'Check' ? current.checkDate : '',
+          ...getReleaseDetailResetValues(value, current),
         }
       }
 
@@ -3530,11 +3676,7 @@ export default function App() {
         return {
           ...current,
           modeOfRelease: nextValue,
-          bankName: nextValue === 'Cash' ? '' : current.bankName,
-          accountName: nextValue === 'Cash' ? '' : current.accountName,
-          accountNumber: nextValue === 'Cash' ? '' : current.accountNumber,
-          checkNumber: nextValue === 'Check' ? current.checkNumber : '',
-          checkDate: nextValue === 'Check' ? current.checkDate : '',
+          ...getReleaseDetailResetValues(nextValue, current),
         }
       }
 
@@ -4758,6 +4900,14 @@ export default function App() {
   }
 
   function buildRequestForPaymentDraftPayload(form, overrides = {}) {
+    const modeOfRelease = String(
+      overrides.modeOfRelease ?? form?.modeOfRelease ?? '',
+    )
+    const releaseDetails = getReleaseDetailResetValues(modeOfRelease, {
+      ...form,
+      ...overrides,
+    })
+
     return {
       payee: String(overrides.payee ?? form?.payee ?? ''),
       tinNumber: String(overrides.tinNumber ?? form?.tinNumber ?? ''),
@@ -4770,13 +4920,15 @@ export default function App() {
       modeOfRelease: String(
         overrides.modeOfRelease ?? form?.modeOfRelease ?? '',
       ),
-      bankName: String(overrides.bankName ?? form?.bankName ?? ''),
-      accountName: String(overrides.accountName ?? form?.accountName ?? ''),
-      accountNumber: String(
-        overrides.accountNumber ?? form?.accountNumber ?? '',
+      bankName: String(releaseDetails.bankName || ''),
+      accountName: String(releaseDetails.accountName || ''),
+      accountNumber: String(releaseDetails.accountNumber || ''),
+      checkNumber: String(releaseDetails.checkNumber || ''),
+      checkDate: String(releaseDetails.checkDate || ''),
+      digitalWalletProvider: String(releaseDetails.digitalWalletProvider || ''),
+      digitalWalletMobileNumber: String(
+        releaseDetails.digitalWalletMobileNumber || '',
       ),
-      checkNumber: String(overrides.checkNumber ?? form?.checkNumber ?? ''),
-      checkDate: String(overrides.checkDate ?? form?.checkDate ?? ''),
       paymentReference: String(
         overrides.paymentReference ?? form?.paymentReference ?? '',
       ),
@@ -5998,6 +6150,10 @@ export default function App() {
         requestForm.category === 'Cash Advance'
           ? 'Cash'
           : requestForm.modeOfRelease
+      const normalizedReleaseDetails = getReleaseDetailResetValues(
+        normalizedModeOfRelease,
+        requestForm,
+      )
       const response = await fetch(
         `${API_BASE_URL}/workflows/purchase-requests`,
         {
@@ -6009,26 +6165,7 @@ export default function App() {
           body: JSON.stringify({
             ...requestForm,
             modeOfRelease: normalizedModeOfRelease,
-            bankName:
-              normalizedModeOfRelease === 'Cash'
-                ? ''
-                : requestForm.bankName,
-            accountName:
-              normalizedModeOfRelease === 'Cash'
-                ? ''
-                : requestForm.accountName,
-            accountNumber:
-              normalizedModeOfRelease === 'Cash'
-                ? ''
-                : requestForm.accountNumber,
-            checkNumber:
-              normalizedModeOfRelease === 'Check'
-                ? requestForm.checkNumber
-                : '',
-            checkDate:
-              normalizedModeOfRelease === 'Check'
-                ? requestForm.checkDate
-                : '',
+            ...normalizedReleaseDetails,
             dateNeeded: requestForm.dateNeeded,
             isUrgent: Boolean(requestForm.isUrgent),
             expenseDate:
@@ -6600,29 +6737,14 @@ export default function App() {
       const normalizedModeOfRelease = String(
         requestAdminForm.modeOfRelease || '',
       )
+      const normalizedReleaseDetails = getReleaseDetailResetValues(
+        normalizedModeOfRelease,
+        requestAdminForm,
+      )
       const requestUpdatePayload = {
         ...requestAdminForm,
         modeOfRelease: normalizedModeOfRelease,
-        bankName:
-          normalizedModeOfRelease === 'Cash'
-            ? ''
-            : String(requestAdminForm.bankName || ''),
-        accountName:
-          normalizedModeOfRelease === 'Cash'
-            ? ''
-            : String(requestAdminForm.accountName || ''),
-        accountNumber:
-          normalizedModeOfRelease === 'Cash'
-            ? ''
-            : String(requestAdminForm.accountNumber || ''),
-        checkNumber:
-          normalizedModeOfRelease === 'Check'
-            ? String(requestAdminForm.checkNumber || '')
-            : '',
-        checkDate:
-          normalizedModeOfRelease === 'Check'
-            ? requestAdminForm.checkDate || ''
-            : '',
+        ...normalizedReleaseDetails,
         dateNeeded: requestAdminForm.dateNeeded,
         isUrgent: Boolean(requestAdminForm.isUrgent),
         expenseDate:
@@ -7906,6 +8028,8 @@ export default function App() {
       accountNumber: record?.accountNumber || '',
       checkNumber: record?.checkNumber || '',
       checkDate: record?.checkDate ? String(record.checkDate).slice(0, 10) : '',
+      digitalWalletProvider: record?.digitalWalletProvider || '',
+      digitalWalletMobileNumber: record?.digitalWalletMobileNumber || '',
       dueDate:
         record?.rfpDraft?.dueDate || getDefaultRequestForPaymentDueDate(record),
     })
@@ -7974,6 +8098,8 @@ export default function App() {
       accountNumber: '',
       checkNumber: '',
       checkDate: '',
+      digitalWalletProvider: '',
+      digitalWalletMobileNumber: '',
       dueDate: '',
     })
     setRfpPreviewError('')
@@ -8059,11 +8185,7 @@ export default function App() {
         return {
           ...current,
           modeOfRelease: value,
-          bankName: value === 'Cash' ? '' : current.bankName,
-          accountName: value === 'Cash' ? '' : current.accountName,
-          accountNumber: value === 'Cash' ? '' : current.accountNumber,
-          checkNumber: value === 'Check' ? current.checkNumber : '',
-          checkDate: value === 'Check' ? current.checkDate : '',
+          ...getReleaseDetailResetValues(value, current),
         }
       }
 
@@ -8183,26 +8305,10 @@ export default function App() {
             overrides: {
               dueDate: rfpPreviewForm.dueDate,
               modeOfRelease: rfpPreviewForm.modeOfRelease,
-              bankName:
-                rfpPreviewForm.modeOfRelease === 'Cash'
-                  ? ''
-                  : rfpPreviewForm.bankName,
-              accountName:
-                rfpPreviewForm.modeOfRelease === 'Cash'
-                  ? ''
-                  : rfpPreviewForm.accountName,
-              accountNumber:
-                rfpPreviewForm.modeOfRelease === 'Cash'
-                  ? ''
-                  : rfpPreviewForm.accountNumber,
-              checkNumber:
-                rfpPreviewForm.modeOfRelease === 'Check'
-                  ? rfpPreviewForm.checkNumber
-                  : '',
-              checkDate:
-                rfpPreviewForm.modeOfRelease === 'Check'
-                  ? rfpPreviewForm.checkDate
-                  : '',
+              ...getReleaseDetailResetValues(
+                rfpPreviewForm.modeOfRelease,
+                rfpPreviewForm,
+              ),
             },
           },
         )) || updatedRecord
@@ -8908,6 +9014,9 @@ export default function App() {
         <CompanyHeader
           isAuthenticated
           user={session.user}
+          approvalNotificationCount={approvalNotificationCount}
+          approvalNotificationItems={approvalNotificationItems}
+          onOpenApprovalNotification={handleOpenRequestDetails}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -8955,6 +9064,9 @@ export default function App() {
         <CompanyHeader
           isAuthenticated
           user={session.user}
+          approvalNotificationCount={approvalNotificationCount}
+          approvalNotificationItems={approvalNotificationItems}
+          onOpenApprovalNotification={handleOpenRequestDetails}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -8989,6 +9101,9 @@ export default function App() {
         <CompanyHeader
           isAuthenticated
           user={session.user}
+          approvalNotificationCount={approvalNotificationCount}
+          approvalNotificationItems={approvalNotificationItems}
+          onOpenApprovalNotification={handleOpenRequestDetails}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9068,6 +9183,9 @@ export default function App() {
         <CompanyHeader
           isAuthenticated
           user={session.user}
+          approvalNotificationCount={approvalNotificationCount}
+          approvalNotificationItems={approvalNotificationItems}
+          onOpenApprovalNotification={handleOpenRequestDetails}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9323,6 +9441,9 @@ export default function App() {
         <CompanyHeader
           isAuthenticated
           user={session.user}
+          approvalNotificationCount={approvalNotificationCount}
+          approvalNotificationItems={approvalNotificationItems}
+          onOpenApprovalNotification={handleOpenRequestDetails}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9605,6 +9726,9 @@ export default function App() {
       <CompanyHeader
         isAuthenticated
         user={session.user}
+        approvalNotificationCount={approvalNotificationCount}
+        approvalNotificationItems={approvalNotificationItems}
+        onOpenApprovalNotification={handleOpenRequestDetails}
         showRequestSearch={false}
         onLogout={handleLogout}
         theme={theme}

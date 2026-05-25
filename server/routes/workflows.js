@@ -113,15 +113,26 @@ function clearPurchaseOrderNumber(request) {
 }
 
 function clearReleaseDetailsForCash(request) {
-  if (request.modeOfRelease !== "Cash") {
-    return;
+  const modeOfRelease = String(request.modeOfRelease || "").trim();
+  const usesBankDetails = modeOfRelease === "Bank Transfer" || modeOfRelease === "Check";
+  const usesCheckDetails = modeOfRelease === "Check";
+  const usesDigitalWalletDetails = modeOfRelease === "Digital Wallet (GCash / Maya)";
+
+  if (!usesBankDetails) {
+    request.bankName = "";
+    request.accountName = "";
+    request.accountNumber = "";
   }
 
-  request.bankName = "";
-  request.accountName = "";
-  request.accountNumber = "";
-  request.checkNumber = "";
-  request.checkDate = null;
+  if (!usesCheckDetails) {
+    request.checkNumber = "";
+    request.checkDate = null;
+  }
+
+  if (!usesDigitalWalletDetails) {
+    request.digitalWalletProvider = "";
+    request.digitalWalletMobileNumber = "";
+  }
 }
 
 function parseBooleanValue(value) {
@@ -456,6 +467,8 @@ router.post("/purchase-requests", async (req, res) => {
       accountNumber,
       checkNumber,
       checkDate,
+      digitalWalletProvider,
+      digitalWalletMobileNumber,
       isUrgent,
       priority,
       dateNeeded,
@@ -557,7 +570,8 @@ router.post("/purchase-requests", async (req, res) => {
     }
 
     const resolvedModeOfRelease = isCashAdvance ? "Cash" : modeOfRelease || "";
-    const clearsReleaseDetails = resolvedModeOfRelease === "Cash";
+    const usesBankDetails = resolvedModeOfRelease === "Bank Transfer" || resolvedModeOfRelease === "Check";
+    const usesDigitalWalletDetails = resolvedModeOfRelease === "Digital Wallet (GCash / Maya)";
 
     const created = await PurchaseRequest.create({
       requestNumber,
@@ -573,11 +587,13 @@ router.post("/purchase-requests", async (req, res) => {
       amount: parsedAmount,
       currency: currency || "PHP",
       modeOfRelease: resolvedModeOfRelease,
-      bankName: clearsReleaseDetails ? "" : bankName || "",
-      accountName: clearsReleaseDetails ? "" : accountName || "",
-      accountNumber: clearsReleaseDetails ? "" : accountNumber || "",
+      bankName: usesBankDetails ? bankName || "" : "",
+      accountName: usesBankDetails ? accountName || "" : "",
+      accountNumber: resolvedModeOfRelease === "Bank Transfer" ? accountNumber || "" : "",
       checkNumber: resolvedModeOfRelease === "Check" ? checkNumber || "" : "",
       checkDate: resolvedModeOfRelease === "Check" ? checkDate || null : null,
+      digitalWalletProvider: usesDigitalWalletDetails ? digitalWalletProvider || "" : "",
+      digitalWalletMobileNumber: usesDigitalWalletDetails ? digitalWalletMobileNumber || "" : "",
       isUrgent: parseBooleanValue(isUrgent),
       priority: priority || "medium",
       dateNeeded: resolvedDateNeeded || null,
@@ -756,6 +772,8 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "bankName",
           "accountName",
           "accountNumber",
+          "digitalWalletProvider",
+          "digitalWalletMobileNumber",
           "isUrgent",
           "priority",
           "dateNeeded",
@@ -783,6 +801,8 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "bankName",
           "accountName",
           "accountNumber",
+          "digitalWalletProvider",
+          "digitalWalletMobileNumber",
           "isUrgent"
         ];
 
@@ -860,6 +880,14 @@ router.patch("/purchase-requests/:id", async (req, res) => {
 
   if (typeof req.body.checkDate !== "undefined") {
     request.checkDate = req.body.checkDate || null;
+  }
+
+  if (typeof req.body.digitalWalletProvider === "string") {
+    request.digitalWalletProvider = req.body.digitalWalletProvider;
+  }
+
+  if (typeof req.body.digitalWalletMobileNumber === "string") {
+    request.digitalWalletMobileNumber = req.body.digitalWalletMobileNumber;
   }
 
   if (request.category !== "Reimbursement") {
@@ -1047,6 +1075,14 @@ router.patch("/purchase-requests/:id/rfp-draft", async (req, res) => {
 
   if (typeof req.body.checkDate !== "undefined") {
     request.checkDate = req.body.checkDate || null;
+  }
+
+  if (typeof req.body.digitalWalletProvider === "string") {
+    request.digitalWalletProvider = req.body.digitalWalletProvider;
+  }
+
+  if (typeof req.body.digitalWalletMobileNumber === "string") {
+    request.digitalWalletMobileNumber = req.body.digitalWalletMobileNumber;
   }
 
   clearReleaseDetailsForCash(request);

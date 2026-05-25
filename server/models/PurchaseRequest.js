@@ -102,6 +102,8 @@ const purchaseRequestSchema = new mongoose.Schema(
     accountNumber: { type: String, default: "" },
     checkNumber: { type: String, default: "" },
     checkDate: { type: Date, default: null },
+    digitalWalletProvider: { type: String, default: "" },
+    digitalWalletMobileNumber: { type: String, default: "" },
     isUrgent: { type: Boolean, default: false },
     priority: {
       type: String,

@@ -397,6 +397,133 @@ textarea {
   flex-shrink: 0;
 }
 
+.header-notification-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.header-notification-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  border: 1px solid var(--pill-border);
+  border-radius: 999px;
+  background: var(--pill-bg);
+  color: var(--text-soft);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.header-notification-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.header-notification-button:hover {
+  border-color: rgba(213, 181, 108, 0.24);
+  color: var(--accent);
+}
+
+.header-notification-badge {
+  position: absolute;
+  right: -4px;
+  top: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 2px solid var(--header-bg);
+  background: #df4d43;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.header-notification-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(360px, calc(100vw - 40px));
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  background: var(--panel-bg);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  z-index: 32;
+}
+
+.header-notification-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.header-notification-heading strong {
+  color: var(--heading-color);
+}
+
+.header-notification-heading span,
+.header-notification-empty {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.header-notification-list {
+  display: grid;
+  gap: 8px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.header-notification-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--card-bg);
+  color: var(--text-soft);
+  text-align: left;
+  box-shadow: none;
+}
+
+.header-notification-item:hover {
+  border-color: rgba(213, 181, 108, 0.28);
+  background: var(--panel-strong);
+}
+
+.header-notification-item strong {
+  color: var(--heading-color);
+  font-size: 0.95rem;
+}
+
+.header-notification-item span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.header-notification-empty {
+  margin: 0;
+  padding: 10px 4px 4px;
+}
+
 .header-menu-trigger {
   display: inline-flex;
   align-items: center;
