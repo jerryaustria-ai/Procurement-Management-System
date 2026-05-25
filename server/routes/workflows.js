@@ -798,6 +798,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "dateNeeded",
           "expenseDate",
           "notes",
+          "modeOfRelease",
           "bankName",
           "accountName",
           "accountNumber",

@@ -23,6 +23,7 @@ export default function CreateRequestForm({
   const isRequestForPayment = form.category === 'Request for Payment (RFP)'
   const isBankTransfer = form.modeOfRelease === 'Bank Transfer'
   const isCheck = form.modeOfRelease === 'Check'
+  const isDigitalWallet = form.modeOfRelease === 'Digital Wallet (GCash / Maya)'
   const uploadInputId = useId()
   const uploadLabel = isReimbursement
     ? 'Upload Reimbursement Documents'
@@ -240,8 +241,40 @@ export default function CreateRequestForm({
             <option value='Cash'>Cash</option>
             <option value='Bank Transfer'>Bank Transfer</option>
             <option value='Check'>Check</option>
+            <option value='Digital Wallet (GCash / Maya)'>
+              Digital Wallet (GCash / Maya)
+            </option>
+            <option value='Credit Card'>Credit Card</option>
           </select>
         </label>
+
+        {isDigitalWallet ? (
+          <>
+            <label>
+              Digital Wallet
+              <select
+                name='digitalWalletProvider'
+                value={form.digitalWalletProvider || ''}
+                onChange={onChange}
+              >
+                <option value=''>Select wallet</option>
+                <option value='GCASH'>GCASH</option>
+                <option value='MAYA'>MAYA</option>
+                <option value='Other'>Other</option>
+              </select>
+            </label>
+
+            <label>
+              Mobile Number
+              <input
+                name='digitalWalletMobileNumber'
+                value={form.digitalWalletMobileNumber || ''}
+                onChange={onChange}
+                placeholder='Enter mobile number'
+              />
+            </label>
+          </>
+        ) : null}
 
         {isBankTransfer || isCheck ? (
           <>

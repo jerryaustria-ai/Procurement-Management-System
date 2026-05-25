@@ -2206,6 +2206,8 @@ export default function App() {
     normalizedPreviewPaymentStatus === 'for liquidation'
   const isPreviewBankTransfer = rfpPreviewForm.modeOfRelease === 'Bank Transfer'
   const isPreviewCheck = rfpPreviewForm.modeOfRelease === 'Check'
+  const isPreviewDigitalWallet =
+    rfpPreviewForm.modeOfRelease === DIGITAL_WALLET_MODE
   const previewInvoiceGroupHeading = isPreviewBankTransfer
     ? 'Proof of Transfer'
     : 'Invoice Files'
@@ -3865,10 +3867,20 @@ export default function App() {
       }))
     }
 
-    setRequestForPaymentForm((current) => ({
-      ...current,
-      [event.target.name]: event.target.value,
-    }))
+    setRequestForPaymentForm((current) => {
+      if (event.target.name === 'modeOfRelease') {
+        return {
+          ...current,
+          modeOfRelease: event.target.value,
+          ...getReleaseDetailResetValues(event.target.value, current),
+        }
+      }
+
+      return {
+        ...current,
+        [event.target.name]: event.target.value,
+      }
+    })
   }
 
   function handleRequestForPaymentDocumentFiles(name, nextFiles) {
@@ -10089,8 +10101,40 @@ export default function App() {
                   <option value='Cash'>Cash</option>
                   <option value='Bank Transfer'>Bank Transfer</option>
                   <option value='Check'>Check</option>
+                  <option value={DIGITAL_WALLET_MODE}>
+                    Digital Wallet (GCash / Maya)
+                  </option>
+                  <option value='Credit Card'>Credit Card</option>
                 </select>
               </label>
+
+              {isPreviewDigitalWallet ? (
+                <>
+                  <label>
+                    Digital Wallet
+                    <select
+                      name='digitalWalletProvider'
+                      value={rfpPreviewForm.digitalWalletProvider || ''}
+                      onChange={handleRfpPreviewFormChange}
+                    >
+                      <option value=''>Select wallet</option>
+                      <option value='GCASH'>GCASH</option>
+                      <option value='MAYA'>MAYA</option>
+                      <option value='Other'>Other</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Mobile Number
+                    <input
+                      name='digitalWalletMobileNumber'
+                      value={rfpPreviewForm.digitalWalletMobileNumber || ''}
+                      onChange={handleRfpPreviewFormChange}
+                      placeholder='Enter mobile number'
+                    />
+                  </label>
+                </>
+              ) : null}
 
               {isPreviewBankTransfer || isPreviewCheck ? (
                 <>

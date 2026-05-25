@@ -269,6 +269,18 @@ export default function RequestSummary({
             </div>
           </>
         ) : null}
+        {item.modeOfRelease === "Digital Wallet (GCash / Maya)" ? (
+          <>
+            <div>
+              <span>Digital wallet</span>
+              <strong>{item.digitalWalletProvider || "Not set"}</strong>
+            </div>
+            <div>
+              <span>Mobile number</span>
+              <strong>{item.digitalWalletMobileNumber || "Not set"}</strong>
+            </div>
+          </>
+        ) : null}
         {item.category === "Reimbursement" ? (
           <div>
             <span>Expense date</span>
