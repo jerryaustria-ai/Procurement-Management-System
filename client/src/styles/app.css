@@ -229,6 +229,7 @@ textarea {
 
 .company-header {
   position: relative;
+  z-index: 90;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -519,9 +520,19 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.header-notification-item small {
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .header-notification-empty {
   margin: 0;
   padding: 10px 4px 4px;
+}
+
+.notification-summary-modal .summary-panel {
+  margin: 0;
 }
 
 .header-menu-trigger {
@@ -4722,7 +4733,7 @@ button.inline-link {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 200;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -4731,7 +4742,7 @@ button.inline-link {
 }
 
 .modal-backdrop-top-layer {
-  z-index: 80;
+  z-index: 240;
 }
 
 .modal-shell {
@@ -4749,7 +4760,7 @@ button.inline-link {
   position: fixed;
   top: 24px;
   right: 24px;
-  z-index: 60;
+  z-index: 260;
   display: grid;
   gap: 12px;
   width: min(380px, calc(100vw - 28px));

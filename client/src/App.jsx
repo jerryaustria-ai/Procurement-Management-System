@@ -36,6 +36,8 @@ const ART_GALLERY_URL =
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '')
 const DASHBOARD_REFRESH_MS = 5000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
+const REQUESTER_NOTIFICATION_STORAGE_PREFIX =
+  'procurement-requester-status-notifications'
 const RFP_PAYMENT_STATUS_OPTIONS = [
   'Approved',
   'Processed',
@@ -889,14 +891,18 @@ function canAccessRequestForPayment(item) {
       item.rfpDraft?.invoiceNumber ||
       item.rfpDraft?.amountRequested ||
       item.rfpDraft?.dueDate ||
-      item.rfpDraft?.notes,
+      item.rfpDraft?.notes ||
+      item.rfpDraft?.paymentStatus ||
+      item.rfpDraft?.modeOfRelease,
   )
+  const hasRfpNumber = Boolean(String(item.rfpNumber || '').trim())
   const hasRfpHistory = Array.isArray(item.history)
     ? item.history.some((entry) => requestForPaymentStages.has(entry.stage))
     : false
 
   return (
     hasSavedRfpDraft ||
+    hasRfpNumber ||
     hasRfpHistory ||
     Boolean(item.requestForPaymentEnabled) ||
     requestForPaymentStages.has(item.currentStage)
@@ -1007,6 +1013,157 @@ function getApproverApprovalRequests(items) {
 
 function getApproverApprovalRequestCount(items) {
   return getApproverApprovalRequests(items).length
+}
+
+function getAccountantApprovedRequestNotifications(items) {
+  return items
+    .filter((item) => {
+      const normalizedPaymentStatus = getNormalizedRfpPaymentStatusValue(
+        item?.rfpDraft?.paymentStatus,
+      )
+
+      return (
+        normalizedPaymentStatus === 'approved' &&
+        item?.status !== 'rejected' &&
+        !item?.filingCompleted
+      )
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.updatedAt || a.requestedAt || 0).getTime()
+      const dateB = new Date(b.updatedAt || b.requestedAt || 0).getTime()
+      return dateB - dateA
+    })
+}
+
+function getRequesterNotificationStorageKey(user) {
+  const email = String(user?.email || '').trim().toLowerCase()
+  return `${REQUESTER_NOTIFICATION_STORAGE_PREFIX}:${email || 'guest'}`
+}
+
+function getStoredRequesterNotificationKeys(user) {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(
+      getRequesterNotificationStorageKey(user),
+    )
+    const parsedValue = JSON.parse(storedValue || '[]')
+    return Array.isArray(parsedValue) ? parsedValue.filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function storeRequesterNotificationKeys(user, notificationKeys) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(
+    getRequesterNotificationStorageKey(user),
+    JSON.stringify(Array.from(new Set(notificationKeys.filter(Boolean)))),
+  )
+}
+
+function getRequesterNotificationSnapshot(item) {
+  const latestHistoryEntry = Array.isArray(item?.history)
+    ? item.history[item.history.length - 1]
+    : null
+  const statusParts = [
+    item?.status || '',
+    item?.currentStage || '',
+    item?.rfpDraft?.paymentStatus || '',
+    item?.filingCompleted ? 'filing-completed' : '',
+  ]
+    .map((part) => String(part || '').trim())
+    .join('|')
+
+  return [
+    item?.id || '',
+    item?.updatedAt || '',
+    latestHistoryEntry?.updatedAt || '',
+    statusParts,
+  ].join(':')
+}
+
+function getRequesterNotificationStatusLabel(item) {
+  const rfpPaymentStatus = getDisplayRfpPaymentStatus(
+    item?.rfpDraft?.paymentStatus,
+    '',
+  )
+
+  if (item?.currentStage === 'Request for Payment' && rfpPaymentStatus) {
+    return `Request for Payment - ${rfpPaymentStatus}`
+  }
+
+  if (item?.status === 'completed' || item?.filingCompleted) {
+    return 'Completed'
+  }
+
+  if (item?.status === 'rejected') {
+    return 'Rejected'
+  }
+
+  return item?.currentStage ? `Current stage: ${item.currentStage}` : 'Updated'
+}
+
+function hasRequesterStatusUpdate(item) {
+  const firstHistoryEntry = Array.isArray(item?.history) ? item.history[0] : null
+  const latestHistoryEntry = Array.isArray(item?.history)
+    ? item.history[item.history.length - 1]
+    : null
+
+  if (!item) {
+    return false
+  }
+
+  if (item.status === 'rejected' || item.status === 'completed' || item.filingCompleted) {
+    return true
+  }
+
+  if (item.currentStage && item.currentStage !== 'Approval') {
+    return true
+  }
+
+  if (String(item.rfpDraft?.paymentStatus || '').trim()) {
+    return true
+  }
+
+  return Boolean(
+    firstHistoryEntry &&
+      latestHistoryEntry &&
+      String(firstHistoryEntry.updatedAt || '') !==
+        String(latestHistoryEntry.updatedAt || ''),
+  )
+}
+
+function getRequesterStatusNotifications(items, user, viewedNotificationKeys = []) {
+  const userEmail = String(user?.email || '').trim().toLowerCase()
+  const viewedKeys = new Set(viewedNotificationKeys)
+
+  if (!userEmail) {
+    return []
+  }
+
+  return items
+    .filter(
+      (item) =>
+        String(item?.requesterEmail || '').trim().toLowerCase() === userEmail &&
+        hasRequesterStatusUpdate(item),
+    )
+    .map((item) => ({
+      item,
+      key: getRequesterNotificationSnapshot(item),
+      statusLabel: getRequesterNotificationStatusLabel(item),
+    }))
+    .filter((notification) => !viewedKeys.has(notification.key))
+    .sort((a, b) => {
+      const dateA = new Date(a.item.updatedAt || a.item.requestedAt || 0).getTime()
+      const dateB = new Date(b.item.updatedAt || b.item.requestedAt || 0).getTime()
+      return dateB - dateA
+    })
 }
 
 function getNextPurchaseOrderNumber(items) {
@@ -1642,6 +1799,12 @@ function CompanyHeader({
   approvalNotificationCount = 0,
   approvalNotificationItems = [],
   onOpenApprovalNotification,
+  requesterNotificationCount = 0,
+  requesterNotificationItems = [],
+  onOpenRequesterNotification,
+  accountantNotificationCount = 0,
+  accountantNotificationItems = [],
+  onOpenAccountantNotification,
   companySettings = DEFAULT_COMPANY_SETTINGS,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -1700,6 +1863,16 @@ function CompanyHeader({
     onOpenApprovalNotification?.(item.id)
   }
 
+  function handleOpenRequesterNotificationItem(notification) {
+    setIsNotificationsOpen(false)
+    onOpenRequesterNotification?.(notification)
+  }
+
+  function handleOpenAccountantNotificationItem(item) {
+    setIsNotificationsOpen(false)
+    onOpenAccountantNotification?.(item)
+  }
+
   function handlePrintRfpRecord(item) {
     onPrintRfpRecord?.(item)
   }
@@ -1714,6 +1887,31 @@ function CompanyHeader({
     url.hash = ''
     window.location.assign(`${url.origin}${url.pathname}`)
   }
+
+  const activeNotificationCount =
+    user?.role === 'approver'
+      ? approvalNotificationCount
+      : user?.role === 'requester'
+        ? requesterNotificationCount
+        : user?.role === 'accountant'
+          ? accountantNotificationCount
+          : 0
+  const activeNotificationLabel =
+    user?.role === 'approver'
+      ? `${approvalNotificationCount} requests need approval`
+      : user?.role === 'requester'
+        ? `${requesterNotificationCount} request updates`
+        : user?.role === 'accountant'
+          ? `${accountantNotificationCount} approved requests`
+          : 'Notifications'
+  const notificationHeading =
+    user?.role === 'approver'
+      ? 'Pending approvals'
+      : user?.role === 'requester'
+        ? 'Request updates'
+        : user?.role === 'accountant'
+          ? 'Approved requests'
+          : 'Notifications'
 
   return (
     <>
@@ -1779,15 +1977,9 @@ function CompanyHeader({
                 aria-haspopup='menu'
                 aria-expanded={isNotificationsOpen}
                 aria-label={
-                  user.role === 'approver'
-                    ? `${approvalNotificationCount} requests need approval`
-                    : 'Notifications'
+                  activeNotificationLabel
                 }
-                title={
-                  user.role === 'approver'
-                    ? `${approvalNotificationCount} requests need approval`
-                    : 'Notifications'
-                }
+                title={activeNotificationLabel}
                 onClick={() => {
                   setIsMenuOpen(false)
                   setIsNotificationsOpen((current) => !current)
@@ -1810,9 +2002,9 @@ function CompanyHeader({
                     strokeWidth='1.8'
                   />
                 </svg>
-                {user.role === 'approver' ? (
+                {activeNotificationCount ? (
                   <span className='header-notification-badge'>
-                    {approvalNotificationCount}
+                    {activeNotificationCount}
                   </span>
                 ) : null}
               </button>
@@ -1820,13 +2012,13 @@ function CompanyHeader({
                 <div
                   className='header-notification-dropdown'
                   role='menu'
-                  aria-label='Pending approval requests'
+                  aria-label={notificationHeading}
                 >
                   <div className='header-notification-heading'>
-                    <strong>Pending approvals</strong>
+                    <strong>{notificationHeading}</strong>
                     <span>
-                      {approvalNotificationCount}{' '}
-                      {approvalNotificationCount === 1 ? 'request' : 'requests'}
+                      {activeNotificationCount}{' '}
+                      {activeNotificationCount === 1 ? 'item' : 'items'}
                     </span>
                   </div>
                   {user.role === 'approver' && approvalNotificationItems.length ? (
@@ -1844,11 +2036,57 @@ function CompanyHeader({
                         </button>
                       ))}
                     </div>
+                  ) : user.role === 'requester' &&
+                    requesterNotificationItems.length ? (
+                    <div className='header-notification-list'>
+                      {requesterNotificationItems.map((notification) => (
+                        <button
+                          className='header-notification-item'
+                          key={notification.key}
+                          type='button'
+                          role='menuitem'
+                          onClick={() =>
+                            handleOpenRequesterNotificationItem(notification)
+                          }
+                        >
+                          <strong>
+                            {getDisplayRequestNumber(notification.item)}
+                          </strong>
+                          <span>
+                            {notification.item.title || 'Untitled request'}
+                          </span>
+                          <small>{notification.statusLabel}</small>
+                        </button>
+                      ))}
+                    </div>
+                  ) : user.role === 'accountant' &&
+                    accountantNotificationItems.length ? (
+                    <div className='header-notification-list'>
+                      {accountantNotificationItems.map((item) => (
+                        <button
+                          className='header-notification-item'
+                          key={item.id}
+                          type='button'
+                          role='menuitem'
+                          onClick={() =>
+                            handleOpenAccountantNotificationItem(item)
+                          }
+                        >
+                          <strong>{getDisplayRequestNumber(item)}</strong>
+                          <span>{item.title || 'Untitled request'}</span>
+                          <small>Approved</small>
+                        </button>
+                      ))}
+                    </div>
                   ) : (
                     <p className='header-notification-empty'>
                       {user.role === 'approver'
                         ? 'No pending approval requests.'
-                        : 'No notifications.'}
+                        : user.role === 'requester'
+                          ? 'No request updates.'
+                          : user.role === 'accountant'
+                            ? 'No approved requests.'
+                            : 'No notifications.'}
                     </p>
                   )}
                 </div>
@@ -2178,6 +2416,14 @@ export default function App() {
   const [requestSearchQuery, setRequestSearchQuery] = useState('')
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [toasts, setToasts] = useState([])
+  const [
+    viewedRequesterNotificationKeys,
+    setViewedRequesterNotificationKeys,
+  ] = useState(() => getStoredRequesterNotificationKeys(session?.user))
+  const [
+    requesterNotificationSummaryItem,
+    setRequesterNotificationSummaryItem,
+  ] = useState(null)
   const dashboardRefreshInFlight = useRef(false)
 
   const isAdmin = session?.user?.role === 'admin'
@@ -2186,6 +2432,26 @@ export default function App() {
     session?.user?.role === 'approver' ? getApproverApprovalRequests(items) : []
   const approvalNotificationCount =
     session?.user?.role === 'approver' ? approvalNotificationItems.length : 0
+  const requesterNotificationItems =
+    session?.user?.role === 'requester'
+      ? getRequesterStatusNotifications(
+          items,
+          session.user,
+          viewedRequesterNotificationKeys,
+        )
+      : []
+  const requesterNotificationCount =
+    session?.user?.role === 'requester'
+      ? requesterNotificationItems.length
+      : 0
+  const accountantNotificationItems =
+    session?.user?.role === 'accountant'
+      ? getAccountantApprovedRequestNotifications(items)
+      : []
+  const accountantNotificationCount =
+    session?.user?.role === 'accountant'
+      ? accountantNotificationItems.length
+      : 0
   const branchOptions = Array.from(
     new Set([
       companySettings.companyName,
@@ -2356,6 +2622,24 @@ export default function App() {
   const canOpenRequestForPaymentMenu = items.some((item) =>
     canAccessRequestForPayment(item),
   )
+  const requesterNotificationSummaryModal = requesterNotificationSummaryItem ? (
+    <Modal
+      eyebrow='Request update'
+      title={getDisplayRequestNumber(requesterNotificationSummaryItem)}
+      onClose={() => setRequesterNotificationSummaryItem(null)}
+    >
+      <div className='modal-form notification-summary-modal'>
+        <RequestSummary
+          item={requesterNotificationSummaryItem}
+          apiOrigin={API_ORIGIN}
+          showExpand={false}
+          showHeader={false}
+          showStagePill={false}
+          onViewDocument={handleOpenAttachmentDocument}
+        />
+      </div>
+    </Modal>
+  ) : null
   const shouldPauseDashboardRefresh =
     isCreateRequestModalOpen ||
     isEditRequestModalOpen ||
@@ -2366,6 +2650,13 @@ export default function App() {
     isPurchaseOrderPageOpen ||
     isAuditTrailPageOpen ||
     isSettingsPageOpen
+
+  useEffect(() => {
+    setViewedRequesterNotificationKeys(
+      getStoredRequesterNotificationKeys(session?.user),
+    )
+    setRequesterNotificationSummaryItem(null)
+  }, [session?.user?.email])
 
   useEffect(() => {
     if (!selectedItem) {
@@ -2551,10 +2842,14 @@ export default function App() {
       return
     }
 
+    if (selectedId && items.some((item) => item.id === selectedId)) {
+      return
+    }
+
     if (!filteredItems.some((item) => item.id === selectedId)) {
       setSelectedId(filteredItems[0].id)
     }
-  }, [filteredItems, selectedId])
+  }, [filteredItems, items, selectedId])
 
   useEffect(() => {
     if (!session?.user || session.user.role === 'admin') {
@@ -4482,11 +4777,30 @@ export default function App() {
     setExpandedPanel('request-summary')
   }
 
-  function openRequestForPaymentPage(targetRequest = selectedItem) {
+  function handleOpenRequesterNotification(notification) {
+    if (!notification?.item) {
+      return
+    }
+
+    const latestItem =
+      items.find((item) => item.id === notification.item.id) ||
+      notification.item
+    const nextViewedKeys = Array.from(
+      new Set([...viewedRequesterNotificationKeys, notification.key]),
+    )
+
+    setViewedRequesterNotificationKeys(nextViewedKeys)
+    storeRequesterNotificationKeys(session?.user, nextViewedKeys)
+    setRequesterNotificationSummaryItem(latestItem)
+  }
+
+  function openRequestForPaymentPage(targetRequest = selectedItem, options = {}) {
+    const forceOpen = Boolean(options.forceOpen)
     const fallbackRequest =
       items.find((item) => canAccessRequestForPayment(item)) ?? null
     const requestedIsImmediatelyAccessible =
-      Boolean(targetRequest) && canAccessRequestForPayment(targetRequest)
+      Boolean(targetRequest) &&
+      (forceOpen || canAccessRequestForPayment(targetRequest))
     const nextTargetRequest = requestedIsImmediatelyAccessible
       ? targetRequest
       : fallbackRequest
@@ -4500,6 +4814,7 @@ export default function App() {
       nextTargetRequest
     const isSelectedRequest = selectedItem?.id === resolvedRequest.id
     const hasImmediateRfpAccess =
+      forceOpen ||
       canAccessRequestForPayment(resolvedRequest) ||
       canAccessRequestForPayment(nextTargetRequest) ||
       (isSelectedRequest && canAccessRequestForPayment(selectedItem))
@@ -7423,7 +7738,22 @@ export default function App() {
   }
 
   function shouldBlockAccountantRfpRecord(record) {
-    if (!record || !isAccountant || isRequestApprovedForRfpRecord(record)) {
+    const normalizedPaymentStatus = getNormalizedRfpPaymentStatusValue(
+      record?.rfpDraft?.paymentStatus,
+    )
+    const hasAccountantRfpStatus = [
+      'approved',
+      'processed',
+      'released',
+      'liquidated / closed',
+    ].includes(normalizedPaymentStatus)
+
+    if (
+      !record ||
+      !isAccountant ||
+      isRequestApprovedForRfpRecord(record) ||
+      hasAccountantRfpStatus
+    ) {
       return false
     }
 
@@ -7470,6 +7800,15 @@ export default function App() {
     setIsRfpDirectoryOpen(false)
     setAccountantDashboardPage('')
     openRequestForPaymentPage(record)
+  }
+
+  function handleOpenAccountantNotification(record) {
+    if (!record) {
+      return
+    }
+
+    closeHeaderMenuPages()
+    handlePreviewRequestForPaymentRecord(record)
   }
 
   function handleOpenAccountantForPaymentPage() {
@@ -9029,6 +9368,12 @@ export default function App() {
           approvalNotificationCount={approvalNotificationCount}
           approvalNotificationItems={approvalNotificationItems}
           onOpenApprovalNotification={handleOpenRequestDetails}
+          requesterNotificationCount={requesterNotificationCount}
+          requesterNotificationItems={requesterNotificationItems}
+          onOpenRequesterNotification={handleOpenRequesterNotification}
+          accountantNotificationCount={accountantNotificationCount}
+          accountantNotificationItems={accountantNotificationItems}
+          onOpenAccountantNotification={handleOpenAccountantNotification}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9046,6 +9391,7 @@ export default function App() {
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
+        {requesterNotificationSummaryModal}
         <PurchaseOrderPage
           item={selectedItem}
           user={session.user}
@@ -9079,6 +9425,12 @@ export default function App() {
           approvalNotificationCount={approvalNotificationCount}
           approvalNotificationItems={approvalNotificationItems}
           onOpenApprovalNotification={handleOpenRequestDetails}
+          requesterNotificationCount={requesterNotificationCount}
+          requesterNotificationItems={requesterNotificationItems}
+          onOpenRequesterNotification={handleOpenRequesterNotification}
+          accountantNotificationCount={accountantNotificationCount}
+          accountantNotificationItems={accountantNotificationItems}
+          onOpenAccountantNotification={handleOpenAccountantNotification}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9096,6 +9448,7 @@ export default function App() {
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
+        {requesterNotificationSummaryModal}
         <PurchaseOrderDirectoryPage
           items={purchaseOrderRecords}
           onOpen={openPurchaseOrderPage}
@@ -9116,6 +9469,12 @@ export default function App() {
           approvalNotificationCount={approvalNotificationCount}
           approvalNotificationItems={approvalNotificationItems}
           onOpenApprovalNotification={handleOpenRequestDetails}
+          requesterNotificationCount={requesterNotificationCount}
+          requesterNotificationItems={requesterNotificationItems}
+          onOpenRequesterNotification={handleOpenRequesterNotification}
+          accountantNotificationCount={accountantNotificationCount}
+          accountantNotificationItems={accountantNotificationItems}
+          onOpenAccountantNotification={handleOpenAccountantNotification}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9133,6 +9492,7 @@ export default function App() {
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
+        {requesterNotificationSummaryModal}
         <SupplierManagementPage
           suppliers={suppliers}
           selectedSupplierId={selectedSupplierId}
@@ -9198,6 +9558,12 @@ export default function App() {
           approvalNotificationCount={approvalNotificationCount}
           approvalNotificationItems={approvalNotificationItems}
           onOpenApprovalNotification={handleOpenRequestDetails}
+          requesterNotificationCount={requesterNotificationCount}
+          requesterNotificationItems={requesterNotificationItems}
+          onOpenRequesterNotification={handleOpenRequesterNotification}
+          accountantNotificationCount={accountantNotificationCount}
+          accountantNotificationItems={accountantNotificationItems}
+          onOpenAccountantNotification={handleOpenAccountantNotification}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9215,6 +9581,7 @@ export default function App() {
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
+        {requesterNotificationSummaryModal}
         <section className='po-page'>
           <div className='po-page-header'>
             <div>
@@ -9456,6 +9823,12 @@ export default function App() {
           approvalNotificationCount={approvalNotificationCount}
           approvalNotificationItems={approvalNotificationItems}
           onOpenApprovalNotification={handleOpenRequestDetails}
+          requesterNotificationCount={requesterNotificationCount}
+          requesterNotificationItems={requesterNotificationItems}
+          onOpenRequesterNotification={handleOpenRequesterNotification}
+          accountantNotificationCount={accountantNotificationCount}
+          accountantNotificationItems={accountantNotificationItems}
+          onOpenAccountantNotification={handleOpenAccountantNotification}
           onLogout={handleLogout}
           theme={theme}
           onThemeChange={setTheme}
@@ -9471,6 +9844,7 @@ export default function App() {
           rfpItems={requestForPaymentRecords}
           companySettings={companySettings}
         />
+        {requesterNotificationSummaryModal}
         <AuditTrailPage items={items} onClose={closeAuditTrailPage} />
       </main>
     )
@@ -9741,6 +10115,12 @@ export default function App() {
         approvalNotificationCount={approvalNotificationCount}
         approvalNotificationItems={approvalNotificationItems}
         onOpenApprovalNotification={handleOpenRequestDetails}
+        requesterNotificationCount={requesterNotificationCount}
+        requesterNotificationItems={requesterNotificationItems}
+        onOpenRequesterNotification={handleOpenRequesterNotification}
+        accountantNotificationCount={accountantNotificationCount}
+        accountantNotificationItems={accountantNotificationItems}
+        onOpenAccountantNotification={handleOpenAccountantNotification}
         showRequestSearch={false}
         onLogout={handleLogout}
         theme={theme}
@@ -9759,6 +10139,7 @@ export default function App() {
         rfpItems={requestForPaymentRecords}
         companySettings={companySettings}
       />
+      {requesterNotificationSummaryModal}
       <section className='hero'>
         <div className='hero-grid'>
           <div>
