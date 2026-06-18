@@ -1283,12 +1283,20 @@ function getRequestAdminForm(
 }
 
 function getDashboardStats(items) {
-  const openCount = items.filter((item) => item.status === 'open').length
+  const isPartiallyCompletedRequest = (item) =>
+    item?.currentStage === 'Request for Payment' &&
+    getNormalizedRfpPaymentStatusValue(item?.rfpDraft?.paymentStatus) ===
+      'processed' &&
+    item.status !== 'completed' &&
+    !item.filingCompleted
+  const partiallyCompletedCount = items.filter(
+    isPartiallyCompletedRequest,
+  ).length
+  const openCount = items.filter(
+    (item) => item.status === 'open' && !isPartiallyCompletedRequest(item),
+  ).length
   const completedCount = items.filter(
     (item) => item.status === 'completed',
-  ).length
-  const rejectedCount = items.filter(
-    (item) => item.status === 'rejected',
   ).length
   const totalAmount = items.reduce(
     (sum, item) => sum + Number(item.amount || 0),
@@ -1298,7 +1306,10 @@ function getDashboardStats(items) {
   return [
     { label: 'Open Requests', value: String(openCount).padStart(2, '0') },
     { label: 'Completed', value: String(completedCount).padStart(2, '0') },
-    { label: 'Total Rejected', value: String(rejectedCount).padStart(2, '0') },
+    {
+      label: 'Total number of Partially Completed',
+      value: String(partiallyCompletedCount).padStart(2, '0'),
+    },
     {
       label: 'Tracked Value',
       value: new Intl.NumberFormat('en-PH', {
@@ -1569,15 +1580,32 @@ function getAccountantLiquidatedClosedItems(items, referenceDate = new Date()) {
 
 function filterRequests(items, filter) {
   if (filter === 'open') {
-    return items.filter((item) => item.status === 'open')
+    return items.filter(
+      (item) =>
+        item.status === 'open' &&
+        !(
+          item?.currentStage === 'Request for Payment' &&
+          getNormalizedRfpPaymentStatusValue(item?.rfpDraft?.paymentStatus) ===
+            'processed' &&
+          item.status !== 'completed' &&
+          !item.filingCompleted
+        ),
+    )
   }
 
   if (filter === 'completed') {
     return items.filter((item) => item.status === 'completed')
   }
 
-  if (filter === 'rejected') {
-    return items.filter((item) => item.status === 'rejected')
+  if (filter === 'partially-completed') {
+    return items.filter(
+      (item) =>
+        item?.currentStage === 'Request for Payment' &&
+        getNormalizedRfpPaymentStatusValue(item?.rfpDraft?.paymentStatus) ===
+          'processed' &&
+        item.status !== 'completed' &&
+        !item.filingCompleted,
+    )
   }
 
   return items
@@ -2599,6 +2627,14 @@ export default function App() {
         ...stat,
         filterKey: 'completed',
         isActive: requestRegistryFilter === 'completed',
+      }
+    }
+
+    if (stat.label === 'Total number of Partially Completed') {
+      return {
+        ...stat,
+        filterKey: 'partially-completed',
+        isActive: requestRegistryFilter === 'partially-completed',
       }
     }
 
