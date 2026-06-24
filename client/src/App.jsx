@@ -7191,6 +7191,84 @@ export default function App() {
     }
   }
 
+  function handleDuplicateRequest() {
+    if (
+      !selectedItem ||
+      !canCreateRequest ||
+      (session.user.role !== 'admin' &&
+        session.user.email !== selectedItem.requesterEmail)
+    ) {
+      return
+    }
+
+    const duplicateSourceForm = getRequestAdminForm(selectedItem)
+
+    const normalizedModeOfRelease =
+      selectedItem.category === 'Cash Advance'
+        ? 'Cash'
+        : String(duplicateSourceForm.modeOfRelease || '')
+    const normalizedReleaseDetails = getReleaseDetailResetValues(
+      normalizedModeOfRelease,
+      duplicateSourceForm,
+    )
+    const copiedRequestForm = {
+      requesterName:
+        session.user.role === 'admin'
+          ? selectedItem.requesterName || selectedItem.requester || ''
+          : session.user.name || selectedItem.requesterName || '',
+      requesterEmail:
+        session.user.role === 'admin'
+          ? selectedItem.requesterEmail || ''
+          : session.user.email || selectedItem.requesterEmail || '',
+      category: selectedItem.category || '',
+      title: duplicateSourceForm.title,
+      description: duplicateSourceForm.description,
+      branch: duplicateSourceForm.branch || companySettings.companyName,
+      supplier: duplicateSourceForm.supplier,
+      department: duplicateSourceForm.department,
+      propertyProject: duplicateSourceForm.propertyProject,
+      amount: duplicateSourceForm.amount,
+      currency: selectedItem.currency || 'PHP',
+      modeOfRelease: normalizedModeOfRelease,
+      ...normalizedReleaseDetails,
+      isUrgent: Boolean(duplicateSourceForm.isUrgent),
+      dateNeeded: duplicateSourceForm.dateNeeded,
+      expenseDate:
+        selectedItem.category === 'Reimbursement'
+          ? duplicateSourceForm.expenseDate
+          : '',
+      deliveryAddress:
+        selectedItem.category === 'Cash Advance' ||
+        selectedItem.category === 'Reimbursement'
+          ? ''
+          : selectedItem.deliveryAddress ||
+            getBranchDeliveryAddress(
+              duplicateSourceForm.branch || companySettings.companyName,
+              companySettings,
+              companyIdentities,
+            ),
+      notes: duplicateSourceForm.notes,
+    }
+
+    setRequestForm(copiedRequestForm)
+    setRequestFormErrors({
+      category: false,
+      requester: false,
+      title: false,
+      description: false,
+      dateNeeded: false,
+      expenseDate: false,
+      amount: false,
+    })
+    setRequestQuotationFiles([])
+    setRequestAdminAttachmentFiles([])
+    setUploadError('')
+    setActionError('')
+    setExpandedPanel('')
+    setIsEditRequestModalOpen(false)
+    setIsCreateRequestModalOpen(true)
+  }
+
   async function handleDeleteRequest() {
     if (!selectedItem || !session?.token || !isAdmin) {
       return
@@ -10849,11 +10927,21 @@ export default function App() {
           }
           actions={
             expandedPanel === 'request-summary' && selectedItem ? (
-              <span className='status-pill'>{selectedItem.status === 'completed' || selectedItem.filingCompleted
-                ? 'Completed'
-                : selectedItem.status === 'rejected'
-                  ? 'Rejected'
-                  : selectedItem.currentStage}</span>
+              <>
+                <button
+                  className='ghost-button'
+                  type='button'
+                  onClick={handleDuplicateRequest}
+                  disabled={isSubmitting}
+                >
+                  Duplicate
+                </button>
+                <span className='status-pill'>{selectedItem.status === 'completed' || selectedItem.filingCompleted
+                  ? 'Completed'
+                  : selectedItem.status === 'rejected'
+                    ? 'Rejected'
+                    : selectedItem.currentStage}</span>
+              </>
             ) : undefined
           }
           onClose={closeExpandedPanel}
