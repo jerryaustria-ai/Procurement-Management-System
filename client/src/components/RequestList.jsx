@@ -113,6 +113,45 @@ function getDisplayRequestType(item) {
   return "Purchase Request";
 }
 
+function formatPanelDate(value) {
+  if (!value) {
+    return "Not set";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not set";
+  }
+
+  return new Intl.DateTimeFormat("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  }).format(date);
+}
+
+function getPanelPayee(item) {
+  const savedRfpPayee = String(item?.rfpDraft?.payee || "").trim();
+  const requestedPayeeSupplier = String(item?.requestedPayeeSupplier || "").trim();
+  const selectedSupplier = String(item?.supplier || "").trim();
+  const requester = String(item?.requester || item?.requesterName || "").trim();
+
+  if (savedRfpPayee) {
+    return savedRfpPayee;
+  }
+
+  if (requestedPayeeSupplier) {
+    return requestedPayeeSupplier;
+  }
+
+  if (selectedSupplier && selectedSupplier !== "Pending selection") {
+    return selectedSupplier;
+  }
+
+  return requester || "Not set";
+}
+
 export default function RequestList({
   items,
   selectedId,
@@ -303,6 +342,8 @@ export default function RequestList({
           const displayRequestType = getDisplayRequestType(item);
           const hasAttachments = Array.isArray(item.documents) && item.documents.length > 0;
           const isPartiallyCompleted = isPartiallyCompletedRequest(item);
+          const dateCreated = item.createdAt || item.requestedAt;
+          const dueDate = item.dateNeeded || item.rfpDraft?.dueDate;
 
           return (
           <article
@@ -312,7 +353,7 @@ export default function RequestList({
             } ${item.status === "rejected" ? "rejected" : ""
             }`}
           >
-            {item.isUrgent ? (
+            {item.isUrgent && !isPartiallyCompleted ? (
               <span className="request-list-urgent-watermark" aria-hidden="true">
                 URGENT
               </span>
@@ -361,6 +402,20 @@ export default function RequestList({
                 <span>Requester:</span>{" "}
                 <span className="request-list-requester-name">{item.requester}</span>
               </small>
+              <div className="request-list-detail-grid">
+                <small className="request-list-meta-line">
+                  <span>Payee:</span>{" "}
+                  <span className="request-list-detail-value">{getPanelPayee(item)}</span>
+                </small>
+                <small className="request-list-meta-line">
+                  <span>Date created:</span>{" "}
+                  <span className="request-list-detail-value">{formatPanelDate(dateCreated)}</span>
+                </small>
+                <small className="request-list-meta-line">
+                  <span>Due date:</span>{" "}
+                  <span className="request-list-detail-value">{formatPanelDate(dueDate)}</span>
+                </small>
+              </div>
             </button>
             <div className="request-list-footer">
               <div className="request-status-group">

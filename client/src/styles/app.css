@@ -2002,6 +2002,20 @@ label,
   color: var(--text-strong) !important;
 }
 
+.request-list-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 18px;
+  margin-top: 6px;
+  max-width: 980px;
+}
+
+.request-list-detail-value {
+  display: inline !important;
+  color: var(--text-strong) !important;
+  font-weight: 700;
+}
+
 .request-list-stage-link {
   display: inline;
   padding: 0;
@@ -5045,6 +5059,10 @@ button.inline-link {
   .request-list.request-list--card {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .request-list-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .request-list-filter-select,
