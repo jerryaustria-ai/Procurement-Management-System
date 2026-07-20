@@ -21,6 +21,7 @@ export default function CreateRequestForm({
   const isCashAdvance = form.category === 'Cash Advance'
   const isReimbursement = form.category === 'Reimbursement'
   const isRequestForPayment = form.category === 'Request for Payment (RFP)'
+  const isPurchaseOrder = form.category === 'P.O'
   const isBankTransfer = form.modeOfRelease === 'Bank Transfer'
   const isCheck = form.modeOfRelease === 'Check'
   const isDigitalWallet = form.modeOfRelease === 'Digital Wallet (GCash / Maya)'
@@ -47,6 +48,7 @@ export default function CreateRequestForm({
               'Cash Advance',
               'Reimbursement',
               'Request for Payment (RFP)',
+              'P.O',
             ].map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -57,13 +59,15 @@ export default function CreateRequestForm({
       </div>
 
       <div className='form-grid two-column'>
-        {isCashAdvance || isReimbursement || isRequestForPayment ? (
+        {isCashAdvance || isReimbursement || isRequestForPayment || isPurchaseOrder ? (
           <label>
             {isRequestForPayment
               ? 'RFP Number'
               : isReimbursement
                 ? 'Reimbursement Number'
-                : 'Request Number'}
+                : isPurchaseOrder
+                  ? 'P.O Number'
+                  : 'Request Number'}
             <input value={requestNumberPreview} readOnly />
           </label>
         ) : null}
@@ -118,7 +122,8 @@ export default function CreateRequestForm({
         {form.category === 'Cash Advance' ||
         form.category === 'Purchase Request' ||
         form.category === 'Reimbursement' ||
-        form.category === 'Request for Payment (RFP)' ? (
+        form.category === 'Request for Payment (RFP)' ||
+        form.category === 'P.O' ? (
           <label>
             Property / Project
             <input

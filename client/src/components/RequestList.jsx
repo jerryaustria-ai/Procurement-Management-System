@@ -131,6 +131,13 @@ function formatPanelDate(value) {
   }).format(date);
 }
 
+function getCreatedTimestamp(item) {
+  const date = new Date(item?.createdAt || item?.requestedAt || 0);
+  const timestamp = date.getTime();
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 function getPanelPayee(item) {
   const savedRfpPayee = String(item?.rfpDraft?.payee || "").trim();
   const requestedPayeeSupplier = String(item?.requestedPayeeSupplier || "").trim();
@@ -210,10 +217,13 @@ export default function RequestList({
     setCurrentPage(1);
   }, [items.length, activeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const sortedItems = [...items].sort(
+    (left, right) => getCreatedTimestamp(right) - getCreatedTimestamp(left)
+  );
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const startIndex = (safeCurrentPage - 1) * pageSize;
-  const paginatedItems = items.slice(startIndex, startIndex + pageSize);
+  const paginatedItems = sortedItems.slice(startIndex, startIndex + pageSize);
 
   return (
     <section className="panel request-list-panel panel-with-expand">

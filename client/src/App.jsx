@@ -532,6 +532,10 @@ function getRequestNumberPrefixForCategory(category = '') {
     return 'RE'
   }
 
+  if (normalizedCategory === 'p.o') {
+    return 'PO'
+  }
+
   return 'PR'
 }
 
@@ -6595,6 +6599,43 @@ export default function App() {
 
       setItems((current) => [createdRequest, ...current])
       setSelectedId(createdRequest.id)
+      if (requestForm.category === 'P.O') {
+        const basePurchaseOrderDraft = getPurchaseOrderDraft(createdRequest, [
+          createdRequest,
+          ...items,
+        ])
+        const nextPurchaseOrderDraft = {
+          ...basePurchaseOrderDraft,
+          supplier:
+            basePurchaseOrderDraft.supplier ||
+            (createdRequest.supplier === 'Pending selection'
+              ? ''
+              : createdRequest.supplier || ''),
+          notes:
+            basePurchaseOrderDraft.notes ||
+            createdRequest.notes ||
+            createdRequest.description ||
+            '',
+          poNumber:
+            createdRequest.poNumber ||
+            createdRequest.requestNumber ||
+            basePurchaseOrderDraft.poNumber ||
+            getAssignedPurchaseOrderNumber(createdRequest, [
+              createdRequest,
+              ...items,
+            ]),
+        }
+
+        setPurchaseOrderDrafts((current) => ({
+          ...current,
+          [createdRequest.id]: nextPurchaseOrderDraft,
+        }))
+        setPurchaseOrderForm(nextPurchaseOrderDraft)
+        setIsPurchaseOrderDirectoryOpen(false)
+        setIsRequestWorkspacePageOpen(false)
+        setIsRequestForPaymentPageOpen(false)
+        setIsPurchaseOrderPageOpen(true)
+      }
       setRequestForm(
         getInitialRequestForm(
           session.user.department || '',
@@ -6611,8 +6652,14 @@ export default function App() {
       setRequestQuotationFiles([])
       setIsCreateRequestModalOpen(false)
       pushToast({
-        title: 'Request created',
-        message: `${createdRequest.requestNumber} is now in the workflow.`,
+        title:
+          requestForm.category === 'P.O'
+            ? 'Purchase Order ready'
+            : 'Request created',
+        message:
+          requestForm.category === 'P.O'
+            ? `${createdRequest.requestNumber} is ready for purchase order creation.`
+            : `${createdRequest.requestNumber} is now in the workflow.`,
         variant: 'success',
       })
     } catch (error) {

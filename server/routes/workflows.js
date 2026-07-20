@@ -327,6 +327,10 @@ function getRequestNumberPrefix(category = "") {
     return "RE";
   }
 
+  if (normalizedCategory === "p.o") {
+    return "PO";
+  }
+
   return "PR";
 }
 
