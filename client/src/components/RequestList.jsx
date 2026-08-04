@@ -250,6 +250,7 @@ export default function RequestList({
               <option value="open">Open</option>
               <option value="completed">Completed</option>
               <option value="partially-completed">Partially Completed</option>
+              <option value="declined">Declined</option>
             </select>
           </label>
         </div>

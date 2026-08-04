@@ -1612,6 +1612,10 @@ function filterRequests(items, filter) {
     )
   }
 
+  if (filter === 'declined') {
+    return items.filter((item) => item.status === 'rejected')
+  }
+
   return items
 }
 
