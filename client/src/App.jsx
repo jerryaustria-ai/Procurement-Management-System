@@ -543,6 +543,11 @@ function getRequestNumberPreview(items = [], category = '') {
   const currentYear = new Date().getFullYear()
   const prefix = `${getRequestNumberPrefixForCategory(category)}-${currentYear}-`
   const normalizedCategory = String(category || '').trim().toLowerCase()
+
+  if (normalizedCategory === 'p.o') {
+    return getNextPurchaseOrderNumber(items)
+  }
+
   const numberField =
     normalizedCategory === 'request for payment (rfp)'
       ? 'rfpNumber'
@@ -1176,23 +1181,31 @@ function getNextPurchaseOrderNumber(items) {
   let highestSequence = 0
 
   items.forEach((item) => {
-    const value = String(item.poNumber || '').trim()
-    const match = value.match(/^PO-(\d{4})-(\d+)$/i)
+    const values = [
+      item.poNumber,
+      item.poDraft?.poNumber,
+      item.category === 'P.O' ? item.requestNumber : '',
+    ]
 
-    if (!match) {
-      return
-    }
+    values.forEach((rawValue) => {
+      const value = String(rawValue || '').trim()
+      const match = value.match(/^PO-(\d{4})-(\d+)$/i)
 
-    const year = Number.parseInt(match[1], 10)
-    const sequence = Number.parseInt(match[2], 10)
+      if (!match) {
+        return
+      }
 
-    if (
-      year > highestYear ||
-      (year === highestYear && sequence > highestSequence)
-    ) {
-      highestYear = year
-      highestSequence = sequence
-    }
+      const year = Number.parseInt(match[1], 10)
+      const sequence = Number.parseInt(match[2], 10)
+
+      if (
+        year > highestYear ||
+        (year === highestYear && sequence > highestSequence)
+      ) {
+        highestYear = year
+        highestSequence = sequence
+      }
+    })
   })
 
   const nextSequence = String(highestSequence + 1).padStart(3, '0')

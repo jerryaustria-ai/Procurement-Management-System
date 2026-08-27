@@ -425,6 +425,10 @@ async function ensureRfpNumbers(requests = []) {
 
 async function getNextRequestNumber(category = "") {
   const currentYear = new Date().getFullYear();
+  if (category === "P.O") {
+    return getNextPurchaseOrderRequestNumber(currentYear);
+  }
+
   const prefix = `${getRequestNumberPrefix(category)}-${currentYear}-`;
   const latestRequest = await PurchaseRequest.findOne({
     requestNumber: { $regex: `^${prefix}` }
@@ -438,6 +442,33 @@ async function getNextRequestNumber(category = "") {
   const nextSequence = Number.isFinite(latestSequence) ? latestSequence + 1 : 1;
 
   return `${prefix}${String(nextSequence).padStart(3, "0")}`;
+}
+
+async function getNextPurchaseOrderRequestNumber(year = new Date().getFullYear()) {
+  const prefix = `PO-${year}-`;
+  const poNumberPattern = `^${prefix}`;
+  const purchaseOrderRequests = await PurchaseRequest.find({
+    $or: [
+      { requestNumber: { $regex: poNumberPattern } },
+      { poNumber: { $regex: poNumberPattern } },
+      { "poDraft.poNumber": { $regex: poNumberPattern } }
+    ]
+  }).select("requestNumber poNumber poDraft.poNumber");
+
+  const highestSequence = purchaseOrderRequests.reduce((highest, request) => {
+    return [request.requestNumber, request.poNumber, request.poDraft?.poNumber]
+      .map((value) => String(value || "").trim())
+      .reduce((currentHighest, value) => {
+        const match = value.match(/^PO-\d{4}-(\d+)$/i);
+        const sequence = match ? Number.parseInt(match[1], 10) : 0;
+
+        return Number.isFinite(sequence)
+          ? Math.max(currentHighest, sequence)
+          : currentHighest;
+      }, highest);
+  }, 0);
+
+  return `${prefix}${String(highestSequence + 1).padStart(3, "0")}`;
 }
 
 router.get("/purchase-requests", async (req, res) => {

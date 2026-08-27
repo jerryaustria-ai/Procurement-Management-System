@@ -1,11 +1,38 @@
 import { useMemo, useState } from "react";
 
 function hasPurchaseOrderRecord(item) {
-  return Boolean(String(item.poNumber || item.poDraft?.poNumber || "").trim());
+  return Boolean(getPurchaseOrderNumber(item));
+}
+
+function getPurchaseOrderNumber(item) {
+  const explicitNumber = String(item.poNumber || item.poDraft?.poNumber || "").trim();
+  const requestNumber = String(item.requestNumber || "").trim();
+
+  if (explicitNumber) {
+    return explicitNumber;
+  }
+
+  return requestNumber.toUpperCase().startsWith("PO-") ? requestNumber : "";
+}
+
+function getPurchaseOrderSortValue(item) {
+  const match = getPurchaseOrderNumber(item).match(/^PO-(\d{4})-(\d+)$/i);
+
+  if (!match) {
+    return 0;
+  }
+
+  return Number.parseInt(match[1], 10) * 1000000 + Number.parseInt(match[2], 10);
+}
+
+function sortPurchaseOrders(items) {
+  return [...items].sort(
+    (left, right) => getPurchaseOrderSortValue(right) - getPurchaseOrderSortValue(left)
+  );
 }
 
 function getStatusGroups(items) {
-  const purchaseOrders = items.filter(hasPurchaseOrderRecord);
+  const purchaseOrders = sortPurchaseOrders(items.filter(hasPurchaseOrderRecord));
   const inactive = purchaseOrders.filter((item) => !String(item.poNumber || "").trim());
   const active = purchaseOrders.filter((item) => String(item.poNumber || "").trim() && item.status === "open");
   const completed = purchaseOrders.filter(
@@ -96,7 +123,7 @@ export default function PurchaseOrderDirectoryPage({
             <article key={item.id} className="request-list-item">
               <button className="supplier-card-button" type="button" onClick={() => onOpen(item.id)}>
                 <div className="request-list-topline">
-                  <strong>{item.poNumber || item.poDraft?.poNumber || "Draft PO"}</strong>
+                  <strong>{getPurchaseOrderNumber(item) || "Draft PO"}</strong>
                   <small>{item.currentStage}</small>
                 </div>
                 <span>{item.title}</span>
