@@ -2677,6 +2677,11 @@ label,
   color: #fff !important;
 }
 
+.approve-button {
+  background: linear-gradient(135deg, #66d49a 0%, #168a53 100%) !important;
+  color: #fff !important;
+}
+
 .stage-tooltip {
   position: relative;
   flex: 0 0 auto;

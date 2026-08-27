@@ -727,17 +727,8 @@ export default function ActionPanel({
             {`Back to ${previousStage}`}
           </button>
         ) : null}
-        {canReject ? (
-          <button
-            className='danger-button'
-            disabled={isSubmitting}
-            onClick={onReject}
-            type='button'
-          >
-            Decline
-          </button>
-        ) : null}
         <button
+          className={advanceButtonLabel === 'Approve' ? 'approve-button' : ''}
           disabled={
             isSubmitting ||
             workflowFinished ||
@@ -749,6 +740,16 @@ export default function ActionPanel({
         >
           {isSubmitting ? advanceLoadingLabel : advanceButtonLabel}
         </button>
+        {canReject ? (
+          <button
+            className='danger-button'
+            disabled={isSubmitting}
+            onClick={onReject}
+            type='button'
+          >
+            Decline
+          </button>
+        ) : null}
         {item.currentStage === 'Review' ? (
           <label className='stage-checkbox-row action-inline-checkbox'>
             <input
