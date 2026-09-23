@@ -27,21 +27,21 @@ export default function MyInventorySummary({ apiBaseUrl, session, onLogout }) {
     return () => controller.abort()
   }, [apiBaseUrl, session.token, attempt])
 
-  return <main className='inventory-app' style={{ display: 'block' }}>
+  return <main className='inventory-app personal-inventory'>
     <section className='inventory-main'>
       <header className='inventory-header'>
         <div><p className='eyebrow'>Inventory workspace</p><h1>My Inventory</h1><p>Items currently assigned to you.</p></div>
         <div className='inventory-user'><strong>{session.user.name}</strong><button className='inventory-secondary' onClick={onLogout}>Logout</button></div>
       </header>
       {error ? <div role='alert' className='inventory-error'>{error} <button onClick={() => setAttempt(attempt + 1)}>Retry</button></div> : !summary ? <p role='status'>Loading your inventory...</p> : <>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-          {sections.map(([key, title]) => <section className='inventory-directory' key={key}><h2>{title}</h2><strong>{summary[key].length}</strong></section>)}
+        <div className='personal-inventory-stats'>
+          {sections.map(([key, title]) => <section className='personal-inventory-stat' key={key}><h2>{title}</h2><strong>{summary[key].length}</strong><span>Assigned to you</span></section>)}
         </div>
         {sections.map(([key, title, columns]) => <section className='inventory-directory' key={key}>
           <h2>{title}</h2>
-          <div style={{ overflowX: 'auto' }}><table className='inventory-table'>
-            <thead><tr>{columns.map(([field, label]) => <th key={field}>{label}</th>)}</tr></thead>
-            <tbody>{summary[key].length ? summary[key].map((item) => <tr key={item.id}>{columns.map(([field]) => <td key={field}>{item[field] || '—'}</td>)}</tr>) : <tr><td colSpan={columns.length}>No items assigned to you.</td></tr>}</tbody>
+          <div className='personal-inventory-table-wrap' role='region' aria-label={title} tabIndex={0}><table className='personal-inventory-table'>
+            <thead><tr>{columns.map(([field, label]) => <th scope='col' key={field}>{label}</th>)}</tr></thead>
+            <tbody>{summary[key].length ? summary[key].map((item) => <tr key={item.id}>{columns.map(([field]) => <td key={field}>{field === 'status' ? <span className={`personal-inventory-status${item.status?.toLowerCase() === 'terminated' ? ' is-terminated' : ''}`}>{item.status || '—'}</span> : item[field] || '—'}</td>)}</tr>) : <tr><td className='personal-inventory-empty' colSpan={columns.length}>No items assigned to you.</td></tr>}</tbody>
           </table></div>
         </section>)}
       </>}
