@@ -38,6 +38,7 @@ function createInventoryModel(name, collection) {
       status: { type: String, required: true, trim: true },
       company: { type: String, default: "" },
       accountableTo: { type: String, default: "" },
+      accountableUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
       repairPreviousStatus: { type: String, default: '' },
       movementHistory: { type: [new mongoose.Schema({
         action: String, movementDate: String, before: mongoose.Schema.Types.Mixed, after: mongoose.Schema.Types.Mixed,

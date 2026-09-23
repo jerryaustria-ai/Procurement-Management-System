@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { EquipmentTable, EquipmentForm, EquipmentDetails, EQUIPMENT_FIELDS, equipmentValue } from './EquipmentInventory.jsx'
 import { EquipmentScanner } from './EquipmentQr.jsx'
 import { CompanySelect, CompanyForm, CompanyTable } from './CompanyDirectory.jsx'
+import ProcurementUserSelect from './ProcurementUserSelect.jsx'
 import { InventoryEmployees } from './InventoryEmployees.jsx'
 import { EquipmentImport } from './EquipmentImport.jsx'
+import MyInventorySummary from './MyInventorySummary.jsx'
 
 const ISP_FIELDS = [
   ['provider', 'ISP or Provider'],
@@ -100,7 +102,7 @@ const MODULES = {
 
 const NAV_ITEMS = [
   ['dashboard', 'Dashboard'], ['postpaid', 'Postpaid Plans'], ['isp', 'Internet / ISP'],
-  ['equipment', 'Office Equipment'], ['employees', 'Employees'], ['companies', 'Companies'],
+  ['equipment', 'Office Equipment'], ['companies', 'Companies'],
   ['reports', 'Reports'], ['audit', 'Audit Logs'],
 ]
 
@@ -122,6 +124,12 @@ function RenewalBadge({ value }) {
 }
 
 export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, onLogout }) {
+  return ['admin', 'super_admin'].includes(session.user.role)
+    ? <InventoryAdminApp key={session.user.id || session.user.email} {...{ apiBaseUrl, session, onOpenProcurement, onLogout }} />
+    : <MyInventorySummary key={session.user.id || session.user.email} {...{ apiBaseUrl, session, onLogout }} />
+}
+
+function InventoryAdminApp({ apiBaseUrl, session, onOpenProcurement, onLogout }) {
   const [page, setPage] = useState(() => new URLSearchParams(window.location.search).has('equipmentId') ? 'equipment' : 'dashboard')
   const [showScanner, setShowScanner] = useState(false)
   const [showEquipmentImport, setShowEquipmentImport] = useState(false)
@@ -226,6 +234,7 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
         throw new Error('Amounts and prices cannot be negative.')
       }
       const renewalDate = calculateRenewalDate(startDate, endDate, form.renewalDate)
+      if (page === 'postpaid' && !form.accountableUserId) throw new Error('Select an Employee or Person Accountable from Procurement users.')
       const payload = { ...form, renewalDate, value: Number(form.value || 0) }
       delete payload.pendingFiles
       if (page === 'equipment') {
@@ -411,8 +420,8 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
         ) : null}
       </section>
 
-      {showForm && page === 'companies' ? <CompanyForm form={form} setForm={setForm} onSubmit={save} onClose={() => setShowForm(false)} editing={editing} busy={loading} error={error} /> : showForm && page === 'equipment' ? <EquipmentForm companies={companies} form={form} setForm={setForm} onSubmit={save} onClose={() => setShowForm(false)} editing={editing} busy={loading} error={error} /> : showForm ? <InventoryForm companies={companies} config={config} form={form} setForm={setForm} onSubmit={save} onClose={() => setShowForm(false)} editing={editing} /> : null}
-      {selected && page === 'equipment' ? <EquipmentDetails item={selected} canEdit={canEdit} onClose={() => setSelected(null)} onEdit={() => { openEdit(selected); setSelected(null) }} onArchive={() => archive(selected)} onMovement={recordEquipmentMovement} /> : selected ? <InventoryDetails onEdit={() => { openEdit(selected); setSelected(null) }} item={selected} config={config} canEdit={canEdit} onClose={() => setSelected(null)} onArchive={() => archive(selected)} onPostpaidAction={(type, contract = null) => setPostpaidAction({ type, item: selected, contract })} onDeleteContract={(contract) => deletePostpaidContract(selected, contract)} /> : null}
+      {showForm && page === 'companies' ? <CompanyForm form={form} setForm={setForm} onSubmit={save} onClose={() => setShowForm(false)} editing={editing} busy={loading} error={error} /> : showForm && page === 'equipment' ? <EquipmentForm directoryUrl={`${apiBaseUrl}/inventory/employees`} token={session.token} companies={companies} form={form} setForm={setForm} onSubmit={save} onClose={() => setShowForm(false)} editing={editing} busy={loading} error={error} /> : showForm ? <InventoryForm directoryUrl={`${apiBaseUrl}/inventory/employees`} token={session.token} companies={companies} config={config} form={form} setForm={setForm} onSubmit={save} onClose={() => setShowForm(false)} editing={editing} /> : null}
+      {selected && page === 'equipment' ? <EquipmentDetails directoryUrl={`${apiBaseUrl}/inventory/employees`} token={session.token} item={selected} canEdit={canEdit} onClose={() => setSelected(null)} onEdit={() => { openEdit(selected); setSelected(null) }} onArchive={() => archive(selected)} onMovement={recordEquipmentMovement} /> : selected ? <InventoryDetails onEdit={() => { openEdit(selected); setSelected(null) }} item={selected} config={config} canEdit={canEdit} onClose={() => setSelected(null)} onArchive={() => archive(selected)} onPostpaidAction={(type, contract = null) => setPostpaidAction({ type, item: selected, contract })} onDeleteContract={(contract) => deletePostpaidContract(selected, contract)} /> : null}
       {postpaidAction ? <PostpaidActionModal action={postpaidAction} onClose={() => setPostpaidAction(null)} onSubmit={completePostpaidAction} /> : null}
       {showArchived ? <ArchivedRecordsModal records={archivedRecords} onClose={() => setShowArchived(false)} onUnarchive={unarchiveRecord} /> : null}
       {showEquipmentImport ? <EquipmentImport api={api} onClose={() => setShowEquipmentImport(false)} onImported={(newItems) => setItems((current) => [...newItems, ...current])} /> : null}
@@ -429,12 +438,12 @@ function InventoryDashboard({ dashboard, onNavigate }) {
   return <><div className='inventory-stats'>{cards.map(([label, value, target]) => <button key={label} onClick={() => onNavigate(target)}><span>{label}</span><strong>{String(value || 0).padStart(2, '0')}</strong></button>)}</div><section className='inventory-alerts'><div><p className='eyebrow'>Attention needed</p><h2>Renewal alerts</h2></div>{dashboard.alerts?.length ? dashboard.alerts.map((item) => <div className='inventory-alert' key={item.id}><strong>{item.recordCode} · {item.name}</strong><RenewalBadge value={item.renewalDate} /></div>) : <p className='inventory-empty'>No contracts are due within the next 90 days.</p>}</section></>
 }
 
-function InventoryForm({ config, form, setForm, onSubmit, onClose, editing, companies }) {
+function InventoryForm({ config, form, setForm, onSubmit, onClose, editing, companies, directoryUrl, token }) {
   if (config === MODULES.isp) {
     return <IspForm {...{ config, form, setForm, onSubmit, onClose, editing, companies }} />
   }
   if (config.label === 'Postpaid Plans') {
-    return <PostpaidLineForm companies={companies} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onClose} editing={editing} config={config} />
+    return <PostpaidLineForm directoryUrl={directoryUrl} token={token} companies={companies} form={form} setForm={setForm} onSubmit={onSubmit} onClose={onClose} editing={editing} config={config} />
   }
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
@@ -445,7 +454,7 @@ function InventoryForm({ config, form, setForm, onSubmit, onClose, editing, comp
   return <div className='inventory-modal-backdrop'><form className='inventory-modal' onSubmit={onSubmit}><div className='inventory-modal-head'><div><p className='eyebrow'>{editing ? 'Edit record' : 'New record'}</p><h2>{config.singular}</h2></div><button type='button' onClick={onClose}>Close</button></div><div className='inventory-form-grid'><label>Record code *<input required value={form.recordCode} onChange={(e) => set('recordCode', e.target.value)} /></label><label>Name *<input required value={form.name} onChange={(e) => set('name', e.target.value)} /></label><label>Status *<select value={form.status} onChange={(e) => set('status', e.target.value)}>{config.statuses.map((option) => <option key={option}>{option}</option>)}</select></label><label>Company Name<CompanySelect companies={companies} value={form.company} onChange={(value) => set('company', value)} /></label><label>Person accountable<input value={form.accountableTo} onChange={(e) => set('accountableTo', e.target.value)} /></label><label>Renewal / warranty date<input type='date' value={form.renewalDate} onChange={(e) => set('renewalDate', e.target.value)} /></label><label>Inventory value<input type='number' min='0' value={form.value} onChange={(e) => set('value', e.target.value)} /></label>{config.fields.map(([key, label, type = 'text']) => <label key={key}>{label}<input type={type} min={type === 'number' ? '0' : undefined} value={form.data?.[key] || ''} onChange={(e) => setData(key, e.target.value)} /></label>)}</div><div className='inventory-form-actions'><button type='button' className='inventory-secondary' onClick={onClose}>Cancel</button><button className='inventory-primary'>Save record</button></div></form></div>
 }
 
-function PostpaidLineForm({ form, setForm, onSubmit, onClose, editing, config, companies }) {
+function PostpaidLineForm({ form, setForm, onSubmit, onClose, editing, config, companies, directoryUrl, token }) {
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const setData = (key, value) => setForm((current) => {
     const data = { ...current.data, [key]: value }
@@ -467,7 +476,7 @@ function PostpaidLineForm({ form, setForm, onSubmit, onClose, editing, config, c
     ['contractEndDate', 'Contract End Date', 'date'],
   ]
 
-  return <div className='inventory-modal-backdrop'><form className='inventory-modal inventory-postpaid-form' onSubmit={onSubmit}><div className='inventory-modal-head'><div><p className='eyebrow'>{editing ? 'Edit postpaid line' : 'New postpaid line'}</p><h2>Postpaid Line</h2></div><button type='button' onClick={onClose}>Close</button></div><div className='inventory-form-grid'>{fields.slice(0, 5).map(([key, label, type = 'text', required]) => <label key={key}>{label}{required ? ' *' : ''}<input required={required} type={type} min={type === 'number' ? '0' : undefined} value={form.data?.[key] || ''} onChange={(event) => setData(key, event.target.value)} /></label>)}<label>Company Name<CompanySelect companies={companies} value={form.company} onChange={(value) => set('company', value)} /></label><label>Employee or Person Accountable *<input required value={form.accountableTo} onChange={(event) => set('accountableTo', event.target.value)} /></label>{fields.slice(5).map(([key, label, type = 'text', required]) => <label key={key}>{label}{required ? ' *' : ''}<input required={required} type={type} min={type === 'number' ? '0' : undefined} value={form.data?.[key] || ''} onChange={(event) => setData(key, event.target.value)} /></label>)}<label>Next Renewal Date<input type='date' value={form.renewalDate} onChange={(event) => set('renewalDate', event.target.value)} /><small>Defaults to contract end date, or start date + 2 years. You may correct it manually. Changing contract dates recalculates it.</small><RenewalBadge value={form.renewalDate} /></label><label>Other Details<textarea rows='3' value={form.data?.otherDetails || ''} onChange={(event) => setData('otherDetails', event.target.value)} /></label><label>Status *<select required value={form.status} onChange={(event) => set('status', event.target.value)}>{config.statuses.map((option) => <option key={option}>{option}</option>)}</select></label><label className='inventory-form-wide'>Remarks<textarea rows='3' value={form.data?.remarks || ''} onChange={(event) => setData('remarks', event.target.value)} /></label></div><div className='inventory-form-actions'><button type='button' className='inventory-secondary' onClick={onClose}>Cancel</button><button className='inventory-primary'>Save Postpaid Line</button></div></form></div>
+  return <div className='inventory-modal-backdrop'><form className='inventory-modal inventory-postpaid-form' onSubmit={onSubmit}><div className='inventory-modal-head'><div><p className='eyebrow'>{editing ? 'Edit postpaid line' : 'New postpaid line'}</p><h2>Postpaid Line</h2></div><button type='button' onClick={onClose}>Close</button></div><div className='inventory-form-grid'>{fields.slice(0, 5).map(([key, label, type = 'text', required]) => <label key={key}>{label}{required ? ' *' : ''}<input required={required} type={type} min={type === 'number' ? '0' : undefined} value={form.data?.[key] || ''} onChange={(event) => setData(key, event.target.value)} /></label>)}<label>Company Name<CompanySelect companies={companies} value={form.company} onChange={(value) => set('company', value)} /></label><ProcurementUserSelect directoryUrl={directoryUrl} token={token} form={form} setForm={setForm} />{fields.slice(5).map(([key, label, type = 'text', required]) => <label key={key}>{label}{required ? ' *' : ''}<input required={required} type={type} min={type === 'number' ? '0' : undefined} value={form.data?.[key] || ''} onChange={(event) => setData(key, event.target.value)} /></label>)}<label>Next Renewal Date<input type='date' value={form.renewalDate} onChange={(event) => set('renewalDate', event.target.value)} /><small>Defaults to contract end date, or start date + 2 years. You may correct it manually. Changing contract dates recalculates it.</small><RenewalBadge value={form.renewalDate} /></label><label>Other Details<textarea rows='3' value={form.data?.otherDetails || ''} onChange={(event) => setData('otherDetails', event.target.value)} /></label><label>Status *<select required value={form.status} onChange={(event) => set('status', event.target.value)}>{config.statuses.map((option) => <option key={option}>{option}</option>)}</select></label><label className='inventory-form-wide'>Remarks<textarea rows='3' value={form.data?.remarks || ''} onChange={(event) => setData('remarks', event.target.value)} /></label></div><div className='inventory-form-actions'><button type='button' className='inventory-secondary' onClick={onClose}>Cancel</button><button className='inventory-primary'>Save Postpaid Line</button></div></form></div>
 }
 
 function formatCurrency(value) {
@@ -475,7 +484,16 @@ function formatCurrency(value) {
 }
 
 function PostpaidTable({ items, canEdit, onView, onEdit }) {
-  return <table className='inventory-postpaid-table'><thead><tr><th>Provider</th><th>Account Number</th><th>Mobile Number</th><th>Plan Name</th><th>Monthly Plan Amount</th><th>Employee or Person Accountable</th><th>Department</th><th>Cashout Amount</th><th>Handset Brand</th><th>Handset Model</th><th>Handset Serial Number</th><th>IMEI Number</th><th>Other Details</th><th>Status</th><th>Remarks</th><th>Next Renewal Date</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.data?.provider || '-'}</td><td>{item.data?.accountNumber || '-'}</td><td>{item.data?.mobileNumber || '-'}</td><td>{item.data?.planName || '-'}</td><td>{formatCurrency(item.data?.monthlyAmount)}</td><td>{item.accountableTo || '-'}</td><td>{item.data?.department || '-'}</td><td>{formatCurrency(item.data?.cashoutAmount)}</td><td>{item.data?.handsetBrand || '-'}</td><td>{item.data?.handsetModel || '-'}</td><td>{item.data?.handsetSerialNumber || '-'}</td><td>{item.data?.imei || '-'}</td><td>{item.data?.otherDetails || '-'}</td><td><span className={`inventory-status ${renewalTone(item.renewalDate)}`}>{item.status}</span></td><td>{item.data?.remarks || '-'}</td><td><RenewalBadge value={item.renewalDate} /></td><td><button className='inventory-link' onClick={() => onView(item)}>View</button>{canEdit ? <button className='inventory-link' onClick={() => onEdit(item)}>Edit</button> : null}</td></tr>)}</tbody></table>
+  return <table className='inventory-postpaid-table'>
+    <thead><tr><th>Provider</th><th>Account Number</th><th>Mobile Number</th><th>Employee or Person Accountable</th><th>Status</th></tr></thead>
+    <tbody>{items.map((item) => <tr key={item.id}>
+      <td>{item.data?.provider || '-'}</td>
+      <td>{item.data?.accountNumber || '-'}</td>
+      <td>{item.data?.mobileNumber || '-'}</td>
+      <td>{item.accountableTo || '-'}</td>
+      <td><span className={`inventory-status ${renewalTone(item.renewalDate)}`}>{item.status}</span><div><button className='inventory-link' onClick={() => onView(item)}>View</button>{canEdit ? <button className='inventory-link' onClick={() => onEdit(item)}>Edit</button> : null}</div></td>
+    </tr>)}</tbody>
+  </table>
 }
 
 function InventoryDetails({ item, config, canEdit, onEdit, onClose, onArchive, onPostpaidAction, onDeleteContract }) {

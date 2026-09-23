@@ -922,14 +922,10 @@ textarea {
 .inventory-danger { border: 1px solid #ba4242; background: #ba4242; color: #fff; }
 .inventory-table-wrap { overflow-x: auto; background: #fff; border: 1px solid #dfe7e3; border-radius: 6px; }
 .inventory-table-wrap table { width: 100%; border-collapse: collapse; min-width: 850px; }
-.inventory-table-wrap .inventory-postpaid-table { min-width: 2550px; }
+.inventory-table-wrap .inventory-postpaid-table { min-width: 720px; width: 100%; }
 .inventory-postpaid-table th { white-space: normal; min-width: 130px; }
-.inventory-postpaid-table th:nth-child(6),
-.inventory-postpaid-table td:nth-child(6),
-.inventory-postpaid-table th:nth-child(13),
-.inventory-postpaid-table td:nth-child(13),
-.inventory-postpaid-table th:nth-child(15),
-.inventory-postpaid-table td:nth-child(15) { min-width: 190px; }
+.inventory-postpaid-table th:nth-child(4),
+.inventory-postpaid-table td:nth-child(4) { min-width: 190px; }
 .inventory-table-wrap th, .inventory-table-wrap td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #e8eeeb; vertical-align: middle; }
 .inventory-table-wrap th { background: #f4f7f5; color: #5e756a; font-size: .82rem; text-transform: uppercase; }
 .inventory-table-wrap td small { display: block; color: #6c8077; }

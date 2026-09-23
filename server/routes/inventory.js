@@ -8,6 +8,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { requireInventoryEditor } from '../middleware/inventoryPermissions.js';
 import { User } from '../models/User.js';
 import { serializeInventoryEmployee } from '../utils/inventoryEmployee.js';
+import { ownershipQuery, personalSummary } from '../utils/inventoryOwnership.js';
 import {
   InventoryAuditLog,
   InventoryCompany,
@@ -19,6 +20,19 @@ import {
 const router = Router();
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 router.use(requireAuth);
+
+router.get('/my-summary', asyncRoute(async (req, res) => {
+  // Legacy name-only assignments are safe only when the directory name is unique.
+  const name = req.user.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matches = await User.countDocuments({ name: { $regex: `^\\s*${name}\\s*$`, $options: 'i' } });
+  const query = ownershipQuery(req.user, matches === 1);
+  const records = await Promise.all([PostpaidAccount, IspAccount, OfficeEquipment].map((Model) =>
+    Model.find(query).sort({ createdAt: -1 }).lean()));
+  res.json(Object.fromEntries(['postpaid', 'isp', 'equipment'].map((key, index) => [key, records[index].map(personalSummary)])));
+}));
+
+// Regular users have one personal page; all shared directories and records are private.
+router.use(requireRole('admin', 'super_admin'));
 
 const modelMap = {
   postpaid: PostpaidAccount,
@@ -56,6 +70,15 @@ async function validateCompanySelection(payload, previousCompany = null) {
   if (!payload.company || payload.company === previousCompany) return;
   const exists = await InventoryCompany.exists({ name: payload.company, status: 'Active', archived: false });
   if (!exists) { const error = new Error('Select an active company from the company list.'); error.status = 400; throw error; }
+}
+
+async function resolveAccountableUser(payload) {
+  if (!/^[a-f\d]{24}$/i.test(String(payload.accountableUserId || ''))) {
+    const error = new Error('Select a valid Procurement user for accountability.'); error.status = 400; throw error;
+  }
+  const user = await User.findById(payload.accountableUserId).select('_id name');
+  if (!user) { const error = new Error('Selected Procurement user no longer exists. Select another user.'); error.status = 400; throw error; }
+  payload.accountableTo = user.name;
 }
 
 function serialize(item) {
@@ -385,6 +408,7 @@ router.post("/:module", requireInventoryEditor, asyncRoute(async (req, res) => {
   }
   if (req.params.module === "postpaid") {
     payload.recordCode = payload.recordCode?.trim() || await getNextPostpaidCode();
+    await resolveAccountableUser(payload);
     payload.name = payload.name?.trim() || payload.data?.mobileNumber || payload.data?.accountNumber || payload.recordCode;
   }
   if (!payload.recordCode?.trim() || !payload.name?.trim() || !payload.status?.trim()) {
@@ -457,6 +481,10 @@ router.patch("/:module/:id", requireInventoryEditor, asyncRoute(async (req, res)
   if (!item) return res.status(404).json({ message: "Inventory record not found." });
   const previousValue = item.toObject();
   const payload = req.body || {};
+  if (req.params.module === 'postpaid') {
+    if (payload.accountableUserId) await resolveAccountableUser(payload);
+    else if ('accountableTo' in payload && payload.accountableTo !== item.accountableTo) payload.accountableUserId = null;
+  }
   if (req.params.module === 'companies') {
     delete payload.recordCode;
     if (payload.name !== undefined) {
@@ -484,7 +512,7 @@ router.patch("/:module/:id", requireInventoryEditor, asyncRoute(async (req, res)
     payload.data && key in payload.data && String(payload.data[key] || '').slice(0, 10) !== String(item.data?.[key] || '').slice(0, 10));
   const manualDate = 'renewalDate' in payload ? payload.renewalDate : datesChanged ? null : item.renewalDate?.toISOString();
   // Only editable fields may be assigned; history and contract ownership stay server-managed.
-  for (const key of ['recordCode', 'name', 'status', 'company', 'accountableTo', 'value', 'archived']) {
+  for (const key of ['recordCode', 'name', 'status', 'company', 'accountableTo', 'accountableUserId', 'value', 'archived']) {
     if (key in payload) item[key] = payload[key];
   }
   item.data = mergedData;
