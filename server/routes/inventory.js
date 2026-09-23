@@ -188,6 +188,13 @@ async function getNextPostpaidCode() {
   return `${prefix}${String(nextNumber).padStart(3, "0")}`;
 }
 
+async function getNextEquipmentCode() {
+  const latest = await OfficeEquipment.findOne({ recordCode: /^JHI-\d{5}$/i })
+    .sort({ recordCode: -1 }).select('recordCode').lean();
+  const current = Number(String(latest?.recordCode || '').match(/(\d{5})$/)?.[1] || 0);
+  return `JHI-${String(current + 1).padStart(5, '0')}`;
+}
+
 async function writeAudit(req, action, moduleName, item, previousValue = null) {
   await InventoryAuditLog.create({
     userEmail: req.user.email,
@@ -366,6 +373,10 @@ router.post("/:module", requireInventoryEditor, asyncRoute(async (req, res) => {
     payload.name = [payload.name, payload.data?.planName, payload.data?.provider, payload.data?.accountNumber, payload.recordCode]
       .map((value) => String(value || '').trim()).find(Boolean);
     payload.status = payload.status?.trim() || 'Active';
+  }
+  if (req.params.module === 'equipment') {
+    payload.recordCode = payload.recordCode?.trim() || await getNextEquipmentCode();
+    payload.name = payload.name?.trim() || payload.data?.name || payload.data?.category || payload.recordCode;
   }
   if (req.params.module === "postpaid") {
     payload.recordCode = payload.recordCode?.trim() || await getNextPostpaidCode();
