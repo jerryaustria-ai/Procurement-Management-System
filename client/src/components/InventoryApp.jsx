@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { EquipmentTable, EquipmentForm, EquipmentDetails, EQUIPMENT_FIELDS, equipmentValue } from './EquipmentInventory.jsx'
 import { EquipmentScanner } from './EquipmentQr.jsx'
 import { CompanySelect, CompanyForm, CompanyTable } from './CompanyDirectory.jsx'
+import { InventoryEmployees } from './InventoryEmployees.jsx'
 import { EquipmentImport } from './EquipmentImport.jsx'
 
 const ISP_FIELDS = [
@@ -88,7 +89,7 @@ const MODULES = {
     ],
   },
   employees: {
-    label: 'Employees', singular: 'Employee', statuses: ['Active', 'Inactive'],
+    label: 'Employees', singular: 'Employee', statuses: [],
     fields: [['employeeId', 'Employee ID'], ['department', 'Department'], ['position', 'Position'], ['email', 'Email Address', 'email'], ['contactNumber', 'Contact Number']],
   },
   companies: {
@@ -141,7 +142,7 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
   const [companies, setCompanies] = useState([])
   const isSuperAdmin = session.user.role === 'super_admin'
   const isAdmin = ['admin', 'super_admin'].includes(session.user.role)
-  const canEdit = isAdmin && (page !== 'companies' || isSuperAdmin)
+  const canEdit = isAdmin && page !== 'employees' && (page !== 'companies' || isSuperAdmin)
   const config = MODULES[page]
 
   async function api(path, options = {}) {
@@ -278,7 +279,7 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
   }
 
   function exportCsv() {
-    const rows = page === 'equipment' ? [EQUIPMENT_FIELDS.map((field) => field[1]), ...filtered.map((item) => EQUIPMENT_FIELDS.map((field) => equipmentValue(item, field)))] : page === 'isp' ? [ISP_FIELDS.map((field) => field[1]), ...filtered.map((item) => ISP_FIELDS.map((field) => ispValue(item, field)))] : page === 'postpaid'
+    const rows = page === 'employees' ? [['Name', 'Email Address', 'Department', 'Role'], ...filtered.map((item) => [item.name, item.email, item.department, item.role])] : page === 'equipment' ? [EQUIPMENT_FIELDS.map((field) => field[1]), ...filtered.map((item) => EQUIPMENT_FIELDS.map((field) => equipmentValue(item, field)))] : page === 'isp' ? [ISP_FIELDS.map((field) => field[1]), ...filtered.map((item) => ISP_FIELDS.map((field) => ispValue(item, field)))] : page === 'postpaid'
       ? [['Provider', 'Account Number', 'Mobile Number', 'Plan Name', 'Monthly Plan Amount', 'Employee or Person Accountable', 'Department', 'Cashout Amount', 'Handset Brand', 'Handset Model', 'Handset Serial Number', 'IMEI Number', 'Other Details', 'Status', 'Remarks'], ...filtered.map((item) => [item.data?.provider, item.data?.accountNumber, item.data?.mobileNumber, item.data?.planName, item.data?.monthlyAmount, item.accountableTo, item.data?.department, item.data?.cashoutAmount, item.data?.handsetBrand, item.data?.handsetModel, item.data?.handsetSerialNumber, item.data?.imei, item.data?.otherDetails, item.status, item.data?.remarks])]
       : [['Code', 'Name', 'Status', 'Company', 'Accountable To', 'Renewal Date', 'Value'], ...filtered.map((item) => [item.recordCode, item.name, item.status, item.company, item.accountableTo, item.renewalDate || '', item.value || 0])]
     const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n')
@@ -298,7 +299,7 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
     closeToolbarMenu(event)
     setLoading(true); setError('')
     try {
-      const results = await Promise.all(Object.keys(MODULES).filter((key) => key !== 'companies' || isSuperAdmin).map(async (moduleKey) => {
+      const results = await Promise.all(Object.keys(MODULES).filter((key) => key !== 'employees' && (key !== 'companies' || isSuperAdmin)).map(async (moduleKey) => {
         const response = await api(`/${moduleKey}?archived=only`)
         return response.items.map((item) => ({ ...item, moduleKey, moduleLabel: MODULES[moduleKey].singular }))
       }))
@@ -384,7 +385,7 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
           <section className='inventory-directory'>
             <div className='inventory-toolbar'>
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${config.label.toLowerCase()}`} />
-              <select value={status} onChange={(e) => setStatus(e.target.value)}><option>All</option>{config.statuses.map((option) => <option key={option}>{option}</option>)}</select>
+              {page !== 'employees' ? <select value={status} onChange={(e) => setStatus(e.target.value)}><option>All</option>{config.statuses.map((option) => <option key={option}>{option}</option>)}</select> : <span>Procurement user directory</span>}
               <details className='inventory-toolbar-menu'>
                 <summary aria-label='Open export and print menu' title='Export and print'>
                   <span aria-hidden='true'></span>
@@ -400,9 +401,10 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
                 </div>
               </details>
               {canEdit ? <button className='inventory-primary' onClick={openCreate}>New {config.singular}</button> : null}
+              {page === 'employees' && isAdmin ? <button className='inventory-primary' onClick={onOpenProcurement}>Manage in Procurement</button> : null}
             </div>
             <div className='inventory-table-wrap'>
-              {page === 'companies' ? <CompanyTable items={filtered} canEdit={canEdit} onView={setSelected} onEdit={openEdit} /> : page === 'equipment' ? <EquipmentTable items={filtered} canEdit={canEdit} onView={setSelected} onEdit={openEdit} /> : page === 'isp' ? <IspTable items={filtered} onView={setSelected} /> : page === 'postpaid' ? <PostpaidTable items={filtered} canEdit={canEdit} onView={setSelected} onEdit={openEdit} /> : <table><thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Company</th><th>Accountable to</th><th>Renewal / Warranty</th><th>Actions</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td><strong>{item.recordCode}</strong></td><td>{item.name}</td><td><span className={`inventory-status ${renewalTone(item.renewalDate)}`}>{item.status}</span></td><td>{item.company || '-'}</td><td>{item.accountableTo || '-'}</td><td><RenewalBadge value={item.renewalDate} /></td><td><button className='inventory-link' onClick={() => setSelected(item)}>View</button>{canEdit ? <button className='inventory-link' onClick={() => openEdit(item)}>Edit</button> : null}</td></tr>)}</tbody></table>}
+              {page === 'employees' ? <InventoryEmployees items={filtered} /> : page === 'companies' ? <CompanyTable items={filtered} canEdit={canEdit} onView={setSelected} onEdit={openEdit} /> : page === 'equipment' ? <EquipmentTable items={filtered} canEdit={canEdit} onView={setSelected} onEdit={openEdit} /> : page === 'isp' ? <IspTable items={filtered} onView={setSelected} /> : page === 'postpaid' ? <PostpaidTable items={filtered} canEdit={canEdit} onView={setSelected} onEdit={openEdit} /> : <table><thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Company</th><th>Accountable to</th><th>Renewal / Warranty</th><th>Actions</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td><strong>{item.recordCode}</strong></td><td>{item.name}</td><td><span className={`inventory-status ${renewalTone(item.renewalDate)}`}>{item.status}</span></td><td>{item.company || '-'}</td><td>{item.accountableTo || '-'}</td><td><RenewalBadge value={item.renewalDate} /></td><td><button className='inventory-link' onClick={() => setSelected(item)}>View</button>{canEdit ? <button className='inventory-link' onClick={() => openEdit(item)}>Edit</button> : null}</td></tr>)}</tbody></table>}
               {!filtered.length && !loading ? <p className='inventory-empty'>No records match the current search and filter.</p> : null}
             </div>
           </section>

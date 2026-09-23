@@ -18,9 +18,13 @@ test('only Super Admin can modify companies, including archive and restore', () 
 });
 
 test('regular admins retain write access to other inventory modules', () => {
-  for (const module of ['equipment', 'isp', 'postpaid', 'employees']) {
+  for (const module of ['equipment', 'isp', 'postpaid']) {
     assert.equal(permission('admin', module).allowed, true);
     assert.equal(permission('super_admin', module).allowed, true);
     assert.equal(permission('requester', module).allowed, false);
   }
+});
+
+test('employee accounts cannot be created or modified through inventory', () => {
+  for (const role of ['admin', 'super_admin', 'requester']) assert.equal(permission(role, 'employees').allowed, false);
 });

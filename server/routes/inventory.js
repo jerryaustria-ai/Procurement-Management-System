@@ -6,10 +6,11 @@ import { isCloudinaryConfigured, uploadDocumentToCloudinary } from '../utils/clo
 import { calculateRenewalDate as resolveRenewalDate } from "../utils/renewal.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { requireInventoryEditor } from '../middleware/inventoryPermissions.js';
+import { User } from '../models/User.js';
+import { serializeInventoryEmployee } from '../utils/inventoryEmployee.js';
 import {
   InventoryAuditLog,
   InventoryCompany,
-  InventoryEmployee,
   IspAccount,
   OfficeEquipment,
   PostpaidAccount
@@ -23,7 +24,6 @@ const modelMap = {
   postpaid: PostpaidAccount,
   isp: IspAccount,
   equipment: OfficeEquipment,
-  employees: InventoryEmployee,
   companies: InventoryCompany
 };
 
@@ -342,6 +342,11 @@ router.get('/equipment/:id', asyncRoute(async (req, res) => {
   const item = await OfficeEquipment.findById(req.params.id);
   if (!item) return res.status(404).json({ message: 'Equipment not found.' });
   res.json(serialize(item));
+}));
+
+router.get('/employees', asyncRoute(async (_req, res) => {
+  const users = await User.find().select('_id name email department role').sort({ name: 1 });
+  res.json({ items: users.map(serializeInventoryEmployee) });
 }));
 
 router.get("/:module", asyncRoute(async (req, res) => {
