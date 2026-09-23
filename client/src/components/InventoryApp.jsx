@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { EquipmentTable, EquipmentForm, EquipmentDetails, EQUIPMENT_FIELDS, equipmentValue } from './EquipmentInventory.jsx'
 import { EquipmentScanner } from './EquipmentQr.jsx'
 import { CompanySelect, CompanyForm, CompanyTable } from './CompanyDirectory.jsx'
+import { EquipmentImport } from './EquipmentImport.jsx'
 
 const ISP_FIELDS = [
   ['provider', 'ISP or Provider'],
@@ -122,6 +123,7 @@ function RenewalBadge({ value }) {
 export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, onLogout }) {
   const [page, setPage] = useState(() => new URLSearchParams(window.location.search).has('equipmentId') ? 'equipment' : 'dashboard')
   const [showScanner, setShowScanner] = useState(false)
+  const [showEquipmentImport, setShowEquipmentImport] = useState(false)
   const [items, setItems] = useState([])
   const [dashboard, setDashboard] = useState({ totals: {}, alerts: [] })
   const [query, setQuery] = useState('')
@@ -389,11 +391,12 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
                   <span aria-hidden='true'></span>
                   <span aria-hidden='true'></span>
                 </summary>
-                <div className='inventory-toolbar-menu-popover'>
+              <div className='inventory-toolbar-menu-popover'>
                   <button type='button' onClick={(event) => { exportCsv(); closeToolbarMenu(event) }}>Export CSV</button>
                   <button type='button' onClick={(event) => { exportExcel(); closeToolbarMenu(event) }}>Export Excel</button>
                   <button type='button' onClick={(event) => { window.print(); closeToolbarMenu(event) }}>Print</button>
                   {canEdit ? <button type='button' className='inventory-menu-archive' onClick={openArchivedRecords}>Archived Records</button> : null}
+                  {page === 'equipment' && canEdit ? <button type='button' onClick={(event) => { setShowEquipmentImport(true); closeToolbarMenu(event) }}>Import Excel</button> : null}
                 </div>
               </details>
               {canEdit ? <button className='inventory-primary' onClick={openCreate}>New {config.singular}</button> : null}
@@ -410,6 +413,7 @@ export default function InventoryApp({ apiBaseUrl, session, onOpenProcurement, o
       {selected && page === 'equipment' ? <EquipmentDetails item={selected} canEdit={canEdit} onClose={() => setSelected(null)} onEdit={() => { openEdit(selected); setSelected(null) }} onArchive={() => archive(selected)} onMovement={recordEquipmentMovement} /> : selected ? <InventoryDetails onEdit={() => { openEdit(selected); setSelected(null) }} item={selected} config={config} canEdit={canEdit} onClose={() => setSelected(null)} onArchive={() => archive(selected)} onPostpaidAction={(type, contract = null) => setPostpaidAction({ type, item: selected, contract })} onDeleteContract={(contract) => deletePostpaidContract(selected, contract)} /> : null}
       {postpaidAction ? <PostpaidActionModal action={postpaidAction} onClose={() => setPostpaidAction(null)} onSubmit={completePostpaidAction} /> : null}
       {showArchived ? <ArchivedRecordsModal records={archivedRecords} onClose={() => setShowArchived(false)} onUnarchive={unarchiveRecord} /> : null}
+      {showEquipmentImport ? <EquipmentImport api={api} onClose={() => setShowEquipmentImport(false)} onImported={(newItems) => setItems((current) => [...newItems, ...current])} /> : null}
     </main>
   )
 }

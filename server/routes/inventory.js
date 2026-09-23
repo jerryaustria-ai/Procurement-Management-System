@@ -428,6 +428,23 @@ router.post("/:module", requireInventoryEditor, asyncRoute(async (req, res) => {
   res.status(201).json(serialize(item));
 }));
 
+router.post('/equipment/import', requireRole('admin', 'super_admin'), asyncRoute(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length || rows.length > 500) return res.status(400).json({ message: 'Import must contain between 1 and 500 equipment rows.' });
+  const created = [];
+  for (const source of rows) {
+    const payload = { recordCode: source.recordCode || '', name: source.name || source.item || '', status: source.status || 'Available', company: source.company || '', accountableTo: source.accountableTo || source.issuedTo || '', value: Number(source.purchasePrice || 0), data: { ...source, category: source.category || source.type || '', location: source.location || '' } };
+    payload.recordCode = payload.recordCode.trim() || await getNextEquipmentCode();
+    payload.name = payload.name.trim() || payload.data.category || payload.recordCode;
+    validateEquipment(payload);
+    await validateCompanySelection(payload);
+    if (!payload.recordCode || !payload.name) throw Object.assign(new Error('Each row needs a Code or Item.'), { status: 400 });
+    const item = await OfficeEquipment.create({ ...payload, history: [{ action: 'Imported from Excel', details: source, recordedBy: req.user.email }], createdBy: req.user.email, updatedBy: req.user.email });
+    created.push(serialize(item));
+  }
+  res.status(201).json({ items: created, count: created.length });
+}));
+
 router.patch("/:module/:id", requireInventoryEditor, asyncRoute(async (req, res) => {
   const Model = getModel(req.params.module);
   if (!Model) return res.status(404).json({ message: "Inventory module not found." });
