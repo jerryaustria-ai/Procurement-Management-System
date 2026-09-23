@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { validateEquipment, issueEntry, applyEquipmentMovement } from '../utils/equipment.js';
 import { uploadSingleDocument } from '../middleware/upload.js';
 import { isCloudinaryConfigured, uploadDocumentToCloudinary } from '../utils/cloudinary.js';
-import { calculateRenewalDate as resolveRenewalDate } from "../../client/src/utils/renewal.js";
+import { calculateRenewalDate as resolveRenewalDate } from "../utils/renewal.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { requireInventoryEditor } from '../middleware/inventoryPermissions.js';
 import {
