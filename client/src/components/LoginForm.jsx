@@ -5,6 +5,7 @@ export default function LoginForm({
   onForgotPassword,
   isSubmitting,
   error,
+  title = 'Sign in to approve',
 }) {
   return (
     <form
@@ -17,7 +18,7 @@ export default function LoginForm({
       <div className='panel-heading'>
         <div>
           <p className='eyebrow'>Authentication</p>
-          <h2>Sign in to approve</h2>
+          <h2>{title}</h2>
         </div>
       </div>
 

@@ -41,7 +41,8 @@ export const roleLabels = {
   accountant: "Accountant",
   treasury: "Treasury Officer",
   filing: "Records Officer",
-  admin: "System Admin"
+  admin: "System Admin",
+  super_admin: "Super Admin"
 };
 
 export const priorityLabels = {

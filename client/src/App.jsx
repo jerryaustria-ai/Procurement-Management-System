@@ -28,6 +28,7 @@ import ToastStack from './components/ToastStack.jsx'
 import UserEditorPanel from './components/UserEditorPanel.jsx'
 import UserManagementPanel from './components/UserManagementPanel.jsx'
 import WorkflowTimeline from './components/WorkflowTimeline.jsx'
+import InventoryApp from './components/InventoryApp.jsx'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 const ART_GALLERY_URL =
@@ -442,6 +443,12 @@ function updateAuthUrl(view, resetToken = '') {
 }
 
 function getInitialLandingApp() {
+  if (typeof window !== 'undefined') {
+    const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
+    if (pathname === '/inventory') return 'inventory'
+    if (pathname === '/procurement') return 'procurement'
+  }
+
   return getAuthViewFromUrl() === 'login' ? 'home' : 'procurement'
 }
 
@@ -3014,6 +3021,15 @@ export default function App() {
   }, [selectedUser, isUserModalOpen])
 
   useEffect(() => {
+    function handleBrowserNavigation() {
+      setSelectedLandingApp(getInitialLandingApp())
+    }
+
+    window.addEventListener('popstate', handleBrowserNavigation)
+    return () => window.removeEventListener('popstate', handleBrowserNavigation)
+  }, [])
+
+  useEffect(() => {
     if (!session?.token) {
       return
     }
@@ -3182,7 +3198,7 @@ export default function App() {
 
   function openLoginScreen() {
     setAuthView('login')
-    setSelectedLandingApp('procurement')
+    navigateToLandingApp('procurement', true)
     setForgotPasswordError('')
     setForgotPasswordMessage('')
     setResetPasswordError('')
@@ -3194,11 +3210,25 @@ export default function App() {
 
   function openForgotPasswordScreen() {
     setAuthView('forgot-password')
-    setSelectedLandingApp('procurement')
+    navigateToLandingApp('procurement', true)
     setForgotPasswordEmail(String(credentials.email || '').trim())
     setForgotPasswordError('')
     setForgotPasswordMessage('')
     updateAuthUrl('forgot-password')
+  }
+
+  function navigateToLandingApp(appName, replace = false) {
+    setSelectedLandingApp(appName)
+    if (typeof window === 'undefined') return
+
+    const pathname =
+      appName === 'inventory'
+        ? '/inventory'
+        : appName === 'procurement'
+          ? '/procurement'
+          : '/'
+    const method = replace ? 'replaceState' : 'pushState'
+    window.history[method]({}, '', pathname)
   }
 
   function handleForgotPasswordChange(event) {
@@ -9294,8 +9324,8 @@ export default function App() {
     })
   }
 
-  if (!session?.token) {
-    if (selectedLandingApp !== 'procurement') {
+  if (!session?.token || selectedLandingApp === 'home') {
+    if (selectedLandingApp === 'home') {
       return (
         <main className='app-shell auth-shell'>
           <section className='app-selector-landing'>
@@ -9319,7 +9349,7 @@ export default function App() {
                 <button
                   type='button'
                   className='app-selector-button'
-                  onClick={() => setSelectedLandingApp('procurement')}
+                  onClick={() => navigateToLandingApp('procurement')}
                 >
                   Open Procurement
                 </button>
@@ -9340,13 +9370,40 @@ export default function App() {
                   <span className='app-selector-badge'>Coming soon</span>
                 )}
               </article>
+
+              <article className='panel app-selector-card app-selector-card-inventory'>
+                <p className='eyebrow'>Third application</p>
+                <h2>Inventory Management System</h2>
+                <p>
+                  Manage corporate postpaid plans, internet and ISP accounts,
+                  office equipment, company-issued devices, and contract
+                  renewals in one inventory workspace.
+                </p>
+                <button
+                  type='button'
+                  className='app-selector-secondary'
+                  onClick={() => navigateToLandingApp('inventory')}
+                >
+                  Open Inventory
+                </button>
+              </article>
             </div>
           </section>
         </main>
       )
     }
 
-    return (
+    return selectedLandingApp === 'inventory' ? (
+      <main className='app-shell auth-shell'>
+        <section className='auth-landing'>
+          <div className='auth-content'>
+            <button type='button' className='auth-app-switch' onClick={() => navigateToLandingApp('home')}>Back to applications</button>
+            <LoginForm credentials={credentials} onChange={handleCredentialChange} onSubmit={handleLogin} onForgotPassword={openForgotPasswordScreen} isSubmitting={isSubmitting} error={authError} title='Sign in to Inventory' />
+          </div>
+          <div className='auth-brandmark'><img className='auth-logo' src='/JANUARIUS.ico' alt='Januarius Holdings Inc.' /><div className='auth-copy'><h1>Inventory Management System</h1><p className='hero-copy'>Postpaid, ISP, and equipment records in one secure workspace.</p></div></div>
+        </section>
+      </main>
+    ) : (
       <main className='app-shell auth-shell'>
         <LoadingOverlay
           visible={isSubmitting || isLoading}
@@ -9362,7 +9419,7 @@ export default function App() {
             <button
               type='button'
               className='auth-app-switch'
-              onClick={() => setSelectedLandingApp('home')}
+              onClick={() => navigateToLandingApp('home')}
             >
               Back to applications
             </button>
@@ -9419,6 +9476,10 @@ export default function App() {
         </section>
       </main>
     )
+  }
+
+  if (selectedLandingApp === 'inventory') {
+    return <InventoryApp apiBaseUrl={API_BASE_URL} session={session} onOpenProcurement={() => navigateToLandingApp('procurement')} onLogout={handleLogout} />
   }
 
   if (isRequestForPaymentPageOpen && selectedItem) {

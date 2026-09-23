@@ -7,6 +7,7 @@ import settingsRoutes from "./routes/settings.js";
 import supplierRoutes from "./routes/suppliers.js";
 import userRoutes from "./routes/users.js";
 import workflowRoutes from "./routes/workflows.js";
+import inventoryRoutes from "./routes/inventory.js";
 
 const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
@@ -172,6 +173,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workflows", workflowRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 app.use((error, _req, res, next) => {
   if (!error) {

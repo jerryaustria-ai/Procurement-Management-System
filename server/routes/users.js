@@ -43,7 +43,7 @@ router.patch("/me", async (req, res) => {
   return res.json({ user: serializeUser(user) });
 });
 
-router.use(requireRole("admin"));
+router.use(requireRole("admin", "super_admin"));
 
 router.get("/", async (_req, res) => {
   const users = await User.find().sort({ createdAt: -1 });
@@ -52,6 +52,9 @@ router.get("/", async (_req, res) => {
 
 router.post("/", async (req, res) => {
   const { name, email, role, department, password } = req.body;
+  if (role === 'super_admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({ message: 'Only a Super Admin can assign the Super Admin role.' });
+  }
 
   if (!name || !email || !role || !password) {
     return res
@@ -89,6 +92,9 @@ router.patch("/:id", async (req, res) => {
   }
 
   const { name, email, role, department, password } = req.body;
+  if (req.user.role !== 'super_admin' && (user.role === 'super_admin' || role === 'super_admin')) {
+    return res.status(403).json({ message: 'Only a Super Admin can manage Super Admin accounts.' });
+  }
 
   if (typeof role === "string" && !roleLabels[role]) {
     return res.status(400).json({ message: "Invalid role." });
@@ -128,6 +134,9 @@ router.delete("/:id", async (req, res) => {
 
   if (!user) {
     return res.status(404).json({ message: "User not found." });
+  }
+  if (user.role === 'super_admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({ message: 'Only a Super Admin can manage Super Admin accounts.' });
   }
 
   if (user._id.toString() === req.user._id.toString()) {
