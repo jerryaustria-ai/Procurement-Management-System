@@ -266,7 +266,13 @@ const MONTH_OPTIONS = [
   { value: 11, label: 'December' },
 ]
 
-const VALID_RFP_FILTERS = ['all', 'for-payment', 'for-liquidation', 'closed']
+const VALID_RFP_FILTERS = [
+  'all',
+  'approved',
+  'for-payment',
+  'for-liquidation',
+  'closed',
+]
 const RFP_STATUS_SORT_ORDER = new Map([
   ['approved', 0],
   ['processed', 1],
@@ -493,7 +499,9 @@ export default function RfpDirectoryPage({
 }) {
   const currentDate = new Date()
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterValue, setFilterValue] = useState('all')
+  const [filterValue, setFilterValue] = useState(
+    accountantStatusShading ? 'approved' : 'all',
+  )
   const [closedMonth, setClosedMonth] = useState(currentDate.getMonth())
   const [closedYear, setClosedYear] = useState(currentDate.getFullYear())
   const [sortValue, setSortValue] = useState('due-date-desc')
@@ -557,6 +565,10 @@ export default function RfpDirectoryPage({
 
       if (!matchesSearch) {
         return false
+      }
+
+      if (filterValue === 'approved') {
+        return getDisplayRfpStatus(record).toLowerCase() === 'approved'
       }
 
       if (filterValue === 'for-payment') {
@@ -812,6 +824,9 @@ export default function RfpDirectoryPage({
               }}
             >
               <option value="all">All records</option>
+              {accountantStatusShading ? (
+                <option value="approved">Approved</option>
+              ) : null}
               <option value="for-payment">For Payment</option>
               <option value="for-liquidation">For Liquidation</option>
               <option value="closed">Closed</option>

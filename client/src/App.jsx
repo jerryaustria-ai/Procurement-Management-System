@@ -1436,8 +1436,20 @@ function isAccountantForApprovalItem(item) {
   return !isTerminalRequest(item) && !isRequestApprovedForRfpRecord(item)
 }
 
+function getAccountantApprovedRfpItems(items) {
+  return items.filter((item) => {
+    if (isTerminalRequest(item) || !isRequestApprovedForRfpRecord(item)) {
+      return false
+    }
+
+    const normalizedPaymentStatus = getNormalizedPaymentStatus(item)
+
+    return !normalizedPaymentStatus || normalizedPaymentStatus === 'approved'
+  })
+}
+
 function getAccountantDashboardStats(items, referenceDate = new Date()) {
-  const forPaymentItems = getAccountantForPaymentItems(items)
+  const approvedItems = getAccountantApprovedRfpItems(items)
   const processedThisMonthItems = getAccountantProcessedThisMonthItems(
     items,
     referenceDate,
@@ -1447,13 +1459,15 @@ function getAccountantDashboardStats(items, referenceDate = new Date()) {
     referenceDate,
   )
 
-  const totalAmountPending = forPaymentItems
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  const totalAmountPending = approvedItems.reduce(
+    (sum, item) => sum + getRecordAmount(item),
+    0,
+  )
 
   return [
     {
       label: 'For Payment',
-      value: String(forPaymentItems.length).padStart(2, '0'),
+      value: String(approvedItems.length).padStart(2, '0'),
       actionKey: 'for-payment',
     },
     {
