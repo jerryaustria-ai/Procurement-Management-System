@@ -10448,6 +10448,8 @@ export default function App() {
           onExportCsv={handleExportRfpCsv}
           activeScope=''
           onSavePaymentStatus={handleSaveRfpPaymentStatus}
+          prioritizeUrgent={false}
+          accountantStatusShading
         />
       ) : session.user.role === 'requester' ? (
         <div>

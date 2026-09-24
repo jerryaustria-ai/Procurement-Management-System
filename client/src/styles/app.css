@@ -3469,6 +3469,48 @@ label,
   );
 }
 
+.supplier-row.rfp-accountant-processed td {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: rgba(100, 116, 139, 0.12);
+}
+
+.supplier-row.rfp-accountant-processed:hover td,
+.supplier-row.rfp-accountant-processed:focus td {
+  border-color: rgba(100, 116, 139, 0.42);
+  background: rgba(100, 116, 139, 0.18);
+}
+
+.supplier-row.rfp-accountant-approved td {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.supplier-row.rfp-accountant-approved:hover td,
+.supplier-row.rfp-accountant-approved:focus td {
+  border-color: rgba(34, 197, 94, 0.46);
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.request-list-item.rfp-accountant-processed {
+  border-color: rgba(100, 116, 139, 0.3);
+  background: rgba(100, 116, 139, 0.12);
+}
+
+.request-list-item.rfp-accountant-approved {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.request-list-item.rfp-accountant-processed:hover {
+  border-color: rgba(100, 116, 139, 0.42);
+  background: rgba(100, 116, 139, 0.18);
+}
+
+.request-list-item.rfp-accountant-approved:hover {
+  border-color: rgba(34, 197, 94, 0.46);
+  background: rgba(34, 197, 94, 0.18);
+}
+
 .rfp-table-urgent-watermark {
   position: absolute;
   top: 50%;

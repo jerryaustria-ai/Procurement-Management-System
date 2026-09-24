@@ -412,6 +412,24 @@ function getRfpStatusClassName(record) {
   return 'rfp-status-text'
 }
 
+function getAccountantStatusShadeClass(record, enabled) {
+  if (!enabled) {
+    return ''
+  }
+
+  const normalizedStatus = getDisplayRfpStatus(record).toLowerCase()
+
+  if (normalizedStatus === 'processed') {
+    return 'rfp-accountant-processed'
+  }
+
+  if (normalizedStatus === 'approved') {
+    return 'rfp-accountant-approved'
+  }
+
+  return ''
+}
+
 function getRfpStatusSortRank(record) {
   const normalizedStatus = getDisplayRfpStatus(record).toLowerCase()
 
@@ -470,6 +488,8 @@ export default function RfpDirectoryPage({
   onViewModeChange,
   onExportCsv,
   embedded = false,
+  prioritizeUrgent = true,
+  accountantStatusShading = false,
 }) {
   const currentDate = new Date()
   const [searchQuery, setSearchQuery] = useState('')
@@ -555,11 +575,13 @@ export default function RfpDirectoryPage({
     })
 
     const sortedItems = [...filteredItems].sort((left, right) => {
-      const urgentDifference =
-        Number(Boolean(right.isUrgent)) - Number(Boolean(left.isUrgent))
+      if (prioritizeUrgent) {
+        const urgentDifference =
+          Number(Boolean(right.isUrgent)) - Number(Boolean(left.isUrgent))
 
-      if (urgentDifference !== 0) {
-        return urgentDifference
+        if (urgentDifference !== 0) {
+          return urgentDifference
+        }
       }
 
       if (sortValue === 'request-number-asc') {
@@ -601,12 +623,15 @@ export default function RfpDirectoryPage({
 
       const leftDate = getRfpDueDateSortValue(left)
       const rightDate = getRfpDueDateSortValue(right)
-      const statusRankDifference =
-        getRfpStatusSortRank(left) - getRfpStatusSortRank(right)
 
       if (sortValue === 'due-date-asc' || sortValue === 'due-date-desc') {
-        if (statusRankDifference !== 0) {
-          return statusRankDifference
+        if (prioritizeUrgent) {
+          const statusRankDifference =
+            getRfpStatusSortRank(left) - getRfpStatusSortRank(right)
+
+          if (statusRankDifference !== 0) {
+            return statusRankDifference
+          }
         }
 
         const dateDifference =
@@ -625,7 +650,7 @@ export default function RfpDirectoryPage({
     })
 
     return sortedItems
-  }, [closedMonth, closedYear, filterValue, items, searchQuery, sortValue])
+  }, [closedMonth, closedYear, filterValue, items, prioritizeUrgent, searchQuery, sortValue])
 
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / pageSize))
   const effectiveCurrentPage = Math.min(currentPage, totalPages)
@@ -934,7 +959,7 @@ export default function RfpDirectoryPage({
                 return (
                   <tr
                     key={record.id}
-                    className={`supplier-row audit-trail-row ${record.isUrgent ? "urgent" : ""}`}
+                    className={`supplier-row audit-trail-row ${record.isUrgent ? "urgent" : ""} ${getAccountantStatusShadeClass(record, accountantStatusShading)}`}
                     onClick={handlePreview}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -1003,7 +1028,7 @@ export default function RfpDirectoryPage({
                   key={record.id}
                   className={`request-list-item rfp-record-card ${record.isUrgent ? "urgent" : ""} ${
                     record.status === "completed" || record.filingCompleted ? "completed" : ""
-                  } ${record.status === "rejected" ? "rejected" : ""}`}
+                  } ${record.status === "rejected" ? "rejected" : ""} ${getAccountantStatusShadeClass(record, accountantStatusShading)}`}
                 >
                   {record.isUrgent ? (
                     <span className="request-list-urgent-watermark" aria-hidden="true">
