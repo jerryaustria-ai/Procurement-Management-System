@@ -1156,6 +1156,70 @@ label,
   box-shadow: 0 0 0 1px rgba(195, 75, 66, 0.16);
 }
 
+.currency-amount-control {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(84px, auto) 1px auto minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--input-border);
+  border-radius: 16px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  transition:
+    border-color 220ms var(--ease-soft),
+    box-shadow 220ms var(--ease-soft);
+}
+
+.currency-amount-control:focus-within {
+  border-color: rgba(213, 181, 108, 0.5);
+  box-shadow: 0 0 0 3px rgba(213, 181, 108, 0.12);
+}
+
+.currency-amount-control.field-input-invalid,
+.currency-amount-control.field-input-invalid:focus-within {
+  border-color: rgba(195, 75, 66, 0.92) !important;
+  box-shadow: 0 0 0 1px rgba(195, 75, 66, 0.16);
+}
+
+.currency-amount-control .currency-amount-select,
+.currency-amount-control .currency-amount-input,
+.currency-amount-field.field-invalid .currency-amount-select,
+.currency-amount-field.field-invalid .currency-amount-input {
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.currency-amount-control .currency-amount-select {
+  height: 100%;
+  padding: 14px 30px 14px 14px;
+  color: var(--input-text);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.currency-amount-divider {
+  width: 1px;
+  height: 58%;
+  background: var(--input-border);
+}
+
+.currency-amount-symbol {
+  padding-left: 14px;
+  color: var(--text-muted);
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.currency-amount-control .currency-amount-input {
+  padding: 14px 16px 14px 8px;
+}
+
 .checkbox-field {
   width: fit-content;
   display: inline-flex;

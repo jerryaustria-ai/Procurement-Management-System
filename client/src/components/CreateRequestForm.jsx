@@ -146,16 +146,38 @@ export default function CreateRequestForm({
           </select>
         </label>
 
-        <label className={errors.amount ? 'field-invalid' : ''}>
+        <label
+          className={`currency-amount-field ${errors.amount ? 'field-invalid' : ''}`}
+        >
           Amount *
-          <input
-            className={errors.amount ? 'field-input-invalid' : ''}
-            name='amount'
-            value={form.amount}
-            onChange={onChange}
-            inputMode='decimal'
-            required
-          />
+          <div
+            className={`currency-amount-control ${errors.amount ? 'field-input-invalid' : ''}`}
+          >
+            <select
+              className='currency-amount-select'
+              name='currency'
+              value={form.currency || 'PHP'}
+              onChange={onChange}
+              aria-label='Currency'
+            >
+              <option value='USD'>USD</option>
+              <option value='PHP'>PHP</option>
+            </select>
+            <span className='currency-amount-divider' aria-hidden='true' />
+            <span className='currency-amount-symbol' aria-hidden='true'>
+              {(form.currency || 'PHP') === 'USD' ? '$' : '₱'}
+            </span>
+            <input
+              className='currency-amount-input'
+              name='amount'
+              value={form.amount}
+              onChange={onChange}
+              inputMode='decimal'
+              aria-label='Amount'
+              placeholder='0.00'
+              required
+            />
+          </div>
         </label>
 
         {isReimbursement ? (
