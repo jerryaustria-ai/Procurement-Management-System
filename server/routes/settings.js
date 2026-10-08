@@ -8,6 +8,15 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { Setting } from "../models/Setting.js";
 
 const router = Router();
+const DEFAULT_CURRENCIES = [
+  { code: "PHP", symbol: "₱" },
+  { code: "USD", symbol: "$" },
+  { code: "EUR", symbol: "€" }
+];
+const SUPPORTED_CURRENCY_CODES =
+  typeof Intl.supportedValuesOf === "function"
+    ? new Set(Intl.supportedValuesOf("currency"))
+    : null;
 
 const DEFAULT_SETTINGS = {
   key: "global",
@@ -19,8 +28,50 @@ const DEFAULT_SETTINGS = {
   generalAccountantName: "",
   chiefInvestmentOfficerName: "",
   workflowStages: [...defaultWorkflowStages],
-  skippedWorkflowStages: []
+  skippedWorkflowStages: [],
+  currencies: DEFAULT_CURRENCIES
 };
+
+function normalizeCurrencies(input, fallback = null) {
+  if (!Array.isArray(input)) {
+    return fallback;
+  }
+
+  const normalized = input
+    .map((currency) => ({
+      code: String(currency?.code || "").trim().toUpperCase(),
+      symbol: String(currency?.symbol || "").trim()
+    }))
+    .filter((currency) => currency.code || currency.symbol);
+
+  const hasInvalidCurrency = normalized.some((currency) => {
+    if (!/^[A-Z]{3}$/.test(currency.code) || !currency.symbol || currency.symbol.length > 4) {
+      return true;
+    }
+
+    if (SUPPORTED_CURRENCY_CODES && !SUPPORTED_CURRENCY_CODES.has(currency.code)) {
+      return true;
+    }
+
+    try {
+      new Intl.NumberFormat("en", {
+        style: "currency",
+        currency: currency.code
+      }).format(1);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  const hasDuplicateCode =
+    new Set(normalized.map((currency) => currency.code)).size !== normalized.length;
+
+  if (!normalized.length || normalized.length > 20 || hasInvalidCurrency || hasDuplicateCode) {
+    return null;
+  }
+
+  return normalized;
+}
 
 function normalizeWorkflowStages(input) {
   if (!Array.isArray(input)) {
@@ -67,6 +118,7 @@ function serializeSetting(setting) {
     setting.skippedWorkflowStages,
     normalizedWorkflowStages
   );
+  const currencies = normalizeCurrencies(setting.currencies, DEFAULT_CURRENCIES);
 
   return {
     id: setting.id,
@@ -78,7 +130,8 @@ function serializeSetting(setting) {
     generalAccountantName: setting.generalAccountantName,
     chiefInvestmentOfficerName: setting.chiefInvestmentOfficerName,
     workflowStages: normalizedWorkflowStages,
-    skippedWorkflowStages
+    skippedWorkflowStages,
+    currencies: currencies || DEFAULT_CURRENCIES
   };
 }
 
@@ -121,6 +174,10 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
     typeof req.body.skippedWorkflowStages === "undefined"
       ? serializeSetting(setting).skippedWorkflowStages
       : normalizeSkippedWorkflowStages(req.body.skippedWorkflowStages, normalizedWorkflowStages || defaultWorkflowStages);
+  const currencies =
+    typeof req.body.currencies === "undefined"
+      ? serializeSetting(setting).currencies
+      : normalizeCurrencies(req.body.currencies);
 
   if (!companyName) {
     return res.status(400).json({ message: "Company name is required." });
@@ -140,6 +197,12 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
     });
   }
 
+  if (!currencies) {
+    return res.status(400).json({
+      message: "Add at least one unique ISO currency code and symbol."
+    });
+  }
+
   setting.companyName = companyName;
   setting.address = address;
   setting.logoUrl = logoUrl;
@@ -147,6 +210,7 @@ router.patch("/", requireAuth, requireRole("admin"), async (req, res) => {
   setting.chiefInvestmentOfficerName = chiefInvestmentOfficerName;
   setting.workflowStages = normalizedWorkflowStages;
   setting.skippedWorkflowStages = skippedWorkflowStages;
+  setting.currencies = currencies;
 
   await setting.save();
   const identities = await getEntitySettings();

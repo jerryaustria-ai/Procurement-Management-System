@@ -4725,6 +4725,58 @@ button.inline-link {
   filter: none;
 }
 
+.currency-settings-card {
+  gap: 24px;
+}
+
+.currency-settings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.currency-settings-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--input-bg);
+}
+
+.currency-settings-item > div {
+  display: grid;
+  gap: 2px;
+}
+
+.currency-settings-item small {
+  color: var(--text-muted);
+}
+
+.currency-settings-symbol {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--soft-surface-strong);
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.currency-settings-add {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.currency-settings-add button {
+  min-height: 48px;
+}
+
 .settings-logo-card > span {
   color: var(--text-muted);
   font-size: 0.82rem;
@@ -4989,6 +5041,14 @@ button.inline-link {
   .settings-workflow-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
+  }
+
+  .currency-settings-add {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .currency-settings-add button {
+    width: 100%;
   }
 }
 

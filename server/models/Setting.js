@@ -1,6 +1,14 @@
 import mongoose from "mongoose";
 import { workflowStages } from "../config/workflow.js";
 
+const currencySchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, trim: true, uppercase: true },
+    symbol: { type: String, required: true, trim: true }
+  },
+  { _id: false }
+);
+
 const settingSchema = new mongoose.Schema(
   {
     key: { type: String, required: true, unique: true, trim: true },
@@ -12,7 +20,15 @@ const settingSchema = new mongoose.Schema(
     generalAccountantName: { type: String, default: "", trim: true },
     chiefInvestmentOfficerName: { type: String, default: "", trim: true },
     workflowStages: { type: [String], default: () => [...workflowStages] },
-    skippedWorkflowStages: { type: [String], default: () => [] }
+    skippedWorkflowStages: { type: [String], default: () => [] },
+    currencies: {
+      type: [currencySchema],
+      default: () => [
+        { code: "PHP", symbol: "₱" },
+        { code: "USD", symbol: "$" },
+        { code: "EUR", symbol: "€" }
+      ]
+    }
   },
   { timestamps: true }
 );

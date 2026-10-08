@@ -19,6 +19,7 @@ export default function SettingsPage({
   onLogoFileChange,
   onWorkflowStageMove,
   onWorkflowStageSkipChange,
+  onCurrencyOptionsChange,
   onStartMainSettingsEdit,
   onCancelMainSettingsEdit,
   onSave,
@@ -52,6 +53,59 @@ export default function SettingsPage({
   onClose,
 }) {
   const [activeSection, setActiveSection] = useState('branding')
+  const [currencyDraft, setCurrencyDraft] = useState({ code: '', symbol: '' })
+  const [currencyError, setCurrencyError] = useState('')
+
+  function handleAddCurrency() {
+    const code = currencyDraft.code.trim().toUpperCase()
+    const symbol = currencyDraft.symbol.trim()
+    const supportedCurrencyCodes =
+      typeof Intl.supportedValuesOf === 'function'
+        ? Intl.supportedValuesOf('currency')
+        : null
+
+    let isSupportedCurrency = false
+    try {
+      new Intl.NumberFormat('en', { style: 'currency', currency: code }).format(
+        1,
+      )
+      isSupportedCurrency = true
+    } catch {
+      isSupportedCurrency = false
+    }
+
+    if (
+      !/^[A-Z]{3}$/.test(code) ||
+      !symbol ||
+      symbol.length > 4 ||
+      (supportedCurrencyCodes && !supportedCurrencyCodes.includes(code)) ||
+      !isSupportedCurrency
+    ) {
+      setCurrencyError('Enter a valid 3-letter currency code and its symbol.')
+      return
+    }
+
+    if (form.currencies?.some((currency) => currency.code === code)) {
+      setCurrencyError(`${code} is already in the currency list.`)
+      return
+    }
+
+    onCurrencyOptionsChange?.([...(form.currencies || []), { code, symbol }])
+    setCurrencyDraft({ code: '', symbol: '' })
+    setCurrencyError('')
+  }
+
+  function handleDeleteCurrency(code) {
+    if ((form.currencies || []).length <= 1) {
+      setCurrencyError('At least one currency must remain available.')
+      return
+    }
+
+    onCurrencyOptionsChange?.(
+      form.currencies.filter((currency) => currency.code !== code),
+    )
+    setCurrencyError('')
+  }
 
   if (!isAdmin) {
     return (
@@ -196,6 +250,13 @@ export default function SettingsPage({
               Workflow
             </button>
             <button
+              className={`settings-shortcut-button ${activeSection === 'currencies' ? 'is-primary' : ''}`}
+              type='button'
+              onClick={() => setActiveSection('currencies')}
+            >
+              Currencies
+            </button>
+            <button
               className={`settings-shortcut-button ${activeSection === 'users' ? 'is-primary' : ''}`}
               type='button'
               onClick={() => setActiveSection('users')}
@@ -234,7 +295,120 @@ export default function SettingsPage({
         </section>
 
         <div className='settings-admin-content'>
-          {activeSection === 'workflow' ? (
+          {activeSection === 'currencies' ? (
+            <section
+              className={`panel settings-branding-panel ${isMainSettingsEditing ? 'is-active' : 'is-inactive'}`}
+            >
+              <div
+                className={`settings-panel-actions ${isMainSettingsEditing ? 'is-active' : ''}`}
+              >
+                {isMainSettingsEditing ? (
+                  <button
+                    className='ghost-button settings-panel-cancel'
+                    type='button'
+                    onClick={() => {
+                      setCurrencyError('')
+                      setCurrencyDraft({ code: '', symbol: '' })
+                      onCancelMainSettingsEdit()
+                    }}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+                <button
+                  className={`settings-panel-toggle ${isMainSettingsEditing ? 'is-active' : ''}`}
+                  type='button'
+                  onClick={
+                    isMainSettingsEditing ? onSave : onStartMainSettingsEdit
+                  }
+                >
+                  {isMainSettingsEditing ? 'Save' : 'Edit'}
+                </button>
+              </div>
+
+              <div className='panel-heading'>
+                <div>
+                  <p className='eyebrow'>Currencies</p>
+                  <h2>Amount currency options</h2>
+                  <p className='hero-copy'>
+                    Manage the currencies available when creating a request.
+                  </p>
+                </div>
+              </div>
+
+              <div className='settings-form-card currency-settings-card'>
+                <div className='currency-settings-list'>
+                  {(form.currencies || []).map((currency) => (
+                    <div className='currency-settings-item' key={currency.code}>
+                      <span
+                        className='currency-settings-symbol'
+                        aria-hidden='true'
+                      >
+                        {currency.symbol}
+                      </span>
+                      <div>
+                        <strong>{currency.code}</strong>
+                        <small>{currency.symbol}</small>
+                      </div>
+                      <button
+                        className='ghost-button danger-link'
+                        type='button'
+                        onClick={() => handleDeleteCurrency(currency.code)}
+                        disabled={!isMainSettingsEditing}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className='currency-settings-add'>
+                  <label>
+                    Currency code
+                    <input
+                      value={currencyDraft.code}
+                      onChange={(event) => {
+                        setCurrencyDraft((current) => ({
+                          ...current,
+                          code: event.target.value.toUpperCase().slice(0, 3),
+                        }))
+                        setCurrencyError('')
+                      }}
+                      placeholder='JPY'
+                      maxLength='3'
+                      disabled={!isMainSettingsEditing}
+                    />
+                  </label>
+                  <label>
+                    Symbol
+                    <input
+                      value={currencyDraft.symbol}
+                      onChange={(event) => {
+                        setCurrencyDraft((current) => ({
+                          ...current,
+                          symbol: event.target.value.slice(0, 4),
+                        }))
+                        setCurrencyError('')
+                      }}
+                      placeholder='¥'
+                      maxLength='4'
+                      disabled={!isMainSettingsEditing}
+                    />
+                  </label>
+                  <button
+                    type='button'
+                    onClick={handleAddCurrency}
+                    disabled={!isMainSettingsEditing}
+                  >
+                    Add currency
+                  </button>
+                </div>
+                {currencyError ? (
+                  <p className='error-text'>{currencyError}</p>
+                ) : null}
+              </div>
+            </section>
+          ) : activeSection === 'workflow' ? (
             <section
               id='settings-workflow-panel'
               className={`panel settings-branding-panel ${isMainSettingsEditing ? 'is-active' : 'is-inactive'}`}

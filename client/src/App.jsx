@@ -82,6 +82,11 @@ const DEFAULT_WORKFLOW_STAGES = [
   'Payment',
   'Filing',
 ]
+const DEFAULT_CURRENCIES = [
+  { code: 'PHP', symbol: '₱' },
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+]
 const DEFAULT_COMPANY_SETTINGS = {
   companyName: 'Januarius Holdings Inc.',
   logoUrl: '/JANUARIUS.ico',
@@ -91,6 +96,7 @@ const DEFAULT_COMPANY_SETTINGS = {
   chiefInvestmentOfficerName: '',
   workflowStages: DEFAULT_WORKFLOW_STAGES,
   skippedWorkflowStages: [],
+  currencies: DEFAULT_CURRENCIES,
 }
 
 function getStoredTheme() {
@@ -471,6 +477,7 @@ function getInitialRequestForm(
   requesterEmail = '',
   branch = DEFAULT_COMPANY_SETTINGS.companyName,
   deliveryAddress = '',
+  currency = 'PHP',
 ) {
   return {
     requesterName,
@@ -483,7 +490,7 @@ function getInitialRequestForm(
     department,
     propertyProject: '',
     amount: '',
-    currency: 'PHP',
+    currency,
     modeOfRelease: '',
     bankName: '',
     accountName: '',
@@ -1247,6 +1254,7 @@ function getRequestAdminForm(
       department: '',
       propertyProject: '',
       amount: '',
+      currency: 'PHP',
       dateNeeded: '',
       expenseDate: '',
       modeOfRelease: '',
@@ -1277,6 +1285,7 @@ function getRequestAdminForm(
     department: item.department ?? '',
     propertyProject: item.propertyProject ?? '',
     amount: String(item.amount ?? ''),
+    currency: item.currency ?? 'PHP',
     modeOfRelease: item.modeOfRelease ?? '',
     bankName: item.bankName ?? '',
     accountName: item.accountName ?? '',
@@ -2315,6 +2324,8 @@ export default function App() {
   const [companySettings, setCompanySettings] = useState(
     DEFAULT_COMPANY_SETTINGS,
   )
+  const defaultRequestCurrency =
+    companySettings.currencies?.[0]?.code || 'PHP'
   const [companyIdentities, setCompanyIdentities] = useState([])
   const [session, setSession] = useState(() => getStoredSession())
   const [settingsForm, setSettingsForm] = useState(DEFAULT_COMPANY_SETTINGS)
@@ -2846,6 +2857,10 @@ export default function App() {
       skippedWorkflowStages: Array.isArray(data.skippedWorkflowStages)
         ? data.skippedWorkflowStages
         : DEFAULT_COMPANY_SETTINGS.skippedWorkflowStages,
+      currencies:
+        Array.isArray(data.currencies) && data.currencies.length
+          ? data.currencies
+          : DEFAULT_COMPANY_SETTINGS.currencies,
     }
 
     setCompanySettings(nextSettings)
@@ -4188,6 +4203,13 @@ export default function App() {
     })
   }
 
+  function handleCurrencyOptionsChange(currencies) {
+    setSettingsForm((current) => ({
+      ...current,
+      currencies,
+    }))
+  }
+
   function handleRequesterSettingsFormChange(event) {
     const { name, type, checked, value } = event.target
 
@@ -4732,6 +4754,7 @@ export default function App() {
           companySettings,
           companyIdentities,
         ),
+        defaultRequestCurrency,
       ),
     )
     setRequestQuotationFiles([])
@@ -6401,6 +6424,7 @@ export default function App() {
 
         <CreateRequestForm
           form={requestForm}
+          currencies={companySettings.currencies}
           requestNumberPreview={getRequestNumberPreview(items, requestForm.category)}
           branchOptions={branchOptions}
           isAdmin={isAdmin}
@@ -6610,6 +6634,11 @@ export default function App() {
               : session.user.email,
             supplier: requestForm.supplier,
             amount: parsedRequestAmount,
+            currency: companySettings.currencies.some(
+              (currency) => currency.code === requestForm.currency,
+            )
+              ? requestForm.currency
+              : defaultRequestCurrency,
           }),
         },
       )
@@ -7336,7 +7365,11 @@ export default function App() {
       department: duplicateSourceForm.department,
       propertyProject: duplicateSourceForm.propertyProject,
       amount: duplicateSourceForm.amount,
-      currency: selectedItem.currency || 'PHP',
+      currency: companySettings.currencies.some(
+        (currency) => currency.code === selectedItem.currency,
+      )
+        ? selectedItem.currency
+        : defaultRequestCurrency,
       modeOfRelease: normalizedModeOfRelease,
       ...normalizedReleaseDetails,
       isUrgent: Boolean(duplicateSourceForm.isUrgent),
@@ -9122,6 +9155,11 @@ export default function App() {
             )
               ? settingsForm.skippedWorkflowStages
               : DEFAULT_COMPANY_SETTINGS.skippedWorkflowStages,
+            currencies:
+              Array.isArray(settingsForm.currencies) &&
+              settingsForm.currencies.length
+                ? settingsForm.currencies
+                : DEFAULT_COMPANY_SETTINGS.currencies,
           }),
         })
 
@@ -9147,6 +9185,10 @@ export default function App() {
           skippedWorkflowStages: Array.isArray(data.skippedWorkflowStages)
             ? data.skippedWorkflowStages
             : DEFAULT_COMPANY_SETTINGS.skippedWorkflowStages,
+          currencies:
+            Array.isArray(data.currencies) && data.currencies.length
+              ? data.currencies
+              : DEFAULT_COMPANY_SETTINGS.currencies,
         }
 
         setCompanySettings(nextSettings)
@@ -9916,6 +9958,7 @@ export default function App() {
           onLogoFileChange={handleSettingsLogoChange}
           onWorkflowStageMove={handleWorkflowStageMove}
           onWorkflowStageSkipChange={handleWorkflowStageSkipChange}
+          onCurrencyOptionsChange={handleCurrencyOptionsChange}
           onStartMainSettingsEdit={handleStartMainSettingsEdit}
           onCancelMainSettingsEdit={handleCancelMainSettingsEdit}
           onSave={handleSaveSettings}
@@ -11016,6 +11059,7 @@ export default function App() {
         >
           <CreateRequestForm
             form={requestForm}
+            currencies={companySettings.currencies}
             requestNumberPreview={getRequestNumberPreview(items, requestForm.category)}
             branchOptions={branchOptions}
             isAdmin={isAdmin}
@@ -11299,6 +11343,7 @@ export default function App() {
           <RequestAdminPanel
             item={selectedItem}
             stages={selectedItemStages}
+            currencies={companySettings.currencies}
             branchOptions={Array.from(
               new Set([...branchOptions, selectedItem.branch].filter(Boolean)),
             )}

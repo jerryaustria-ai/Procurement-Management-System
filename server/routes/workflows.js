@@ -830,6 +830,7 @@ router.patch("/purchase-requests/:id", async (req, res) => {
           "branch",
           "department",
           "propertyProject",
+          "currency",
           "dateNeeded",
           "expenseDate",
           "notes",

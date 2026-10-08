@@ -5,6 +5,7 @@ export default function RequestAdminPanel({
   item,
   stages,
   branchOptions,
+  currencies = [],
   form,
   onChange,
   onSave,
@@ -33,6 +34,41 @@ export default function RequestAdminPanel({
   const isBankTransfer = form.modeOfRelease === "Bank Transfer";
   const isCheck = form.modeOfRelease === "Check";
   const isDigitalWallet = form.modeOfRelease === "Digital Wallet (GCash / Maya)";
+  const configuredCurrencies = currencies.length
+    ? currencies
+    : [
+        { code: "PHP", symbol: "₱" },
+        { code: "USD", symbol: "$" },
+        { code: "EUR", symbol: "€" }
+      ];
+  const currentCurrencyCode = form.currency || item.currency || configuredCurrencies[0].code;
+  const hasCurrentCurrency = configuredCurrencies.some(
+    (currency) => currency.code === currentCurrencyCode
+  );
+  const currentCurrencySymbol = (() => {
+    try {
+      return (
+        new Intl.NumberFormat("en", {
+          style: "currency",
+          currency: currentCurrencyCode,
+          currencyDisplay: "narrowSymbol"
+        })
+          .formatToParts(0)
+          .find((part) => part.type === "currency")?.value || currentCurrencyCode
+      );
+    } catch {
+      return currentCurrencyCode;
+    }
+  })();
+  const currencyOptions = hasCurrentCurrency
+    ? configuredCurrencies
+    : [
+        ...configuredCurrencies,
+        { code: currentCurrencyCode, symbol: currentCurrencySymbol }
+      ];
+  const selectedCurrency =
+    currencyOptions.find((currency) => currency.code === currentCurrencyCode) ||
+    currencyOptions[0];
   const attachmentInputId = useId();
   const groupedDocuments = item.documents?.length
     ? [
@@ -69,9 +105,37 @@ export default function RequestAdminPanel({
             ))}
           </select>
         </label>
-        <label>
+        <label className="currency-amount-field">
           Amount
-          <input name="amount" value={form.amount} onChange={onChange} required />
+          <div className="currency-amount-control">
+            <select
+              className="currency-amount-select"
+              name="currency"
+              value={selectedCurrency.code}
+              onChange={onChange}
+              aria-label="Currency"
+            >
+              {currencyOptions.map((currency) => (
+                <option key={currency.code} value={currency.code}>
+                  {currency.code}
+                </option>
+              ))}
+            </select>
+            <span className="currency-amount-divider" aria-hidden="true" />
+            <span className="currency-amount-symbol" aria-hidden="true">
+              {selectedCurrency.symbol}
+            </span>
+            <input
+              className="currency-amount-input"
+              name="amount"
+              value={form.amount}
+              onChange={onChange}
+              inputMode="decimal"
+              aria-label="Amount"
+              placeholder="0.00"
+              required
+            />
+          </div>
         </label>
         <label>
           Mode of Release

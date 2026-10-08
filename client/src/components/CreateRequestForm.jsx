@@ -3,6 +3,7 @@ import { AttachmentManagerSection } from './RequestForPaymentPage.jsx'
 
 export default function CreateRequestForm({
   form,
+  currencies = [],
   requestNumberPreview,
   branchOptions,
   isAdmin,
@@ -29,6 +30,16 @@ export default function CreateRequestForm({
   const uploadLabel = isReimbursement
     ? 'Upload Reimbursement Documents'
     : 'Approved Quotation or Request'
+  const currencyOptions = currencies.length
+    ? currencies
+    : [
+        { code: 'PHP', symbol: '₱' },
+        { code: 'USD', symbol: '$' },
+        { code: 'EUR', symbol: '€' },
+      ]
+  const selectedCurrency =
+    currencyOptions.find((currency) => currency.code === form.currency) ||
+    currencyOptions[0]
 
   return (
     <section className='panel action-panel'>
@@ -156,16 +167,19 @@ export default function CreateRequestForm({
             <select
               className='currency-amount-select'
               name='currency'
-              value={form.currency || 'PHP'}
+              value={selectedCurrency.code}
               onChange={onChange}
               aria-label='Currency'
             >
-              <option value='USD'>USD</option>
-              <option value='PHP'>PHP</option>
+              {currencyOptions.map((currency) => (
+                <option key={currency.code} value={currency.code}>
+                  {currency.code}
+                </option>
+              ))}
             </select>
             <span className='currency-amount-divider' aria-hidden='true' />
             <span className='currency-amount-symbol' aria-hidden='true'>
-              {(form.currency || 'PHP') === 'USD' ? '$' : '₱'}
+              {selectedCurrency.symbol}
             </span>
             <input
               className='currency-amount-input'
