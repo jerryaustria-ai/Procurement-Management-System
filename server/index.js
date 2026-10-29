@@ -8,6 +8,7 @@ import supplierRoutes from "./routes/suppliers.js";
 import userRoutes from "./routes/users.js";
 import workflowRoutes from "./routes/workflows.js";
 import inventoryRoutes from "./routes/inventory.js";
+import integrationRoutes from "./routes/integrations.js";
 
 const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
@@ -108,7 +109,7 @@ function isAllowedOrigin(origin) {
 }
 
 const allowedMethods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
-const allowedHeaders = ["Content-Type", "Authorization"];
+const allowedHeaders = ["Content-Type", "Authorization", "X-API-Key"];
 
 app.use((req, res, next) => {
   const requestOrigin = normalizeOrigin(req.headers.origin);
@@ -174,6 +175,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/integrations", integrationRoutes);
 
 app.use((error, _req, res, next) => {
   if (!error) {
