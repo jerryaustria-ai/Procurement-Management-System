@@ -1548,6 +1548,20 @@ label,
   letter-spacing: -0.04em;
 }
 
+.stat-card-secondary-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+
+.stat-card-secondary-values small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .status-pill {
   align-self: center;
   padding: 10px 14px;

@@ -1331,10 +1331,20 @@ function getDashboardStats(items) {
   const completedCount = items.filter(
     (item) => item.status === 'completed',
   ).length
-  const totalAmount = items.reduce(
-    (sum, item) => sum + Number(item.amount || 0),
-    0,
-  )
+  const totalsByCurrency = items.reduce((totals, item) => {
+    const currency = String(item.currency || 'PHP').trim().toUpperCase()
+    totals[currency] = (totals[currency] || 0) + Number(item.amount || 0)
+    return totals
+  }, {})
+  const otherCurrencyTotals = Object.entries(totalsByCurrency)
+    .filter(([currency, total]) => currency !== 'PHP' && total !== 0)
+    .sort(([leftCurrency], [rightCurrency]) =>
+      leftCurrency.localeCompare(rightCurrency),
+    )
+    .map(([currency, total]) => ({
+      currency,
+      value: formatDashboardCurrency(total, currency),
+    }))
 
   return [
     { label: 'Open Requests', value: String(openCount).padStart(2, '0') },
@@ -1345,21 +1355,25 @@ function getDashboardStats(items) {
     },
     {
       label: 'Tracked Value',
-      value: new Intl.NumberFormat('en-PH', {
-        style: 'currency',
-        currency: 'PHP',
-        maximumFractionDigits: 0,
-      }).format(totalAmount),
+      value: formatDashboardCurrency(totalsByCurrency.PHP || 0),
+      secondaryValues: otherCurrencyTotals,
     },
   ]
 }
 
-function formatDashboardCurrency(value) {
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 0,
-  }).format(value)
+function formatDashboardCurrency(value, currency = 'PHP') {
+  try {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: 0,
+    }).format(value)
+  } catch {
+    return `${currency} ${Number(value || 0).toLocaleString('en-PH', {
+      maximumFractionDigits: 0,
+    })}`
+  }
 }
 
 function isTerminalRequest(item) {
@@ -10472,11 +10486,29 @@ export default function App() {
                 >
                   <span>{stat.label}</span>
                   <strong>{stat.value}</strong>
+                  {stat.secondaryValues?.length ? (
+                    <div className='stat-card-secondary-values'>
+                      {stat.secondaryValues.map((secondaryValue) => (
+                        <small key={secondaryValue.currency}>
+                          {secondaryValue.currency}: {secondaryValue.value}
+                        </small>
+                      ))}
+                    </div>
+                  ) : null}
                 </button>
               ) : (
                 <>
                   <span>{stat.label}</span>
                   <strong>{stat.value}</strong>
+                  {stat.secondaryValues?.length ? (
+                    <div className='stat-card-secondary-values'>
+                      {stat.secondaryValues.map((secondaryValue) => (
+                        <small key={secondaryValue.currency}>
+                          {secondaryValue.currency}: {secondaryValue.value}
+                        </small>
+                      ))}
+                    </div>
+                  ) : null}
                 </>
               )}
             </article>
